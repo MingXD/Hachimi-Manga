@@ -1,0 +1,6 @@
+﻿Lock zoom | Panels Guides 
+Skip to main content GitHub Search Getting started Importing content Organizing content Reading content Reader presets and configurations Live text Incognito mode Lock zoom Enabling Panels View Double page grouping Image filters Miscellaneous OPDS: Your own server FAQs Visit panels.app Reading content Lock zoom Lock zoom 
+ Lock zoom allows you to "fix" the zoom at a certain level, and maintain it when you move to the next pages. 
+ First, you need to enable it. Go to Reader settings -> gestures and zoom -> Lock zoom. 
+Once enable it, after you zoom in a page, you will see the following banner appear at the bottom of the screen for a few seconds: 
+Tapping on "Lock Zoom" will lock that zoom level. If you need to remove that lock, simply zoom out or change the zoom level. Edit this page Previous Incognito mode Next Enabling Panels View Community Discord Twitter More Download Panels app GitHub Copyright © 2026 Produkt Software Engineering. Built with Docusaurus.

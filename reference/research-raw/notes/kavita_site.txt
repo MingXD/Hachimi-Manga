@@ -1,0 +1,94 @@
+﻿Kavita - Self-Hosted Digital Library 
+Skip to main content 
+Ready to kick-start your next reading binge? 
+Lightning fast and privacy-friendly, Kavita is a self‑hosted digital library for EPUB, PDF, comics and manga — with built‑in readers (single, double page, and webtoon mode), OPDS, and rich metadata. Install and share your server in minutes.
+Get Started
+Try Demo
+Loading active installs 
+Active Installs 
+13+
+Languages 
+61+
+Feature Requests Delivered 
+100%
+Free & Open Source 
+Powerful Features 
+ Readers, metadata, search and OPDS for EPUB, PDF, comics & manga 
+User Management 
+Use OIDC or built-in logins to manage your users. Restrict access based on library or age restrictions. Full control over who sees what, with granular permission settings. 
+Built-in Readers 
+Dedicated, hand-crafted readers for EPUB, PDF, and image-based media (CBZ, loose images). Each reader is optimized for its format with features like webtoon mode, single page mode, dual-page (double page) spreads, and custom styling. 
+Annotation Support 
+Highlight and leave notes, share annotations with users on your server, and export to Obsidian—all out of the box. Your thoughts and insights preserved across devices. 
+Customizable 
+Choose UI themes, custom EPUB reader fonts, and nav/homescreen bindable smart filters to truly customize Kavita—no coding necessary. Make it yours. 
+Metadata-Focused 
+Rich metadata support with advanced filtering and organization. Kavita scans and parses metadata from filenames and ComicInfo.xml. Enhance your library with external cover art, descriptions, ratings, and reviews through Kavita+. 
+Active Development 
+Frequent updates with new features and improvements. Strong community engagement through our feature request system where users vote on what matters most . Your feedback directly shapes Kavita's roadmap. 
+Full-Text Search & Indexing 
+ Fast, index-backed search across your entire library with filtering by metadata. 
+Reading Lists 
+ Create curated lists, share them with friends, and pin reading queues for later. 
+Ratings 
+ Rate items to build personalized recommendations and discover top-rated content. 
+Reviews 
+ User reviews with moderation tools help your community share opinions safely. 
+Folder Watching 
+ Automatically import new files from watched folders for painless library updates. 
+Send to Device (Send to Kindle) 
+ One-click send to Kindle or other devices so you can read offline instantly. 
+OPDS Support 
+ Expose your library to OPDS-enabled readers and third-party apps with ease. 
+Rating Restrictions 
+ Restrict content visibility by rating with customizable age controls and policies. 
+Kavita+ 
+ Unlock premium features with our optional subscription service 
+Enhance Your Reading Experience 
+ Kavita+ is an optional premium service that brings advanced features to your self-hosted digital library. Sync progress with AniList, discover recommendations, and access rich metadata—all while supporting ongoing development. 
+Progress Sync 
+ Automatically sync your reading progress with AniList 
+External Ratings & Reviews 
+ Access ratings and reviews from AniList, MyAnimeList, and ComicBookRoundup 
+Personalized Recommendations 
+ Get tailored reading suggestions based on your preferences 
+Automatic Metadata 
+ Download rich metadata without manual tagging 
+Smart Collections 
+ Import MAL Interest Stacks and keep them synced 
+Want to Read Sync 
+ Sync your reading lists with MAL/AniList 
+Premium 
+ Ready to Level Up? 
+ Support development and unlock premium features 
+$2 
+ first month 
+Uses coupon code FIRSTTIME to get $2 off the first month.
+Then $4/month afterwards 
+Get Started with Kavita+
+Learn More About Kavita+
+Secure payment via Stripe • Cancel anytime 
+Monthly subscription, node-locked to your server. All users benefit once activated. 
+Build with Kavita 
+ Empower your projects with our open API 
+ Developers, unleash your creativity! Our comprehensive REST API and OPDS feeds let you build custom integrations, mobile apps, and third-party tools that connect with Kavita's readers, metadata and sync features. 
+API quick example 
+ // Example: Get your libraries
+fetch('/api/library')
+ .then(response => response.json())
+ .then(data => console.log(data)); 
+Explore API Documentation
+Start Your Reading Journey Today 
+Self-hosted, free, and open source. Get up and running in minutes.
+Install Kavita
+Kavita 
+A self-hosted digital library for all your reading needs.
+Resources 
+Wiki 
+ API Docs 
+ GitHub 
+Community 
+Discord 
+ Report Issues 
+ Donate 
+© 2020- Kavita. All rights reserved.

@@ -1,0 +1,79 @@
+﻿Reader Configuration and Preferences | mihonapp/mihon | DeepWiki Loading... Index your code with Devin DeepWiki DeepWiki mihonapp/mihon Index your code with Devin Edit Wiki Share Loading... Last indexed: 25 May 2026 ( 82338d ) Overview Project Structure Application Lifecycle Build System and Dependencies CI/CD and Release Process Core Architecture Domain Layer and Interactors Manga Reader System Reader Components and Viewers Page Loading and Image Processing Reader Configuration and Preferences Library Management System Manga Detail and Chapter Management Extension System Extension Loading and Management Source System and HTTP Integration Download System Tracking and External Services Background Services and Notifications Library Updates and Scheduled Jobs Backup, Restore, and Data Migration App Updates and Maintenance UI System and Theming Navigation and Main Interface Theming and Visual Customization WebView Integration Security and Permissions Glossary Menu Reader Configuration and Preferences 
+Relevant source files 
+app/src/main/java/eu/kanade/presentation/library/LibrarySettingsDialog.kt 
+ app/src/main/java/eu/kanade/presentation/more/settings/Preference.kt 
+ app/src/main/java/eu/kanade/presentation/more/settings/PreferenceItem.kt 
+ app/src/main/java/eu/kanade/presentation/more/settings/screen/SettingsReaderScreen.kt 
+ app/src/main/java/eu/kanade/presentation/reader/OrientationSelectDialog.kt 
+ app/src/main/java/eu/kanade/presentation/reader/ReadingModeSelectDialog.kt 
+ app/src/main/java/eu/kanade/presentation/reader/appbars/ReaderAppBars.kt 
+ app/src/main/java/eu/kanade/presentation/reader/components/ChapterNavigator.kt 
+ app/src/main/java/eu/kanade/presentation/reader/components/ModeSelectionDialog.kt 
+ app/src/main/java/eu/kanade/presentation/reader/settings/ColorFilterPage.kt 
+ app/src/main/java/eu/kanade/presentation/reader/settings/GeneralSettingsPage.kt 
+ app/src/main/java/eu/kanade/presentation/reader/settings/ReadingModePage.kt 
+ app/src/main/java/eu/kanade/tachiyomi/ui/library/LibrarySettingsScreenModel.kt 
+ app/src/main/java/eu/kanade/tachiyomi/ui/reader/setting/ReaderOrientation.kt 
+ app/src/main/java/eu/kanade/tachiyomi/ui/reader/setting/ReaderPreferences.kt 
+ app/src/main/java/eu/kanade/tachiyomi/ui/reader/setting/ReaderSettingsScreenModel.kt 
+ presentation-core/src/main/java/tachiyomi/presentation/core/components/SettingsItems.kt 
+ presentation-core/src/main/java/tachiyomi/presentation/core/components/material/IconToggleButton.kt 
+ presentation-core/src/main/java/tachiyomi/presentation/core/components/material/Slider.kt 
+This document describes the reader configuration and preference system in Mihon, which manages display settings, navigation modes, and reading behavior while viewing manga chapters. The system provides both global defaults and per-manga overrides for reading modes, orientations, and various display options. 
+Purpose and Scope 
+ The reader configuration system handles: 
+Global reader preferences (brightness, color filters, fullscreen, keep screen on) app/src/main/java/eu/kanade/tachiyomi/ui/reader/setting/ReaderPreferences.kt 15-136 
+ Viewer-specific settings (navigation modes, image scaling, crop borders, page transitions) app/src/main/java/eu/kanade/presentation/reader/settings/ReadingModePage.kt 63-137 
+ Per-manga overrides (reading mode and orientation preferences) app/src/main/java/eu/kanade/presentation/reader/settings/ReadingModePage.kt 29-52 
+ Runtime configuration (applying settings reactively as they change) app/src/main/java/eu/kanade/tachiyomi/ui/reader/setting/ReaderSettingsScreenModel.kt 1-50 
+The system uses a hierarchical design where base configurations are extended by viewer-specific implementations, allowing different behavior for Webtoon vs. Pager viewers. 
+Configuration Architecture 
+ Data Flow and Persistence 
+ Mihon uses a PreferenceStore to persist settings. The ReaderPreferences class acts as a central repository for reader-related preference keys. 
+Sources: app/src/main/java/eu/kanade/tachiyomi/ui/reader/setting/ReaderPreferences.kt 11-13 , app/src/main/java/eu/kanade/presentation/reader/settings/GeneralSettingsPage.kt 35-48 
+ Reader Preferences Definition 
+ The ReaderPreferences class defines the schema for all reader settings, utilizing Preference<T> objects that wrap the underlying storage. 
+Category Key Code Entities Purpose General pageTransitions , showPageNumber , fullscreen Basic UI behavior and visibility app/src/main/java/eu/kanade/tachiyomi/ui/reader/setting/ReaderPreferences.kt 17-33 E-Ink flashOnPageChange , flashDurationMillis Optimization for E-Ink display refreshes app/src/main/java/eu/kanade/tachiyomi/ui/reader/setting/ReaderPreferences.kt 19-25 Navigation navigationModePager , navigationModeWebtoon Defines tap zone behavior app/src/main/java/eu/kanade/tachiyomi/ui/reader/setting/ReaderPreferences.kt 150-152 Visuals colorFilterValue , grayscale , invertedColors Image post-processing filters app/src/main/java/eu/kanade/tachiyomi/ui/reader/setting/ReaderPreferences.kt 127-135 
+ Sources: app/src/main/java/eu/kanade/tachiyomi/ui/reader/setting/ReaderPreferences.kt 11-174 
+Per-Manga Overrides 
+ While global defaults exist (e.g., defaultReadingMode ), users can override these settings for specific manga. This is managed via the ReaderSettingsScreenModel . 
+ Reading Mode Selection 
+ The ReadingMode enum defines the available viewer types. When a user selects a mode in the reader, it updates the specific manga's metadata in the database. 
+Sources: app/src/main/java/eu/kanade/presentation/reader/settings/ReadingModePage.kt 32-52 app/src/main/java/eu/kanade/presentation/reader/ReadingModeSelectDialog.kt 32-50 
+ Resolution Logic 
+ The application determines the active configuration by checking if a per-manga override exists; otherwise, it falls back to the global preference defined in ReaderPreferences.defaultReadingMode . 
+ Sources: app/src/main/java/eu/kanade/presentation/reader/settings/ReadingModePage.kt 32-33 app/src/main/java/eu/kanade/tachiyomi/ui/reader/setting/ReaderPreferences.kt 39-42 
+Display and Image Processing Options 
+ The reader provides extensive options for how images are rendered and how the screen behaves. 
+ Color Filters and Brightness 
+ Mihon supports custom software-level brightness and color filtering. 
+Custom Brightness : A value range of [-75, 100] . Negative values overlay a semi-transparent black view to simulate lower-than-hardware brightness app/src/main/java/eu/kanade/presentation/reader/settings/ColorFilterPage.kt 32-47 
+ Color Filters : Allows manual adjustment of Red, Green, Blue, and Alpha channels using bitwise masks ( ALPHA_MASK , RED_MASK , etc.) app/src/main/java/eu/kanade/presentation/reader/settings/ColorFilterPage.kt 55-103 
+Scaling and Rotation 
+ For PagerViewer (standard manga format), several scaling and rotation options are available: 
+Image Scale Type : Determines how the image fits the screen (Fit Screen, Fit Width, Fit Height, etc.) app/src/main/java/eu/kanade/presentation/reader/settings/ReadingModePage.kt 75-84 
+ Dual Page Split : For landscape images or tablets, images can be split into two pages or rotated to fit app/src/main/java/eu/kanade/presentation/reader/settings/ReadingModePage.kt 112-136 
+ Zoom Start : Sets the initial focal point when opening a page (e.g., top-right for R2L manga) app/src/main/java/eu/kanade/presentation/reader/settings/ReadingModePage.kt 86-95 
+Sources: app/src/main/java/eu/kanade/presentation/reader/settings/ReadingModePage.kt 63-137 app/src/main/java/eu/kanade/tachiyomi/ui/reader/setting/ReaderPreferences.kt 92-118 
+Navigation and Controls 
+ Navigation settings define how users interact with the reader to turn pages. 
+ Navigation Modes (Tap Zones) 
+ The reader maps screen regions to "Next Page", "Previous Page", or "Open Menu" actions. 
+Pager Navigation : Managed by navigationModePager app/src/main/java/eu/kanade/presentation/reader/settings/ReadingModePage.kt 66-73 
+ Webtoon Navigation : Managed by navigationModeWebtoon app/src/main/java/eu/kanade/presentation/reader/settings/ReadingModePage.kt 145-152 
+ Inversion : Tap zones can be inverted horizontally or vertically via TappingInvertMode app/src/main/java/eu/kanade/tachiyomi/ui/reader/setting/ReaderPreferences.kt 182-187 
+Physical Controls 
+ Users can configure hardware buttons for navigation: 
+Volume Keys : Use volume up/down to turn pages app/src/main/java/eu/kanade/tachiyomi/ui/reader/setting/ReaderPreferences.kt 142-148 
+ Long Tap : Toggle whether a long press triggers specific reader actions app/src/main/java/eu/kanade/presentation/reader/settings/GeneralSettingsPage.kt 82-85 
+Sources: app/src/main/java/eu/kanade/tachiyomi/ui/reader/setting/ReaderPreferences.kt 140-174 app/src/main/java/eu/kanade/presentation/reader/settings/ReadingModePage.kt 145-152 
+Preference Persistence and UI Binding 
+ Mihon uses a reactive approach to bind preferences to the UI using Compose and Kotlin Flows. 
+ Settings UI Components 
+ Settings are rendered using reusable Compose components: 
+CheckboxItem : For boolean toggles presentation-core/src/main/java/tachiyomi/presentation/core/components/SettingsItems.kt 138-159 
+ SliderItem : For range-based values like brightness or flash duration presentation-core/src/main/java/tachiyomi/presentation/core/components/SettingsItems.kt 176-200 
+ SettingsChipRow : For selecting one of several enum-like values (e.g., Reader Theme) app/src/main/java/eu/kanade/presentation/reader/settings/GeneralSettingsPage.kt 49-57 
+State Collection 
+ The ReaderSettingsScreenModel exposes preferences as State objects to Compose functions via collectAsState() . When a preference is updated (e.g., via pref.set(newValue) ), the Flow emits the new value, triggering a recomposition of the reader UI. 
+ Sources: app/src/main/java/eu/kanade/presentation/reader/settings/GeneralSettingsPage.kt 36-47 app/src/main/java/eu/kanade/presentation/more/settings/PreferenceItem.kt 68-83 presentation-core/src/main/java/tachiyomi/presentation/core/util/PreferenceExtensions.kt 1-20 (implied by usage) Dismiss Refresh this wiki Enter email to refresh On this page Reader Configuration and Preferences Purpose and Scope Configuration Architecture Data Flow and Persistence Reader Preferences Definition Per-Manga Overrides Reading Mode Selection Resolution Logic Display and Image Processing Options Color Filters and Brightness Scaling and Rotation Navigation and Controls Navigation Modes (Tap Zones) Physical Controls Preference Persistence and UI Binding Settings UI Components State Collection

@@ -1,0 +1,68 @@
+﻿Reader Components and Viewers | mihonapp/mihon | DeepWiki Loading... Index your code with Devin DeepWiki DeepWiki mihonapp/mihon Index your code with Devin Edit Wiki Share Loading... Last indexed: 25 May 2026 ( 82338d ) Overview Project Structure Application Lifecycle Build System and Dependencies CI/CD and Release Process Core Architecture Domain Layer and Interactors Manga Reader System Reader Components and Viewers Page Loading and Image Processing Reader Configuration and Preferences Library Management System Manga Detail and Chapter Management Extension System Extension Loading and Management Source System and HTTP Integration Download System Tracking and External Services Background Services and Notifications Library Updates and Scheduled Jobs Backup, Restore, and Data Migration App Updates and Maintenance UI System and Theming Navigation and Main Interface Theming and Visual Customization WebView Integration Security and Permissions Glossary Menu Reader Components and Viewers 
+Relevant source files 
+app/src/main/java/eu/kanade/tachiyomi/ui/download/DownloadHeaderHolder.kt 
+ app/src/main/java/eu/kanade/tachiyomi/ui/reader/ReaderNavigationOverlayView.kt 
+ app/src/main/java/eu/kanade/tachiyomi/ui/reader/model/ReaderChapter.kt 
+ app/src/main/java/eu/kanade/tachiyomi/ui/reader/viewer/MissingChapters.kt 
+ app/src/main/java/eu/kanade/tachiyomi/ui/reader/viewer/ReaderProgressIndicator.kt 
+ app/src/main/java/eu/kanade/tachiyomi/ui/reader/viewer/ReaderTransitionView.kt 
+ app/src/main/java/eu/kanade/tachiyomi/ui/reader/viewer/ViewerConfig.kt 
+ app/src/main/java/eu/kanade/tachiyomi/ui/reader/viewer/ViewerNavigation.kt 
+ app/src/main/java/eu/kanade/tachiyomi/ui/reader/viewer/navigation/DisabledNavigation.kt 
+ app/src/main/java/eu/kanade/tachiyomi/ui/reader/viewer/navigation/EdgeNavigation.kt 
+ app/src/main/java/eu/kanade/tachiyomi/ui/reader/viewer/navigation/KindlishNavigation.kt 
+ app/src/main/java/eu/kanade/tachiyomi/ui/reader/viewer/navigation/LNavigation.kt 
+ app/src/main/java/eu/kanade/tachiyomi/ui/reader/viewer/navigation/RightAndLeftNavigation.kt 
+ app/src/main/java/eu/kanade/tachiyomi/ui/reader/viewer/pager/PagerConfig.kt 
+ app/src/main/java/eu/kanade/tachiyomi/ui/reader/viewer/pager/PagerPageHolder.kt 
+ app/src/main/java/eu/kanade/tachiyomi/ui/reader/viewer/pager/PagerTransitionHolder.kt 
+ app/src/main/java/eu/kanade/tachiyomi/ui/reader/viewer/pager/PagerViewer.kt 
+ app/src/main/java/eu/kanade/tachiyomi/ui/reader/viewer/pager/PagerViewerAdapter.kt 
+ app/src/main/java/eu/kanade/tachiyomi/ui/reader/viewer/webtoon/WebtoonAdapter.kt 
+ app/src/main/java/eu/kanade/tachiyomi/ui/reader/viewer/webtoon/WebtoonConfig.kt 
+ app/src/main/java/eu/kanade/tachiyomi/ui/reader/viewer/webtoon/WebtoonFrame.kt 
+ app/src/main/java/eu/kanade/tachiyomi/ui/reader/viewer/webtoon/WebtoonPageHolder.kt 
+ app/src/main/java/eu/kanade/tachiyomi/ui/reader/viewer/webtoon/WebtoonRecyclerView.kt 
+ app/src/main/java/eu/kanade/tachiyomi/ui/reader/viewer/webtoon/WebtoonTransitionHolder.kt 
+ app/src/main/java/eu/kanade/tachiyomi/ui/reader/viewer/webtoon/WebtoonViewer.kt 
+ presentation-core/src/main/java/tachiyomi/presentation/core/components/CircularProgressIndicator.kt 
+This document details the viewer implementations and configuration components that handle manga page display in the Mihon reader. These components provide the core display functionality for different reading modes including vertical scrolling (webtoon) and page-by-page (pager) viewing. 
+ For information about page loading mechanisms, see Page Loading and Image Processing . For reader settings and preferences, see Reader Configuration and Preferences . 
+ Viewer Architecture Overview 
+ The reader system implements multiple viewing strategies through a common Viewer interface, with each implementation optimized for different manga formats and reading preferences. 
+ Viewer Class Hierarchy 
+Sources: app/src/main/java/eu/kanade/tachiyomi/ui/reader/viewer/Viewer.kt app/src/main/java/eu/kanade/tachiyomi/ui/reader/viewer/webtoon/WebtoonViewer.kt 34-167 app/src/main/java/eu/kanade/tachiyomi/ui/reader/viewer/pager/PagerViewer.kt 32-146 
+ WebtoonViewer Implementation 
+ The WebtoonViewer provides continuous vertical scrolling for webtoon-style manga using a RecyclerView with a custom WebtoonLayoutManager . This viewer is optimized for long-strip format content. 
+ WebtoonViewer Components 
+The WebtoonViewer handles several key responsibilities: 
+ Scroll Management : Uses a scrollDistance calculated as 3/4 of screen height for tap-based navigation app/src/main/java/eu/kanade/tachiyomi/ui/reader/viewer/webtoon/WebtoonViewer.kt 53 Scroll events trigger menu hiding when scroll velocity exceeds the readerHideThreshold app/src/main/java/eu/kanade/tachiyomi/ui/reader/viewer/webtoon/WebtoonViewer.kt 94-96 
+ Chapter Preloading : Monitors scroll position to request preloading of adjacent chapters. When scrolling up and reaching a ChapterTransition.Prev , it requests preload of the previous chapter app/src/main/java/eu/kanade/tachiyomi/ui/reader/viewer/webtoon/WebtoonViewer.kt 98-104 
+ Navigation Handling : Processes tap events by calculating relative position on the WebtoonRecyclerView and delegating to the configured ViewerNavigation app/src/main/java/eu/kanade/tachiyomi/ui/reader/viewer/webtoon/WebtoonViewer.kt 114-128 
+ Sources: app/src/main/java/eu/kanade/tachiyomi/ui/reader/viewer/webtoon/WebtoonViewer.kt 43-128 app/src/main/java/eu/kanade/tachiyomi/ui/reader/viewer/webtoon/WebtoonAdapter.kt 102-114 
+ PagerViewer Implementation 
+ The PagerViewer serves as an abstract base for page-by-page viewing implementations (L2R, R2L, and Vertical), using a ViewPager to display individual pages. 
+ PagerViewer State Management 
+The PagerViewer implements state management to handle smooth chapter transitions: 
+ Idle State Management : The isIdle property tracks ViewPager.SCROLL_STATE_IDLE and defers chapter changes during animations app/src/main/java/eu/kanade/tachiyomi/ui/reader/viewer/pager/PagerViewer.kt 69-81 When transitioning to idle, any pending awaitingIdleViewerChapters are applied via setChaptersInternal app/src/main/java/eu/kanade/tachiyomi/ui/reader/viewer/pager/PagerViewer.kt 74 
+ Adapter Implementation : PagerViewerAdapter manages the lifecycle of PagerPageHolder and PagerTransitionHolder . It also handles "Dual Page Split" by inserting InsertPage objects into the item list when wide images are detected app/src/main/java/eu/kanade/tachiyomi/ui/reader/viewer/pager/PagerViewerAdapter.kt 149-180 
+ Sources: app/src/main/java/eu/kanade/tachiyomi/ui/reader/viewer/pager/PagerViewer.kt 69-94 app/src/main/java/eu/kanade/tachiyomi/ui/reader/viewer/pager/PagerViewerAdapter.kt 126-132 app/src/main/java/eu/kanade/tachiyomi/ui/reader/viewer/pager/PagerViewerAdapter.kt 149-180 
+ Configuration System 
+ The viewer configuration system provides a hierarchical approach to managing reader settings, with shared base functionality in ViewerConfig and viewer-specific extensions. 
+ Configuration Class Hierarchy 
+Configuration Registration Pattern 
+ Both configuration classes use a common pattern for binding preferences to properties using the register() extension method app/src/main/java/eu/kanade/tachiyomi/ui/reader/viewer/ViewerConfig.kt 80-89 : 
+WebtoonConfig Specifics : Manages settings like cropBordersWebtoon , webtoonSidePadding , and webtoonDisableZoomOut . It also listens for readerTheme changes to trigger activity recreation app/src/main/java/eu/kanade/tachiyomi/ui/reader/viewer/webtoon/WebtoonConfig.kt 48-98 
+ PagerConfig Specifics : Handles imageScaleType , zoomStart , navigateToPan , and dualPageSplitPaged . It determines the imageZoomType based on whether the viewer is L2RPagerViewer or R2LPagerViewer app/src/main/java/eu/kanade/tachiyomi/ui/reader/viewer/pager/PagerConfig.kt 61-126 
+ Sources: app/src/main/java/eu/kanade/tachiyomi/ui/reader/viewer/ViewerConfig.kt 13-90 app/src/main/java/eu/kanade/tachiyomi/ui/reader/viewer/webtoon/WebtoonConfig.kt 47-99 app/src/main/java/eu/kanade/tachiyomi/ui/reader/viewer/pager/PagerConfig.kt 51-109 
+ Page Holders and Transitions 
+ Viewers use specialized holders to render content within their respective adapters. 
+ Page Loading in Holders 
+ WebtoonPageHolder and PagerPageHolder both follow a similar reactive loading pattern using Page.statusFlow : 
+Queue/Load : Displays a ReaderProgressIndicator app/src/main/java/eu/kanade/tachiyomi/ui/reader/viewer/webtoon/WebtoonPageHolder.kt 160-174 
+ Download : Updates the progress bar via page.progressFlow app/src/main/java/eu/kanade/tachiyomi/ui/reader/viewer/webtoon/WebtoonPageHolder.kt 144-149 
+ Ready : Decodes the image stream, applies processing (like splitting wide images), and sets the bitmap into ReaderPageImageView app/src/main/java/eu/kanade/tachiyomi/ui/reader/viewer/webtoon/WebtoonPageHolder.kt 187-209 
+Chapter Transitions 
+ ReaderTransitionView is a Compose-based view used by both WebtoonTransitionHolder and PagerTransitionHolder to display chapter metadata and download status app/src/main/java/eu/kanade/tachiyomi/ui/reader/viewer/ReaderTransitionView.kt 21-51 
+ In WebtoonTransitionHolder , the transition is embedded directly in the scrollable list app/src/main/java/eu/kanade/tachiyomi/ui/reader/viewer/webtoon/WebtoonTransitionHolder.kt 59 In PagerViewer , it occupies its own page in the ViewPager . 
+ Sources: app/src/main/java/eu/kanade/tachiyomi/ui/reader/viewer/webtoon/WebtoonPageHolder.kt 133-155 app/src/main/java/eu/kanade/tachiyomi/ui/reader/viewer/pager/PagerPageHolder.kt 93-115 app/src/main/java/eu/kanade/tachiyomi/ui/reader/viewer/webtoon/WebtoonTransitionHolder.kt 26-61 Dismiss Refresh this wiki Enter email to refresh On this page Reader Components and Viewers Viewer Architecture Overview Viewer Class Hierarchy WebtoonViewer Implementation WebtoonViewer Components PagerViewer Implementation PagerViewer State Management Configuration System Configuration Class Hierarchy Configuration Registration Pattern Page Holders and Transitions Page Loading in Holders Chapter Transitions

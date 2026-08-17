@@ -1,0 +1,121 @@
+﻿Preferences and Settings | johnfactotum/foliate | DeepWiki Loading... Index your code with Devin DeepWiki DeepWiki johnfactotum/foliate Index your code with Devin Edit Wiki Share Loading... Last indexed: 4 October 2025 ( 1a63d9 ) Overview Core Architecture Application Initialization and Bootstrap Application Window Management Utility System and Data Persistence Book Viewing System Book Viewer Architecture Reader and WebView Integration Annotations and Bookmarks Text-to-Speech and Media Features Navigation and Progress Tracking Library Management Book Collection Management OPDS Catalog Integration User Interface Components Main Window and Navigation Book Viewer UI Components Library and Catalog UI Preferences and Settings Internationalization Build System and Deployment Menu Preferences and Settings 
+Relevant source files 
+README.md 
+ data/com.github.johnfactotum.Foliate.gschema.xml 
+ src/app.js 
+ src/main.js 
+ src/ui/annotation-popover.ui 
+ src/ui/book-viewer.ui 
+ src/ui/view-preferences-window.ui 
+Purpose and Scope 
+ This document describes Foliate's preferences and settings system, including the GSettings schema hierarchy, settings persistence, the View Preferences window UI, and the binding mechanisms that synchronize settings between storage and UI components. 
+ For information about the library view preferences (grid/list mode, cover display), see Book Collection Management . For navigation and progress tracking settings, see Navigation and Progress Tracking . 
+ GSettings Schema Architecture 
+ Foliate uses GSettings for persistent storage of user preferences and application state. The schema is hierarchically organized with a main schema and multiple child schemas. 
+ Schema Hierarchy 
+Sources: data/com.github.johnfactotum.Foliate.gschema.xml 1-123 
+ Settings Categories 
+ The GSettings schema organizes preferences into functional categories: 
+Category Schema ID Purpose Key Settings Main com.github.johnfactotum.Foliate Application-level settings color-scheme Window com.github.johnfactotum.Foliate.window Window state persistence default-width , default-height , maximized , fullscreened Library com.github.johnfactotum.Foliate.library Library view preferences view-mode , show-covers , cover-size Viewer com.github.johnfactotum.Foliate.viewer Book viewer preferences fold-sidebar , highlight-color , translate-target-language View com.github.johnfactotum.Foliate.viewer.view Reading view settings brightness , line-height , justify , hyphenate , gap , max-inline-size , max-block-size , max-column-count , scrolled , animated , invert , theme , autohide-cursor , override-font Font com.github.johnfactotum.Foliate.viewer.font Font configuration serif , sans-serif , monospace , default , default-size , minimum-size 
+ Sources: data/com.github.johnfactotum.Foliate.gschema.xml 1-123 
+ View Settings Schema Details 
+ The viewer.view schema controls the appearance and behavior of the book rendering: 
+ Paragraph and Typography Settings 
+Key Type Default Description line-height double 1.5 Line spacing multiplier justify boolean true Full text justification hyphenate boolean true Automatic hyphenation 
+ Layout and Page Settings 
+Key Type Default Description gap double 0.06 Margin size as fraction of viewport max-inline-size uint 720 Maximum column width (horizontal) or height (vertical) in pixels max-block-size uint 1440 Maximum height (horizontal) or width (vertical) in pixels max-column-count uint 2 Maximum number of columns to display 
+ Display and Behavior Settings 
+Key Type Default Description brightness double 1.0 Display brightness multiplier scrolled boolean false Enable scrolled mode vs. paginated animated boolean true Enable page turn animations invert boolean false Invert colors in dark mode theme string 'default' Color theme name autohide-cursor boolean false Auto-hide cursor when reading override-font boolean false Override publisher-specified fonts 
+ Sources: data/com.github.johnfactotum.Foliate.gschema.xml 56-100 
+ Font Settings Schema Details 
+ The viewer.font schema manages font families and sizes: 
+Key Type Default Description serif string 'Serif' Serif font family name sans-serif string 'Sans' Sans-serif font family name monospace string 'Monospace' Monospace font family name default uint 0 Default font family (0=serif, 1=sans-serif) default-size uint 16 Default font size in points minimum-size uint 0 Minimum font size in points (0=no minimum) 
+ Sources: data/com.github.johnfactotum.Foliate.gschema.xml 102-122 
+ Settings Initialization and Storage 
+ Schema Compilation and Loading 
+ During development, schemas must be compiled before settings can be accessed: 
+During installation via Meson, schemas are installed to the system schema directory and automatically compiled. 
+ Sources: README.md 47-57 README.md 82-93 
+ Settings Directory Setup 
+ The application sets up the GSettings schema directory environment: 
+Sources: src/main.js 47-57 README.md 47-57 
+ View Preferences Window 
+ The FoliateViewPreferencesWindow class provides a comprehensive UI for adjusting reading preferences. It extends AdwPreferencesDialog and is organized into four tabbed pages. 
+ Window Structure 
+Sources: src/ui/view-preferences-window.ui 1-261 
+ Font Page Controls 
+ The Font page provides three preference groups: 
+Font Size : Controls for default and minimum font sizes using AdwSpinRow widgets with adjustments ranging from 1-72 points. 
+Font Family : 
+default-font AdwComboRow : Choose between Serif and Sans-serif as the default font family 
+ override-font GtkSwitch : Toggle to override publisher-specified fonts 
+Font Selection : Three GtkFontButton widgets for selecting specific font families: 
+serif-font : Serif font family picker 
+ sans-serif-font : Sans-serif font family picker 
+ monospace-font : Monospace font family picker 
+All font buttons use level="family" and use-font="true" properties. 
+ Sources: src/ui/view-preferences-window.ui 3-110 
+ Layout Page Controls 
+ The Layout page is divided into two groups: 
+ Paragraph Group: 
+line-height AdwSpinRow : Range 1.0-3.0 with 0.05 increments, 2 decimal places 
+ justify GtkSwitch : Enable full text justification 
+ hyphenate GtkSwitch : Enable automatic hyphenation 
+Page Group: 
+gap AdwSpinRow : Margin size, range 0.0-0.5 with 0.01 increments, 2 decimal places 
+ max-column-count AdwSpinRow : Range 1-10 columns 
+ max-inline-size AdwSpinRow : Range 100-5000 pixels, step 60, with subtitle explaining it controls column width (horizontal) or height (vertical writing) 
+ max-block-size AdwSpinRow : Range 100-5000 pixels, step 60, with subtitle explaining it controls height (horizontal) or width (vertical writing) 
+Sources: src/ui/view-preferences-window.ui 113-217 
+ Color and Behavior Pages 
+ Color Page: 
+Contains a GtkFlowBox ( theme-flow-box ) with theme selection controls. The flow box is configured with: 
+selection-mode="none" 
+ homogeneous="True" 
+ row-spacing="12" and column-spacing="12" 
+ CSS class theme-container 
+The actual theme items are populated dynamically at runtime. 
+ Behavior Page: 
+Contains a single preference for reducing animations: 
+reduce-animation GtkSwitch : Corresponds to the inverse of the animated GSettings key 
+Sources: src/ui/view-preferences-window.ui 219-258 
+ Settings Binding System 
+ Foliate uses property binding to synchronize GSettings values with UI components and internal state. 
+ Binding Flow Architecture 
+Sources: src/app.js 81-82 src/utils.js 
+ Window State Binding 
+ The application window binds window state properties to GSettings: 
+This creates bidirectional bindings so that: 
+When the user resizes or maximizes the window, the new state is saved to GSettings 
+ When the application starts, the window restores to the saved state 
+Sources: src/app.js 81-82 
+ UI Component Property Binding 
+ UI templates use GTK's property binding syntax to connect widget states directly to object properties. For example, in the book viewer: 
+This binds the pin button's active state to the fold-sidebar property with inversion and bidirectional synchronization. 
+ Sources: src/ui/book-viewer.ui 240 
+ Color Scheme Management 
+ The application-level color scheme is managed separately from view themes. 
+ Color Scheme Application Flow 
+Sources: src/app.js 230-237 src/app.js 68-74 
+ Color Scheme Settings 
+ The color scheme is stored in the main GSettings schema and synchronized with Adw.StyleManager : 
+Initialization : On startup, the application reads color-scheme from GSettings and applies it to StyleManager 
+ Synchronization : When StyleManager.color_scheme changes, it's written back to GSettings 
+ CSS Class Management : Windows add/remove the is-dark CSS class based on StyleManager.dark property 
+Sources: src/app.js 230-237 src/app.js 68-74 
+ In-View Settings Access 
+ Settings from the view menu provide quick access to common preferences without opening the full preferences dialog. 
+ View Menu Settings Integration 
+Sources: src/ui/book-viewer.ui 70-111 src/ui/book-viewer.ui 547-620 
+ Theme Selector CSS Styling 
+ The theme selector buttons use custom CSS classes and styling: 
+theme-selector : Base class with circular styling, 44×44px minimum size 
+ follow : Gradient background (white to dark) 
+ light : White background 
+ dark : Dark background (#202020) 
+ :checked state: 2px border with @theme_selected_bg_color 
+The radio indicator is customized to show object-select-symbolic icon when checked. 
+ Sources: src/app.js 267-302 
+ Settings Persistence Locations 
+Setting Type Storage Location Format GSettings schemas Development: data/ XML (uncompiled) GSettings schemas Production: /usr/share/glib-2.0/schemas/ Compiled binary Settings values ~/.config/glib-2.0/settings/keyfile Binary keyfile User data directory ~/.local/share/com.github.johnfactotum.Foliate/ Various (JSON, etc.) Cache directory ~/.cache/com.github.johnfactotum.Foliate/ Temporary data 
+ Sources: src/main.js 31-39 README.md 47-57 Dismiss Refresh this wiki Enter email to refresh On this page Preferences and Settings Purpose and Scope GSettings Schema Architecture Schema Hierarchy Settings Categories View Settings Schema Details Paragraph and Typography Settings Layout and Page Settings Display and Behavior Settings Font Settings Schema Details Settings Initialization and Storage Schema Compilation and Loading Settings Directory Setup View Preferences Window Window Structure Font Page Controls Layout Page Controls Color and Behavior Pages Settings Binding System Binding Flow Architecture Window State Binding UI Component Property Binding Color Scheme Management Color Scheme Application Flow Color Scheme Settings In-View Settings Access View Menu Settings Integration Theme Selector CSS Styling Settings Persistence Locations

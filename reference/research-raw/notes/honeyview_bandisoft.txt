@@ -1,0 +1,66 @@
+﻿Honeyview · Free Image Viewer · Download & Features 
+Bandizip (Win) 
+ Bandizip (Mac) 
+ BandiView 
+ Honeycam 
+ Honeyview 
+ BandiCamera N 
+ Forum 
+English 
+English 
+ 中文(简体) 
+ 中文(繁體) 
+ 日本語 
+ Русский 
+ Slovenčina 
+ Dansk 
+ Čeština 
+ Nederlands 
+ Romanian 
+ Tiếng Việt 
+ 한국어 
+ User Translation 
+Download | 
+ History | 
+ Help | 
+ Forum 
+Discontinuance of Honeyview Updates 
+ There will be no more updates for Honeyview. Download BandiView to use the features of Honeyview including further improvements. 
+ Download BandiView 
+ Learn More 
+Honeyview 
+ Honeyview is a fast, powerful, and free image viewer. 
+Download 
+Latest Setup file: V 5.53 - June 21, 2024 
+ Portable: 32-bit Download 
+ Supported OS: Windows Vista/7/8/8.1/10/11 (32/64bit) 
+ License: Freeware(No Adware/Spyware/Virus) , EULA 
+Download Honeyview (v5.53)   
+Main Features 
+Lightweight and fast 
+ Ability to display EXIF in Jpeg format, including GPS information 
+ Batch image format conversion with resizing 
+ Show animations for animated GIF & WebP 
+ Show images in zipped files without extracting them 
+Supported Formats 
+Image formats: BMP, JPG, GIF, PNG, PSD , DDS, JXR, WebP , J2K, JP2, TGA, TIFF, PCX, PGM, PNM, PPM, and BPG 
+ Raw image formats : DNG, CR2, CRW, NEF, NRW, ORF, RW2, PEF, SR2, and RAF 
+ Animation image formats : Animated GIF, Animated WebP, Animated BPG, and Animated PNG 
+ Archive formats for direct image viewing without extraction: ZIP, RAR, 7Z, LZH, TAR, CBR, and CBZ 
+This page is translated
+by ${translators}. Thanks to translators. 
+This page has not been
+translated yet or has been machine-translated. We need your help to improve it :) 
+BandiView 
+ Bandizip 
+ Honeycam 
+ Honeyview 
+ BandiCamera 
+ Shutdown8 
+ About 
+ Forum 
+ GDPR 
+ User translation 
+ KB 
+Copyright© 2008-2026 Bandisoft
+International Inc.

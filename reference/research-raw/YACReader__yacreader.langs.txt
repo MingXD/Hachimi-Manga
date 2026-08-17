@@ -1,0 +1,1 @@
+﻿C++:2358488, HTML:134854, QML:98116, JavaScript:82995, CMake:82072, CSS:48948, C:41095, Objective-C++:23491, Shell:12228, Inno Setup:9632, GLSL:3944, Dockerfile:3931, Roff:2954, Batchfile:2019, PowerShell:1677

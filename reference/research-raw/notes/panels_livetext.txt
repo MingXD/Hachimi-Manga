@@ -1,0 +1,9 @@
+﻿Live text | Panels Guides 
+Skip to main content GitHub Search Getting started Importing content Organizing content Reading content Reader presets and configurations Live text Incognito mode Lock zoom Enabling Panels View Double page grouping Image filters Miscellaneous OPDS: Your own server FAQs Visit panels.app Reading content Live text Live text 
+ Panels have support for detecting text & subject as well as selecting them. 
+ To enable it, go to reader settings -> live text -> Enable Live Text. 
+You can choose to show "Highlight" buttons for text and subjects or not, as well as which type of detection to do. 
+ If you choose to show both buttons, you will see them appear at the bottom right: 
+Tapping on the highlight text button, all detected text in the current page will be highlighted. Same applies for subjects. 
+You don't need to highlight text to be able to select it. Once you select some text, you will see a menu appear with some actions to take with the selected text. Probably one of the most useful actions is Translate. 
+tip When selecting subjects, you will have the option to create stickers from them. Edit this page Previous Reader presets and configurations Next Incognito mode Community Discord Twitter More Download Panels app GitHub Copyright © 2026 Produkt Software Engineering. Built with Docusaurus.

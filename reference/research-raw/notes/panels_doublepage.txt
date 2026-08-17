@@ -1,0 +1,6 @@
+﻿Double page grouping | Panels Guides 
+Skip to main content GitHub Search Getting started Importing content Organizing content Reading content Reader presets and configurations Live text Incognito mode Lock zoom Enabling Panels View Double page grouping Image filters Miscellaneous OPDS: Your own server FAQs Visit panels.app Reading content Double page grouping Double page grouping 
+ When reading in double page, Panels will try to group pages for you automatically. We always maintain the cover as a single page, and start grouping on the second page, leaving any landscape page as single page. 
+ This automatic behavior might not be correct for all comics. If you ever need to regroup pages, you can long press on any page thumbnail and select "Group from this page on". That will start the grouping from that page (setting it in the left side for LTR) and rearranging the rest of pages. 
+ The following image shows an example. Notice how initially pages 2-3 are grouped, and after tapping "Group from this page on", pages "3-4" are grouped, and 2 is left as single. 
+ Edit this page Previous Enabling Panels View Next Image filters Community Discord Twitter More Download Panels app GitHub Copyright © 2026 Produkt Software Engineering. Built with Docusaurus.

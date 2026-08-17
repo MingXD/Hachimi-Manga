@@ -1,0 +1,155 @@
+﻿Library Views and Display Modes | kovidgoyal/calibre | DeepWiki Loading... Index your code with Devin DeepWiki DeepWiki kovidgoyal/calibre Index your code with Devin Edit Wiki Share Loading... Last indexed: 17 March 2026 ( 992977 ) Overview Core Infrastructure Build System and C/C++ Extensions Application Launchers and Bootstrap Translation and Localization System Database System Database Cache and API Full-Text Search Subsystem Notes System User Interface System Main GUI Application Library Views and Display Modes Book Details and Metadata Display Tag Browser and Category Management E-book Viewer E-book Editor E-book Processing Conversion Pipeline Polishing and Optimization Template Language System Device Integration Device Driver Architecture Kobo Device Support Content Server and Extensibility Content Server News Recipes System Plugin Architecture Menu Library Views and Navigation 
+Relevant source files 
+src/calibre/gui2/__init__.py 
+ src/calibre/gui2/library/alternate_views.py 
+ src/calibre/gui2/library/bookshelf_view.py 
+ src/calibre/gui2/library/models.py 
+ src/calibre/gui2/library/views.py 
+ src/calibre/gui2/momentum_scroll.py 
+ src/calibre/gui2/pin_columns.py 
+ src/calibre/gui2/preferences/__init__.py 
+ src/calibre/gui2/preferences/coloring.py 
+ src/calibre/gui2/preferences/look_feel.py 
+ src/calibre/gui2/preferences/look_feel.ui 
+ src/calibre/gui2/preferences/look_feel_tabs/__init__.py 
+ src/calibre/gui2/preferences/look_feel_tabs/bookshelf_view.py 
+ src/calibre/gui2/preferences/look_feel_tabs/bookshelf_view.ui 
+ src/calibre/gui2/preferences/look_feel_tabs/cover_grid.py 
+ src/calibre/gui2/preferences/look_feel_tabs/cover_grid.ui 
+ src/calibre/library/coloring.py 
+Purpose and Scope 
+ This document describes Calibre's library browsing and navigation systems, which provide multiple ways for users to view and filter their book collection. The system consists of three main components: the book list views (table, grid, and bookshelf layouts), the tag browser for category-based navigation, and the search/filtering system including virtual libraries. 
+ For information about metadata editing and book details display, see Book Details and Metadata Editing . For the database system that powers these views, see Database Cache and API . 
+System Overview 
+ The library navigation system is built around three coordinated subsystems that all query the same database cache but present different interfaces for browsing: 
+Sources: src/calibre/gui2/library/views.py 1-700 src/calibre/gui2/library/alternate_views.py 1-300 src/calibre/gui2/tag_browser/view.py 1-300 src/calibre/gui2/book_details.py 1-200 
+Book List Views 
+ BooksView - The Main Table View 
+ The BooksView class provides the primary table-based view of the book library. It extends QTableView and includes sophisticated features for column management, sorting, selection, and context menus. 
+Key Responsibilities: 
+Component Purpose Code Reference BooksView Main table widget with drag-drop support src/calibre/gui2/library/views.py 340-700 PinTableView Optional split view for pinned columns src/calibre/gui2/pin_columns.py HeaderView Custom header with hover effects and sorting src/calibre/gui2/library/views.py 73-159 create_delegates() Sets up cell-specific rendering delegates src/calibre/gui2/library/delegates.py 
+ Column Configuration: 
+ The view's column system is controlled by column_map , which maps visual column positions to database field keys: 
+Users can: 
+Reorder columns via drag-drop (if allow_column_movement_with_mouse is enabled) 
+ Hide/show columns via context menu 
+ Resize columns (with constraints based on window size) 
+ Sort by clicking column headers 
+Sources: src/calibre/gui2/library/views.py 340-700 src/calibre/gui2/library/delegates.py 1-500 
+ AlternateViews - Grid and Bookshelf Layouts 
+ The AlternateViews class manages non-table display modes, providing GridView and BookshelfView as alternatives to the standard table. 
+View Switching: 
+ The system maintains a single BooksModel instance shared across all views. When switching views: 
+Current selection and scroll position are preserved via PreserveViewState 
+ The active view widget is swapped in the UI container 
+ Selection is mirrored to the new view 
+ Signals are reconnected to maintain book details updates 
+View Type Class Purpose Key Settings Table BooksView Default tabular display Column order, widths, sort Grid GridView Cover thumbnails in grid Thumbnail size, spacing Bookshelf BookshelfView 3D perspective bookshelf Shelf height, perspective 
+ Sources: src/calibre/gui2/library/alternate_views.py 468-650 src/calibre/gui2/library/bookshelf_view.py src/calibre/gui2/init.py 246-300 
+ Selection and State Management 
+ The PreserveViewState context manager ensures that selection and scroll position survive operations that refresh the view: 
+Usage pattern: 
+Sources: src/calibre/gui2/library/views.py 162-234 
+Tag Browser Navigation 
+ The Tag Browser provides hierarchical navigation through metadata categories (authors, series, tags, publishers, etc.). 
+ TagsView - The Category Tree 
+Category Types: 
+Category Type Key Editable Searchable Notes Authors authors Yes Yes Shows author names Series series Yes Yes Shows series names Tags tags Yes Yes User-defined tags Publisher publisher Yes Yes Publisher names Languages languages Yes Yes Language codes Formats formats No Yes File format types Identifiers identifiers No Yes ISBN, etc. Saved Searches search Yes No Named search queries User Categories @... Yes Yes Custom hierarchies 
+ Tag State System: 
+ Each tag node tracks its search state using TAG_SEARCH_STATES : 
+Visual indicators (colors, icons) reflect these states in the UI. 
+ Sources: src/calibre/gui2/tag_browser/view.py 259-800 src/calibre/gui2/tag_browser/model.py 29-31 
+ TagsModel - Category Data Structure 
+Key Operations: 
+Method Purpose Trigger recount() Recalculate book counts per tag Database changes, search changes rebuild_node_tree() Reconstruct entire tree User category edits, preferences set_restriction() Apply search restriction to counts Virtual library changes tokens() Generate search query from selected tags Tag clicks/selections 
+ The model maintains bidirectional mappings: 
+category_row_map() : category key → row number 
+ node_map : path → TagTreeItem (for quick lookups) 
+Sources: src/calibre/gui2/tag_browser/model.py 200-1000 
+ User Categories 
+ User categories (prefixed with @ ) allow custom grouping of items from standard categories. They're stored in preferences and support hierarchical nesting using dot notation: 
+Sources: src/calibre/gui2/tag_browser/ui.py 179-276 
+Search and Filtering 
+ SearchBox - Query Input and Execution 
+Search Syntax: 
+ Calibre supports a rich query language: 
+Query Type Syntax Example Simple text word asimov (searches all fields) Field-specific field:value authors:asimov Phrase search "exact phrase" title:"foundation series" Boolean AND OR NOT authors:asimov AND series:foundation Comparison >= <= = != rating:>=4 Regular expression field:~pattern title:~robot.* Set membership field:=value tags:=fiction (exact match) 
+ Query Processing Flow: 
+User types in SearchBox 
+ SearchQueryParser parses query into AST 
+ BooksModel.search() applies filter to database 
+ Results are highlighted if highlight_search_matches is enabled 
+ Search saved to history 
+Sources: src/calibre/gui2/search_box.py 1-400 src/calibre/db/search.py 
+ Virtual Libraries 
+ Virtual Libraries are named, persistent search restrictions that filter the entire library view. 
+Virtual Library Operations: 
+Operation Method Effect Create VL create_virtual_library() Saves search as named VL Apply VL apply_virtual_library(name) Filters all views to matching books Clear VL apply_virtual_library() (no name) Shows all books Edit VL edit_virtual_library() Modifies search query Delete VL delete_virtual_library() Removes saved VL 
+ Virtual libraries affect: 
+Book list views (only shows matching books) 
+ Tag browser counts (only counts books in VL) 
+ Search scope (searches within VL) 
+ Bulk operations (applies only to VL books) 
+The active VL is stored in db.new_api.pref('virtual_lib_on_startup') for persistence. 
+ Sources: src/calibre/gui2/search_restriction_mixin.py 1-500 src/calibre/gui2/tag_browser/ui.py 1-200 
+View Synchronization 
+ The system maintains consistency across all navigation components through signal connections and shared state: 
+Signal Connections: 
+ Key signal/slot connections established in LibraryViewMixin.init_library_view_mixin() : 
+Sources: src/calibre/gui2/init.py 60-126 src/calibre/gui2/ui.py 344-374 
+Context Menus and User Actions 
+ Both the book list views and tag browser provide extensive context menus for book management operations. 
+ Book List Context Menu 
+ The book list context menu is dynamically populated based on: 
+Selected books 
+ Current column 
+ Device connection status 
+ Plugin availability 
+Menu Population: 
+The menu includes actions from interface action plugins, arranged according to user preferences in action-layout-context-menu . 
+ Sources: src/calibre/gui2/init.py 96-115 
+ Tag Browser Context Menu 
+ The tag browser context menu varies by node type: 
+Node Type Available Actions Category node Manage items, hide category, sort options Tag/Author Edit, delete, merge, manage notes, quickview Series Edit, manage notes, lock series User category Edit, delete, add items, add subcategory Saved search Edit, delete, copy query 
+ The menu is generated in TagsView.show_context_menu() and includes: 
+Edit/delete operations 
+ Search/filter actions 
+ User category management 
+ Notes viewing/editing (if notes exist) 
+ Link management (if links exist) 
+Sources: src/calibre/gui2/tag_browser/view.py 610-950 
+Column Customization 
+ Column Header Context Menu 
+ Users can customize the table view extensively through the column header context menu: 
+Context Menu Handler: 
+ The handler column_header_context_handler() processes these actions: 
+Action Effect Persistence hide Hides column via setSectionHidden() Saved in view state show Shows hidden column Saved in view state ascending / descending Sets sort order Saved in sorted_on align_left/right/center Changes column alignment Saved in alignment_map font_bold/italic Changes column font Saved in styled_columns defaults Restores default layout Clears all customizations 
+ Sources: src/calibre/gui2/library/views.py 498-586 
+View State Persistence 
+ View configuration is saved across sessions using gprefs (GUI preferences) and db.prefs (library-specific preferences). 
+ Saved State Components 
+State Component Storage Key Content Column order library_view_state Visual column positions Column widths library_view_state Width in pixels per column Hidden columns library_view_state Set of hidden column keys Sort state sort_history List of (column, ascending) tuples Split view book_list_split Pin view visibility Current view show_grid / show_bookshelf Active view type Grid options cover_grid_* Thumbnail size, spacing, etc. 
+ State Save/Restore: 
+Sources: src/calibre/gui2/library/views.py 700-1000 src/calibre/gui2/init.py 250-350 
+Performance Optimization 
+ The view system includes several optimizations for handling large libraries: 
+ Lazy Loading and Caching 
+Optimization Techniques: 
+Buffered Row Loading : Only data for visible + buffer rows is fetched 
+ Cover Thumbnail Cache : Thumbnails are generated once and cached 
+ Debounced Recounts : Tag browser counts are recalculated with delay to batch updates 
+ Icon Caching : Emblem icons are rendered once per unique combination 
+ Zero-Page Count Caching : Page count display is debounced to avoid slow queries 
+Sources: src/calibre/gui2/library/models.py 212-250 src/calibre/gui2/library/alternate_views.py 1-100 src/calibre/gui2/tag_browser/view.py 442-500 
+Integration with Main Window 
+ The navigation components are integrated into the main window through the LayoutMixin and related initialization: 
+The initialization sequence in Main.initialize() : 
+Create database cache 
+ Initialize interface actions 
+ Call LayoutMixin.init_layout_mixin() to create widgets 
+ Call LibraryViewMixin.init_library_view_mixin() to set up book views 
+ Call TagBrowserMixin.init_tag_browser_mixin() to set up tag browser 
+ Call SearchBoxMixin.init_search_box_mixin() to set up search 
+ Connect signals between components 
+ Restore saved state 
+Sources: src/calibre/gui2/ui.py 209-449 src/calibre/gui2/init.py 1-300 src/calibre/gui2/layout.py 1-500 Dismiss Refresh this wiki Enter email to refresh On this page Library Views and Navigation Purpose and Scope System Overview Book List Views BooksView - The Main Table View AlternateViews - Grid and Bookshelf Layouts Selection and State Management Tag Browser Navigation TagsView - The Category Tree TagsModel - Category Data Structure User Categories Search and Filtering SearchBox - Query Input and Execution Virtual Libraries View Synchronization Context Menus and User Actions Book List Context Menu Tag Browser Context Menu Column Customization Column Header Context Menu View State Persistence Saved State Components Performance Optimization Lazy Loading and Caching Integration with Main Window

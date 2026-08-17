@@ -1,0 +1,68 @@
+﻿[Feature Request] Align Double Pages According to their Reading Direction · Issue #670 · gotson/komga · GitHub 
+Skip to content 
+Navigation Menu Sign in Appearance settings Platform AI CODE CREATION GitHub Copilot Write better code with AI GitHub Copilot app Direct agents from issue to merge MCP Registry Integrate external tools DEVELOPER WORKFLOWS Actions Automate any workflow Codespaces Instant dev environments Issues Plan and track work Code Review Manage code changes Code Quality Enforce quality at merge APPLICATION SECURITY GitHub Advanced Security Find and fix vulnerabilities Code security Secure your code as you build Secret protection Stop leaks before they start EXPLORE Why GitHub Documentation Blog Changelog Marketplace View all features Solutions BY COMPANY SIZE Enterprises Small and medium teams Startups Nonprofits BY USE CASE App Modernization DevSecOps DevOps CI/CD View all use cases BY INDUSTRY Healthcare Financial services Manufacturing Government View all industries View all solutions Resources EXPLORE BY TOPIC AI Software Development DevOps Security View all topics EXPLORE BY TYPE Customer stories Events & webinars Ebooks & reports Business insights GitHub Skills SUPPORT & SERVICES Documentation Customer support Community forum Trust center Partners View all resources Open Source COMMUNITY GitHub Sponsors Fund open source developers PROGRAMS Security Lab Maintainer Community Accelerator GitHub Stars Archive Program REPOSITORIES Topics Trending Collections Enterprise ENTERPRISE SOLUTIONS Enterprise platform AI-powered developer platform AVAILABLE ADD-ONS GitHub Advanced Security Enterprise-grade security features Copilot for Business Enterprise-grade AI features Premium Support Enterprise-grade 24/7 support Pricing Search / Sign in Sign up Appearance settings 
+You signed in with another tab or window. Reload to refresh your session. 
+ You signed out in another tab or window. Reload to refresh your session. 
+ You switched accounts on another tab or window. Reload to refresh your session. 
+Dismiss alert 
+{{ message }} 
+gotson
+/ 
+komga 
+Public 
+Uh oh!
+There was an error while loading. Please reload this page . 
+Notifications
+ You must be signed in to change notification settings 
+Fork
+ 394 
+Star
+ 6.6k 
+Code 
+Issues 
+ 10 
+Pull requests 
+ 10 
+Discussions 
+Actions 
+Security and quality 
+ 1 
+Insights 
+Additional navigation options 
+Code
+Issues
+Pull requests
+Discussions
+Actions
+Security and quality
+Insights
+[Feature Request] Align Double Pages According to their Reading Direction   #670 New issue Copy link New issue Copy link Closed Closed [Feature Request] Align Double Pages According to their Reading Direction #670 Copy link Labels enhancement New feature or request New feature or request reader:divina Need works in the WebReader Need works in the WebReader released Description kanjieater opened on Sep 12, 2021 Issue body actions Is your feature request related to a problem? Please describe. 
+ I read comic with double pages on two vertical monitors. 
+ When in double page mode, Komga centers single pages. 
+Double pages still look fine: 
+It also doesn't put the second to last page and the last page next to each other. This part may be considered a bug. 
+ Second to last page: 
+Last page: 
+Describe the solution you'd like 
+ Show right to left pages aligned to the left if it's at the beginning & left to right pages at the left if it's at the beginning. 
+ Short right to left pages aligned to the right if it's at the end, and show left to right pages the right if it's at the end. 
+ This should fix the natural flow of the pages. 
+ Describe alternatives you've considered or other apps that can do what you want 
+ Cover does exactly this: 
+Right to left, first page, left aligned 
+Last two pages: 
+Additional context 
+ This is a comic that is available freely online that you can try it out with to reproduce: https://www.dropbox.com/s/9t0khm18ivwnr09/%E9%AD%94%E5%A5%B3%E3%81%A8%E9%A8%8E%E5%A3%AB%E3%81%AF%E7%94%9F%E3%81%8D%E3%81%AE%E3%81%93%E3%82%8B%20-%20%E7%AC%AC01%E5%B7%BB.cbz?dl=0 Reactions are currently unavailable Metadata Metadata Assignees No one assigned Labels enhancement New feature or request New feature or request reader:divina Need works in the WebReader Need works in the WebReader released Projects No projects Milestone No milestone Relationships None yet Development No branches or pull requests Issue actions Open in GitHub Copilot app 
+Footer 
+© 2026 GitHub, Inc.
+Footer navigation 
+Terms 
+Privacy 
+Security 
+Status 
+Community 
+Docs 
+Contact 
+Manage cookies
+Do not share my personal information
+You can’t perform that action at this time.

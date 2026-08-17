@@ -1,0 +1,1 @@
+﻿TypeScript:570929, CSS:8558, Vue:2771, JavaScript:2230, HTML:177

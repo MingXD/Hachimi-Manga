@@ -1,0 +1,101 @@
+﻿MobileRead Wiki - ComicRack 
+ComicRack 
+From MobileRead 
+Jump to: navigation ,
+ search 
+ComicRack is an eComic Reader, converter and Manager for Windows computers. It uses the .net framework.
+Contents 
+1 Overview 
+ 2 Features 
+ 3 Metadata 
+ 4 For more information 
+[ edit ] Overview 
+ ComicRack is an all in one solution to read your eComics and also manage your library. You can think of it as a kind of ITunes for eComics with lots of the same functionality. 
+ As a reader ComicRack supports all the state of the art features you can expect: different display modes, full screen, information overlays, magnifier, color adjustments, automatic backcolor matching and a multi tab interface to quickly switch between eComics.
+ As a manager you can browse and search your eComics in the library, create folders and lists to organize them. You can customize the lists to show just the information you need and use advanced tools to tag and edit the information for your eComics. Or create Smart lists to display dynamic lists based on eComic info (never read, author, series etc.) 
+ It is also a converter utility and is offered in several languages. It is a free product although you can donate.
+[ edit ] Features 
+ Reading
+ Fast navigation, auto scrolling, auto rotation, dynamic zooming, automatic page fitting, magnifier, manga mode, full screen reading, dual screen support, multi-tab interface
+Native 32 bit & 64 bit versions
+ Supports reading CBZ , ZIP , CBR , RAR , CBT , tar , PDF , CBW comics.
+ Full screen reading mode with two page display, various zoom modes, auto rotation (for tablet pcs), etc.
+ Smart parsing of file names for good initial values (series, number, volume, year etc.)
+ Custom display grouping, sorting, stacking and filtering
+ Multiple views formats
+ User definable Keyboard shortcuts
+ Supports CBW files as if they were CBZ or CBR files.
+Management
+ A powerful integrated library. There are different ways to group, sort and present all the data of your eComics. Quick search feature and definable smartlists help managing your eComics
+Database management (extended info storage, thumbnails, quick search, smart searches, custom lists, etc.)
+ Exporting Comic List into CSV Format
+ Comic Library Network Sharing with optional password protection
+ Thumbnail generation with customization
+ Batch conversion to cbz/pdf/cbt of all supported import formats
+ In-viewer extended info editing
+[ edit ] Metadata 
+ ComicRack can add metadata to the file by adding a ComicInfo.xml file to the container. This data is added by typing it into a form in the Info command dialog box. This file is added directly by ComicRack. A example of this file is shown below:
+<?xml version="1.0"?>
+<ComicInfo xmlns:xsi=" http://www.w3.org/2001/XMLSchema-instance " 
+ xmlns:xsd=" http://www.w3.org/2001/XMLSchema ">
+ <Title>Title of the Book</Title>
+ <Summary>A description of the book</Summary>
+ <Number>1</Number>
+ <Count>3</Count>
+ <Year>2010</Year>
+ <Month>4</Month>
+ <Writer>Author name</Writer>
+ <Publisher>self</Publisher>
+ <Genre>educational</Genre>
+ <BlackAndWhite>No</BlackAndWhite>
+ <Manga>No</Manga>
+ <Characters>Superman</Characters>
+ <PageCount>5</PageCount>
+ <Pages>
+ <Page Image="0" Type="FrontCover" ImageSize="139382" ImageWidth="774" ImageHeight="1024" />
+ <Page Image="2" ImageSize="125736" ImageWidth="797" ImageHeight="1024" />
+ <Page Image="1" ImageSize="127937" ImageWidth="797" ImageHeight="1024" />
+ <Page Image="4" ImageSize="160902" ImageWidth="804" ImageHeight="1024" />
+ <Page Image="3" ImageSize="211181" ImageWidth="804" ImageHeight="1024" />
+ </Pages>
+</ComicInfo>
+This is only a small sample of the data that can be stored in the file. Note that the pages can be viewed out of order depending on the arrangement of the Pages list.
+[ edit ] For more information 
+ http://comicrack.cyolito.com/ 
+ blog on how to resize digital comics. 
+ CBR CBZ for format information.
+Retrieved from " https://wiki.mobileread.com/w/index.php?title=ComicRack&oldid=42074 " 
+Categories : Reader PDF 
+Personal tools 
+Log in / create account 
+Namespaces 
+Page 
+ Discussion 
+Variants 
+Views 
+Read 
+ Edit 
+ View history 
+Actions 
+Search 
+Navigation 
+Main Page 
+ Community portal 
+ Recent changes 
+ Help 
+MobileRead Networks 
+FORUMS 
+ Frontnews 
+ Chat 
+Toolbox 
+What links here 
+ Related changes 
+ Special pages 
+ Printable version 
+ Permanent link 
+This page has been accessed 36,380 times. 
+ This page was last modified 16:33, 5 December 2015 by Dale DePriest . 
+ Content is available under Creative Commons Attribution Non-Commercial Share Alike . 
+Privacy policy 
+ About MobileRead 
+ Disclaimers

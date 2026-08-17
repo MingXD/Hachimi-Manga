@@ -1,0 +1,264 @@
+﻿Comic book archive - Wikipedia 
+Jump to content 
+Main menu 
+Main menu 
+ move to sidebar 
+ hide 
+Navigation
+Main page Contents Current events Random article About Wikipedia Contact us 
+Contribute
+Help Learn to edit Community portal Recent changes Upload file Special pages 
+Search 
+Search 
+Appearance 
+Donate 
+Create account 
+Log in 
+Personal tools 
+Donate 
+Create account 
+Log in 
+Contents 
+ move to sidebar 
+ hide 
+(Top) 
+1 
+ Design 
+2 
+ Adoption 
+Toggle Adoption subsection 
+2.1 
+ Android 
+2.2 
+ Mac 
+2.3 
+ Unix-like 
+2.4 
+ Windows 
+3 
+ See also 
+4 
+ References 
+5 
+ External links 
+Toggle the table of contents 
+Comic book archive 
+11 languages 
+العربية Deutsch Español Français Bahasa Indonesia Italiano Polski Português Русский Türkçe Українська 
+Edit links 
+Article 
+Talk 
+English 
+Read 
+Edit 
+View history 
+Tools 
+Tools 
+ move to sidebar 
+ hide 
+Actions
+Read 
+Edit 
+View history 
+General
+What links here Related changes Upload file Permanent link Page information Cite this page Get shortened URL Switch to legacy parser 
+Print/export
+Download as PDF Printable version 
+In other projects
+Wikidata item 
+Appearance 
+ move to sidebar 
+ hide 
+From Wikipedia, the free encyclopedia 
+File format 
+ .cbr, .cbz, .cbt, .cba, .cb7</code> (containers)"},"_noextcode":{"wt":"y"},"mime":{"wt":"application/vnd.comicbook+zip [.cbz only], application/vnd.comicbook-rar [.cbr only]"},"type code":{"wt":""},"uniform type":{"wt":""},"magic":{"wt":""},"developer":{"wt":"David Ayton"},"released":{"wt":"<!-- {{Start date|YYYY|mm|dd|df=yes/no}} -->"},"latest release version":{"wt":""},"latest release date":{"wt":"<!-- {{Start date and age|YYYY|mm|dd|df=yes/no}} -->"},"genre":{"wt":"[[Multimedia]], [[archive file]]"},"container for":{"wt":"Images"},"contained by":{"wt":""},"extended from":{"wt":""},"extended to":{"wt":""},"standard":{"wt":"None"},"free":{"wt":""},"url":{"wt":""}},"i":0}}]}'> Comic book archive file Comic book archives may be accessed via tablets or smartphones . Filename extension .cbr, .cbz, .cbt, .cba, .cb7 (containers) Internet media   type 
+application/vnd.comicbook+zip [.cbz only], application/vnd.comicbook-rar [.cbr only] Developed   by David Ayton Type of format Multimedia , archive file Container   for Images Standard None 
+ A comic book archive or comic book reader file (also called sequential image file ) is a type of archive file for the purpose of sequential viewing of images, commonly for comic books . The idea was made popular by David Ayton, creator of the CDisplay sequential image viewer; [ 1 ] since then, many viewers for different platforms have been created. 
+Design [ edit ] 
+ Comic book archives are not distinct file formats. They are a filename extension naming convention (renamed archive file formats listed below). 
+The filename extension indicates the archive type used: 
+ .cb7 → 7z 
+ .cba → ACE 
+ .cbr → RAR [ 2 ] 
+ .cbt → TAR 
+ .cbz → ZIP [ 3 ] 
+Comic book archive files mainly consist of a series of image files with specific naming, typically PNG ( lossless compression ) or JPEG ( lossy compression , not JPEG-LS or JPEG XT ) files, stored as a single archive file . Occasionally GIF , BMP , and TIFF files are seen. Folders may be used to group images in a more logical layout within the archive, like book chapters. 
+Comic book archive viewers typically offer various dedicated functions to read the content, like one page forward/backwards, go to first/last page, zoom or print. Some applications support additional tag information in the form of embedded XML files in the archive or use of the ZIP comment to store additional information. [ 4 ] These files can include additional information like artists, story information, table of contents or even a separate text layer for comic book translations. [ 5 ] The first image in the archive typically is used as the cover image. 
+Adoption [ edit ] 
+ This section is written like a directory . Please help rewrite it in a neutral , encyclopedic style, potentially as a list . If this is not possible, it will likely be merged , redirected , or deleted . ( April 2026 ) 
+Android [ edit ] 
+ FBReader supports CBZ/CBR files on Android via the ComicBook plugin available from its website. [ 6 ] 
+ Perfect Viewer supports CBZ/CBR/CB7/LHZ/CBT files on Android. [ 7 ] 
+ PocketBook Reader App supports CBZ/CBR/CBT files on Android and iOS. [ 8 ] 
+Mac [ edit ] 
+ Calibre can view, library manage and convert to different formats. 
+Unix-like [ edit ] 
+ Calibre can view and convert to different formats. 
+ Comic Seer (Desktop) is a comic book archive viewer and organizer for the desktop. 
+ Evince , a document viewer, includes support for the format. 
+ MComix is a fork of the now discontinued comic reader Comix. 
+ MuPDF is a cross-platform, open source PDF, XPS, and e-book viewer. 
+ Okular can view many formats, including PDF and CBR, and is included in the KDE Software Compilation . 
+ Zathura is a document viewer that supports comic book archive files via plugins. 
+Windows [ edit ] 
+ Calibre e-book reader can view and convert comic archives to different formats 
+ CDisplay (no longer available) was the first application to support the CBR format. 
+ CDisplayEx, inspired by CDisplay with additional viewing features. 
+ Comic Seer (Desktop) is a comic book archive viewer and organizer for the desktop. 
+ Comics++ Free comics and manga viewer for ZIP/CBZ, RAR/CBR, 7z/CB7, PDF, and directories. Written in C++/CX. 
+ Gonvisor is a comic reader simple to use with some features to improve image quality. 
+ STDU Viewer 
+ SumatraPDF 
+See also [ edit ] 
+Comics portal 
+ Comparison of image viewers 
+References [ edit ] 
+ ↑ Fitzpatrick, Jason (2017-02-03). "What Are CBR and CBZ Files, and Why Are They Used for Comics?" . How-To Geek . Retrieved 2026-04-08 . {{ cite web }} : CS1 maint: url-status ( link ) 
+ ↑ "CBR file extension" . Retrieved 15 June 2011 . 
+ ↑ "CBZ file extension" . Retrieved 15 June 2011 . 
+ ↑ "Metadata for Digital Comics" . Archived from the original on 2011-04-28 . Retrieved 2010-11-19 . 
+ ↑ "Advanced Comic Book Format project page" . 
+ ↑ "FBReader ComicBook plugin" . FBReader . 
+ ↑ "Perfect Viewer ComicBook plugin" . Perfect Viewer . 
+ ↑ "PocketBook Reader" . PocketBook Reader . 
+External links [ edit ] 
+v t e Ebooks Formats 
+ ePub 
+ FictionBook 
+ CBR/CBZ 
+ Kindle File Format 
+ Mobipocket 
+ PDF 
+ Plain text 
+ IBA 
+ Reading Devices 
+ Amazon Kindle 
+ Barnes & Noble Nook 
+ Bookeen 
+ Elonex ebook 
+ enTourage eDGe 
+ Hanlin eReader 
+ iPad 
+ iRiver Story 
+ Kobo eReader 
+ Onyx Boox 
+ Plastic Logic Reader 
+ PocketBook eReader 
+ Rocket eBook 
+ SoftBook 
+ Smartphones 
+ Tablets 
+ Software 
+ Adobe Acrobat 
+ Adobe Digital Editions 
+ Aldiko 
+ Apple Books (iBooks) 
+ Aquafadas 
+ Blio 
+ Bluefire Reader 
+ Calibre 
+ FBReader 
+ Foliate 
+ Google Play Books 
+ Kindle app 
+ Kitabu 
+ Kobo 
+ Lector 
+ Lektz 
+ Lucifox 
+ Microsoft Reader 
+ MuPDF 
+ Okular 
+ OverDrive Media Console 
+ Snapplify 
+ STDU Viewer 
+ Sumatra PDF 
+ Editing 
+ ABBYY FineReader 
+ AbiWord 
+ Adobe InDesign 
+ Adobe RoboHelp 
+ Aquafadas 
+ Atlantis Word Processor 
+ Booktype 
+ Calibre 
+ Calligra Author 
+ Collabora Online 
+ eXeLearning 
+ HelpNDoc 
+ iBooks Author 
+ iStudio Publisher 
+ LaTeX 
+ LibreOffice 
+ Oxygen XML Editor 
+ PagePlus 
+ Pages 
+ QuarkXPress 
+ Scrivener 
+ Sigil 
+ Writer2epub 
+ Vendors Commercial 
+ Apple Books Store 
+ Amazon Kindle Store 
+ Baen Free Library 
+ Barnes & Noble 
+ Booktrack 
+ BookWalker 
+ Feedbooks 
+ Google 
+ Google Play 
+ Google Books 
+ Jarir.com 
+ Kobo Bookstore 
+ Rokomari 
+ Sony Reader Store 
+ Smashwords 
+ Noncommercial 
+ Aozora Bunko 
+ Faded Page 
+ HathiTrust 
+ Internet Archive 
+ Project Gutenberg 
+ Australia 
+ Canada 
+ Standard Ebooks 
+ Wikisource 
+ Related 
+ Academic journal publishing reform 
+ Books 
+ Braille e-book 
+ Comparison of ebook readers 
+ Comparison of iOS ebook reader software 
+ Comparison of Android ebook reader software 
+ E-book lending 
+ Electronic publishing 
+ iBooks Author Conference 
+ International Digital Publishing Forum 
+ Kindle single 
+ OPDS 
+ Reflowable document 
+ Self-publishing 
+ Semantic publishing 
+ Timeline of ebooks 
+Retrieved from " https://en.wikipedia.org/w/index.php?title=Comic_book_archive&oldid=1365040279 " 
+ Categories : Archive formats Ebooks Comics formats Hidden categories: Articles with short description Short description is different from Wikidata CS1 maint: url-status Wikipedia articles with style issues from April 2026 All articles with style issues 
+This page was last edited on 19 July 2026, at 22:36  (UTC) . 
+ Page was rendered with Parsoid . 
+ Text is available under the Creative Commons Attribution-ShareAlike 4.0 License ;
+additional terms may apply. By using this site, you agree to the Terms of Use and Privacy Policy . Wikipedia® is a registered trademark of the Wikimedia Foundation, Inc. , a non-profit organization. 
+Privacy policy 
+ About Wikipedia 
+ Disclaimers 
+ Contact Wikipedia 
+ Legal & safety contacts 
+ Code of Conduct 
+ Developers 
+ Statistics 
+ Cookie statement 
+ Mobile view 
+Search 
+Search 
+Toggle the table of contents 
+Comic book archive 
+11 languages 
+Add topic

@@ -1,0 +1,71 @@
+﻿The reading direction should not be greyed out when fit is set to anything but full in cbz files · Issue #10224 · koreader/koreader · GitHub 
+Skip to content 
+Navigation Menu Sign in Appearance settings Platform AI CODE CREATION GitHub Copilot Write better code with AI GitHub Copilot app Direct agents from issue to merge MCP Registry Integrate external tools DEVELOPER WORKFLOWS Actions Automate any workflow Codespaces Instant dev environments Issues Plan and track work Code Review Manage code changes Code Quality Enforce quality at merge APPLICATION SECURITY GitHub Advanced Security Find and fix vulnerabilities Code security Secure your code as you build Secret protection Stop leaks before they start EXPLORE Why GitHub Documentation Blog Changelog Marketplace View all features Solutions BY COMPANY SIZE Enterprises Small and medium teams Startups Nonprofits BY USE CASE App Modernization DevSecOps DevOps CI/CD View all use cases BY INDUSTRY Healthcare Financial services Manufacturing Government View all industries View all solutions Resources EXPLORE BY TOPIC AI Software Development DevOps Security View all topics EXPLORE BY TYPE Customer stories Events & webinars Ebooks & reports Business insights GitHub Skills SUPPORT & SERVICES Documentation Customer support Community forum Trust center Partners View all resources Open Source COMMUNITY GitHub Sponsors Fund open source developers PROGRAMS Security Lab Maintainer Community Accelerator GitHub Stars Archive Program REPOSITORIES Topics Trending Collections Enterprise ENTERPRISE SOLUTIONS Enterprise platform AI-powered developer platform AVAILABLE ADD-ONS GitHub Advanced Security Enterprise-grade security features Copilot for Business Enterprise-grade AI features Premium Support Enterprise-grade 24/7 support Pricing Search / Sign in Sign up Appearance settings 
+You signed in with another tab or window. Reload to refresh your session. 
+ You signed out in another tab or window. Reload to refresh your session. 
+ You switched accounts on another tab or window. Reload to refresh your session. 
+Dismiss alert 
+{{ message }} 
+Uh oh!
+There was an error while loading. Please reload this page . 
+koreader
+/ 
+koreader 
+Public 
+Uh oh!
+There was an error while loading. Please reload this page . 
+Notifications
+ You must be signed in to change notification settings 
+Fork
+ 1.9k 
+Star
+ 29.1k 
+Code 
+Issues 
+ 1.2k 
+Pull requests 
+ 73 
+Discussions 
+Actions 
+Projects 
+Wiki 
+Security and quality 
+ 0 
+Insights 
+Additional navigation options 
+Code
+Issues
+Pull requests
+Discussions
+Actions
+Projects
+Wiki
+Security and quality
+Insights
+The reading direction should not be greyed out when fit is set to anything but full in cbz files   #10224 New issue Copy link New issue Copy link Open Open The reading direction should not be greyed out when fit is set to anything but full in cbz files #10224 Copy link Labels K2pdfopt Description Danar435 opened on Mar 19, 2023 Issue body actions 
+ KOReader version: 2023.01 
+ Device: PB970 
+Issue 
+ Hi, I use KoReader to primarily read manga, and as you may know, manga is read from right to left. Sometimes there might be double pages, which don't look good scaled to fit on a vertical screen. So I read with fit set to height rather than full and zoom set to the whole page. However when I encounter a double page, it would start from left, and progress to the right. No problem I thought, because you can change the direction, except that it's grayed out when the zoom is set to page. Changing the zoom, then changing the direction, and then changing the zoom again fixes the issue with later double pages, but it remains when I move onto another book. 
+ The easy solution would be to make the direction work even when the zoom is set to page or fit is set to anything but full. Because if fit crops a page, then the direction would always be left to right, top to bottom. 
+ Steps to reproduce 
+Open a comic or a manga that has connected double pages 
+ Set the fit to height and zoom to page 
+ Upon encountering a double page it'll start from left to right 
+ Change the zoom to something else, then change the direction to right to left 
+ Change the zoom back, next time you encounter a doulbe page it'll be from right to left 
+ Open another book, even though the direction is correctly selected, it'll be grayed out and double pages will be read from left to right 
+I think the explanation is enough, but let me know if you need any sample files. Reactions are currently unavailable Metadata Metadata Assignees No one assigned Labels K2pdfopt Type No type Projects No projects Milestone No milestone Relationships None yet Development No branches or pull requests Issue actions Open in GitHub Copilot app 
+Footer 
+© 2026 GitHub, Inc.
+Footer navigation 
+Terms 
+Privacy 
+Security 
+Status 
+Community 
+Docs 
+Contact 
+Manage cookies
+Do not share my personal information
+You can’t perform that action at this time.

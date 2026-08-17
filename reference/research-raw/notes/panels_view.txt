@@ -1,0 +1,12 @@
+﻿Enabling Panels View | Panels Guides 
+Skip to main content GitHub Search Getting started Importing content Organizing content Reading content Reader presets and configurations Live text Incognito mode Lock zoom Enabling Panels View Double page grouping Image filters Miscellaneous OPDS: Your own server FAQs Visit panels.app Reading content Enabling Panels View Enabling Panels View 
+ Panels View is a navigation system that allows you to explore comics panel by panel. Leveraging advanced machine learning models trained on hundreds of comic pages, this feature detects and zooms into individual panels, enhancing your reading experience — especially on smaller screens. 
+ info As of this guide's writing, Panels View is still in the experimental phase. While we have made significant improvements over the years, the results may not yet meet the high standards we aim to provide for our users. 
+ To enable Panels View, follow these steps: 
+Go to Settings. 
+ Navigate to Panels Labs. 
+ Toggle on "Panels View Reader". 
+For iPhone: 
+For iPad, Panels settings are located on your avatar: 
+Once enabled, you will see a new option while reading that allows you to toggle panel-by-panel navigation on or off. 
+ Edit this page Previous Lock zoom Next Double page grouping Community Discord Twitter More Download Panels app GitHub Copyright © 2026 Produkt Software Engineering. Built with Docusaurus.

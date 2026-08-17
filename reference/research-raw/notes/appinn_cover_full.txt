@@ -1,0 +1,137 @@
+﻿Windows美观简洁本地漫画阅读器推荐：Cover - 搜索Windows商店 - 发现频道 - 小众软件官方论坛 
+= 40rem)" rel="stylesheet" data-target="chat_desktop" />
+ = 40rem)" rel="stylesheet" data-target="discourse-ai_desktop" />
+ = 40rem)" rel="stylesheet" data-target="discourse-events_desktop" />
+ = 40rem)" rel="stylesheet" data-target="discourse-gamification_desktop" />
+ = 40rem)" rel="stylesheet" data-target="discourse-reactions_desktop" />
+ = 40rem)" rel="stylesheet" data-target="poll_desktop" />
+= 40rem)" rel="stylesheet" data-target="desktop_theme" data-theme-id="122" data-theme-name="author badge for topic posts"/>
+ = 40rem)" rel="stylesheet" data-target="desktop_theme" data-theme-id="44" data-theme-name="md-composer-extras"/>
+ = 40rem)" rel="stylesheet" data-target="desktop_theme" data-theme-id="110" data-theme-name="topic list sidebars"/>
+ = 40rem)" rel="stylesheet" data-target="desktop_theme" data-theme-id="1" data-theme-name="默认主题"/>
+小众软件官方论坛 
+Windows美观简洁本地漫画阅读器推荐：Cover - 搜索Windows商店 
+发现频道 
+windows , 
+ 阅读 , 
+ uwp 
+fresmast 
+2023 年11 月 15 日 14:06
+1 
+软件名称 
+ Cover 
+ 应用平台 
+ Windows 
+ 推荐类型 
+ 用户推荐 
+ 一句话简介 
+ Windows UWP 设计，界面足够简洁美观，支持常见打包格式和图片格式，支持常见阅读需求（比如单双页、竖排横排、从右到左之类的） 
+ 应用简介 
+ 免费支持最大25本漫画，付费可以解锁更多或无限 
+商店介绍 
+-支持所有漫画文件格式：CBZ/ZIP, CBR/RAR, 7Z/CB7, CBT, PDF, EPUB (目前仅支持图片模式) 
+-简明易懂的书库管理方式：书架，已读/未读状态，页数，当前页…… 
+-随时随地存储漫画：本地文件夹，网络位置，onedrive，google drive，dropbox 
+-个性化你的阅读体验：单/双页显示，适应页面宽度/高度，背景色，连续页面，夜间模式…… 
+个人介绍 
+-目前了解的里面用户界面最简洁美观的 
+-作为阅读器来说功能还可以，基本满足个人需求 
+-可以自动检测裁切漫画没有内容的白边，有些漫画可以显示更大的画面 
+-双页阅读可以拼接连续两页为单页，实际用起来感觉识别比较严格。 
+-库管理功能比较薄弱 
+-速度可能稍慢一点，但基本没有影响 
+-阅读完一本后不能自动切换到下一本，和开发者提过建议，但没有意愿修改（如果有兴趣的建议发邮件提建议，或许要求人多会改） 
+-双页模式下两页间隔无法控制，如果选择适应高度和宽度，两页之间一般会有间隔，其他适应模式则没有间隔，这个提过建议，开发者正在考虑 
+-自动隐藏的鼠标会在换页时重新冒出来，目前开发者正在看 
+官网 
+ We create cutting edge software. | French Fry (frenchfrysoftware.com) 
+ 截图 
+ Snipaste_2023-11-15_21-30-22 1920×1044 114 KB 
+ Snipaste_2023-11-15_21-31-13 1920×1044 129 KB 
+ Snipaste_2023-11-15_21-32-05 1920×1044 121 KB 
+ Snipaste_2023-11-15_21-57-43 1920×1044 228 KB 
+ 其他 
+ 有兴趣的遇到问题建议邮件联系开发者，另外大家还有别的漫画阅读器推荐吗 
+RachelSherman 
+2023 年11 月 15 日 14:24
+2 
+Cover一直在用，内购解锁不算贵。以前有在用Manga Meeya。 
+ 如果要建立emby那样的漫画服务器的话，有kavita、komga之类的。 
+Sodayoo 
+2023 年11 月 16 日 02:08
+3 
+主要用开源免费的 Neeview ，和这个界面有些异曲同工，功能偏向看图，也很全（就是设置看着比较繁琐），还有个 漫画加加 和 漫画阅读器 UWP 。 
+1 个赞 
+sav3uluan 
+2023 年11 月 21 日 16:57
+5 
+请问neeview可以将图片链接起来, 类似韩漫那样的滚动着看吗? 
+sav3uluan 
+2023 年11 月 21 日 17:06
+7 
+恩. 瑕不掩瑜, neeview挺快的. 
+LaotieDoubleclick666 
+(UFO888)
+2024 年3 月 6 日 23:54
+8 
+滚动效果不错，预加载好像有点问题，有时候下张图能卡3秒 
+双页非全屏模式下不支持鼠标滚动翻页的设计也是挺奇怪 
+Kyecox 
+(千と千尋の神隠し)
+2024 年3 月 8 日 02:07
+9 
+因为这个软件本职压根就没做好,我本子体积大的,有时候都会出现条纹显示的情况,这付费的真不如yacreader 
+Kyecox 
+(千と千尋の神隠し)
+2024 年3 月 8 日 02:07
+10 
+看压缩包的话,其实honeyview都可以,也给漫画阅读优化过 
+1 个赞 
+LaotieDoubleclick666 
+(UFO888)
+2024 年3 月 8 日 02:14
+11 
+可能作者比较偏设计和美学吧，优势是动画很顺滑，界面好看 
+在功能和性能上一般 
+相关话题
+话题 
+回复 
+ 浏览量 
+ 活动 
+【开发者自荐】米饭漫画-开源的简单漫画阅读器 
+发现频道 
+2 
+1311 
+2023 年7 月 25 日
+有没有支持无缝滚动的看漫画的PC软件？ 
+问题求助 
+26 
+2674 
+2025 年9 月 26 日
+求个rar看图软件 
+问题求助 
+11 
+2825 
+2021 年11 月 10 日
+大家推荐一些好用的 win10 store 应用吧 
+讨论分享 
+windows 
+11 
+10531 
+2018 年11 月 30 日
+全网最全安卓手机本地漫画压缩包阅读器浏览器汇总 
+讨论分享 
+android 
+ , 
+ 阅读 
+ , 
+ 漫画 
+10 
+4084 
+2025 年12 月 26 日
+首页 
+类别 
+准则 
+服务条款 
+隐私政策 
+由 Discourse 提供支持，启用 JavaScript 以获得最佳体验
