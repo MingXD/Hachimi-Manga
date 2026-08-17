@@ -8,13 +8,11 @@
 - [x] **用户评审与决策**（D1–D6 全部确认：Avalonia 11、文件夹+CBZ、纯本地元数据、干跑+可撤销、进阶后置 M3、范围确认）
 - 产出：本仓库全套文档；决策记录见 decision-log.md；下一步初始化 git 与项目脚手架
 
-## M0.5 技术 PoC（技术栈决策后、M1 开工前，2–3 天）
-> 验证 tech-stack-eval.md 标注的高风险点，结论回写 decision-log：
-- [ ] SharpCompress：5000 页 CBZ 随机读基准（索引 <1s、翻页 <100ms）；RAR 只读兼容性抽样
-- [ ] Avalonia：封面墙虚拟化（1 万条）+ 大图（8K）解码渲染冒烟
-- [ ] SQLite：万级书目查询 + 扫描增量性能
-- [ ] MSIX 打包 + 自动更新链路冒烟
-
+## M0.5 技术 PoC（✅ 已完成，详见 docs/03-dev/poc-report.md）
+- [x] SharpCompress/ZipArchive：300 页 CBZ 索引 29ms、随机翻页 0.1ms（内置 ZipArchive 胜出）
+- [x] Avalonia 12.1.1：封面墙虚拟化（1 万项）+ 大图渲染 Headless 冒烟通过
+- [x] SQLite：1 万条书目插入 72ms、查询 3.8ms
+- [ ] MSIX 打包 + 自动更新链路（随 M1 打包一并验证）
 ## M1 Windows MVP（可读一本日漫）—— 预计 4–6 周（单人）
 目标验收：打开 5000 页 CBZ，RTL 双页正确、黑夜模式可用、续读生效
 - 项目脚手架：Avalonia 11 + .NET 核心类库 + 测试框架
