@@ -47,12 +47,12 @@ public sealed class ZipComicSource : ComicSource
         return ms;
     }
 
-    public override async Task<PageSize?> GetPageSizeAsync(int index, CancellationToken ct = default)
+    public override PageSize? GetPageSize(int index)
     {
         var entry = EnsureOpen()[index];
-        await using var es = entry.Open();
+        using var es = entry.Open();
         var head = new byte[64];
-        int read = await es.ReadAsync(head, ct);
+        int read = es.Read(head, 0, head.Length);
         return ImageInfo.ParseHeader(head.AsSpan(0, read));
     }
 

@@ -37,8 +37,12 @@ public abstract class ComicSource : IAsyncDisposable
     /// <summary>打开指定页的原始字节流（调用方负责 Dispose）。</summary>
     public abstract Task<Stream> OpenPageAsync(int index, CancellationToken ct = default);
 
-    /// <summary>读取页面尺寸（不完整解码，仅解析文件头）。</summary>
-    public abstract Task<PageSize?> GetPageSizeAsync(int index, CancellationToken ct = default);
+    /// <summary>读取页面尺寸（同步，用于 UI 线程初始化——避免阻塞异步续体死锁）。</summary>
+    public abstract PageSize? GetPageSize(int index);
+
+    /// <summary>异步读取页面尺寸（不完整解码，仅解析文件头）。</summary>
+    public virtual Task<PageSize?> GetPageSizeAsync(int index, CancellationToken ct = default)
+        => Task.FromResult(GetPageSize(index));
 
     /// <summary>读取元数据（无则返回 null）。</summary>
     public abstract Task<ComicMetadata?> ReadMetadataAsync(CancellationToken ct = default);

@@ -28,12 +28,12 @@ public sealed class FolderComicSource : ComicSource
     public override Task<Stream> OpenPageAsync(int index, CancellationToken ct = default)
         => Task.FromResult<Stream>(File.OpenRead(EnsureFiles()[index]));
 
-    public override Task<PageSize?> GetPageSizeAsync(int index, CancellationToken ct = default)
+    public override PageSize? GetPageSize(int index)
     {
-        using var fs = File.OpenRead(EnsureFiles()[index]);
+        using var stream = File.OpenRead(EnsureFiles()[index]);
         var head = new byte[64];
-        int read = fs.Read(head, 0, head.Length);
-        return Task.FromResult(ImageInfo.ParseHeader(head.AsSpan(0, read)));
+        int read = stream.Read(head, 0, head.Length);
+        return ImageInfo.ParseHeader(head.AsSpan(0, read));
     }
 
     public override Task<ComicMetadata?> ReadMetadataAsync(CancellationToken ct = default)

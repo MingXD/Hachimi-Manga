@@ -24,6 +24,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\MangaAgent.Core\MangaAgent.Core.csproj" />
+    <ProjectReference Include="..\MangaAgent.App\MangaAgent.App.csproj" />
   </ItemGroup>
 
 </Project>

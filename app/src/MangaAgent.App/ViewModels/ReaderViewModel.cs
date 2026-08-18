@@ -65,9 +65,10 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
 
     private void LoadSizes()
     {
+        // 同步读取页尺寸（避免在 UI 线程阻塞异步续体导致死锁）
         for (int i = 0; i < _source.PageCount; i++)
         {
-            var sz = _source.GetPageSizeAsync(i).GetAwaiter().GetResult();
+            var sz = _source.GetPageSize(i);
             if (sz is { } s) _sizes[i] = s;
         }
     }
