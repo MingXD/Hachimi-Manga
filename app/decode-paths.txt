@@ -1,0 +1,4 @@
+A stream-disposed: 1x1
+B stream-kept: 1x1
+C DecodeToWidth(100000): 100000x100000
+D from-file: 1x1

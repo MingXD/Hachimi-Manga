@@ -130,8 +130,15 @@ public partial class MainWindowViewModel : ViewModelBase
     private void OpenBook(BookItemViewModel? book)
     {
         if (book is null) return;
-        var vm = new ReaderViewModel(book.Book, StateDbPath);
-        new ReaderWindow { DataContext = vm }.Show();
+        try
+        {
+            var vm = new ReaderViewModel(book.Book, StateDbPath);
+            new ReaderWindow { DataContext = vm }.Show();
+        }
+        catch (Exception ex)
+        {
+            global::MangaAgent.App.App.SLog("OpenBook EXCEPTION: " + ex);
+        }
     }
 
     public static string DbPath => LibraryDbPath;
