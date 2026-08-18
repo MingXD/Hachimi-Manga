@@ -90,6 +90,9 @@ public partial class ReaderWindow : Window
         if (_vm is null || Scroller is null) return;
         double vp = Math.Max(200, Scroller.Bounds.Width - 28);
         double scale = Math.Max(0.25, _vm.Scale);
+        // 解码目标宽度 = 视口×缩放×DPI（上限 4096）：4K 扫描页按需降采样（BUG-001 根因修复）
+        double dpr = RenderScaling > 0 ? RenderScaling : 1.0;
+        _vm.DecodeTargetWidth = (int)Math.Clamp(vp * scale * dpr, 1600, 4096);
         if (_vm.IsDoublePageShown && _vm.Image2 is not null)
         {
             double total = vp * scale;

@@ -31,7 +31,7 @@ public sealed class FolderComicSource : ComicSource
     public override PageSize? GetPageSize(int index)
     {
         using var stream = File.OpenRead(EnsureFiles()[index]);
-        var head = new byte[64];
+        var head = new byte[65536];   // 大 JPEG 的 APP 段可能很长，SOF 靠后
         int read = stream.Read(head, 0, head.Length);
         return ImageInfo.ParseHeader(head.AsSpan(0, read));
     }

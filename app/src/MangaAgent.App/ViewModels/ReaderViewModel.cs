@@ -42,6 +42,12 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
     private readonly Dictionary<int, Bitmap> _pageCache = new();
     private readonly LinkedList<int> _cacheOrder = new();
 
+    /// <summary>解码目标宽度（按显示尺寸降采样，4K 扫描页从 104MB 降到 ~10MB）。</summary>
+    [ObservableProperty]
+    private int _decodeTargetWidth = 2048;
+
+    private int _loadSeq;
+
     public string BackgroundHex => IsDark ? "#101014" : "#F3F1EC";
     public string ToolbarHex => IsDark ? "#1C1C24" : "#FFFFFF";
     public string ForegroundHex => IsDark ? "#E8E8E8" : "#1A1A1A";
@@ -94,22 +100,26 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
     private async Task LoadCurrentAsync()
     {
         if (_logical.Count == 0) return;
-        HasStatus = false;
+        var mySeq = ++_loadSeq;
         var lp = _logical[CurrentIndex];
         var showDouble = DoubleMode && lp.IsDouble;
-        IsDoublePageShown = showDouble;
 
-        Image1 = await DecodeAsync(lp.FirstIndex);
-        Ratio1 = RatioOf(lp.FirstIndex);
+        var img1 = await DecodeAsync(lp.FirstIndex);
+        Bitmap? img2 = null;
         if (showDouble && lp.SecondIndex >= 0)
-        {
-            Image2 = await DecodeAsync(lp.SecondIndex);
-            Ratio2 = RatioOf(lp.SecondIndex);
-        }
-        else
-        {
-            Image2 = null;
-        }
+            img2 = await DecodeAsync(lp.SecondIndex);
+
+        // 竞态防护：期间用户已翻页/切换模式，则丢弃本次结果（BUG-001 修复）
+        if (mySeq != _loadSeq || CurrentIndex >= _logical.Count) return;
+        var cur = _logical[CurrentIndex];
+        if (cur.FirstIndex != lp.FirstIndex || (showDouble != (DoubleMode && cur.IsDouble))) return;
+
+        HasStatus = false;
+        IsDoublePageShown = showDouble;
+        Image1 = img1;
+        Ratio1 = RatioOf(lp.FirstIndex);
+        Image2 = img2;
+        if (img2 is not null) Ratio2 = RatioOf(lp.SecondIndex);
         PageText = $"{CurrentIndex + 1} / {TotalLogical}";
         ProgressValue = CurrentIndex + 1;
     }
@@ -133,7 +143,8 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
             using var ms = new MemoryStream();
             await stream.CopyToAsync(ms);
             ms.Position = 0;
-            decoded = new Bitmap(ms);
+            // 按显示尺寸降采样解码（BUG-001 根因修复：避免 4K 扫描页全尺寸解码 104MB）
+            decoded = Bitmap.DecodeToWidth(ms, Math.Max(400, DecodeTargetWidth));
         }
         catch (Exception ex)
         {

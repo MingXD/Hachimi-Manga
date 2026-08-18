@@ -31,3 +31,6 @@ cache/
 
 # Regenerable big fixtures
 reference/fixtures/big/
+
+# User test comics
+/test-file/
