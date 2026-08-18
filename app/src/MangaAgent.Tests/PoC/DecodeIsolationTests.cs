@@ -6,7 +6,12 @@ using Xunit;
 
 namespace MangaAgent.Tests.PoC;
 
-/// <summary>隔离验证：JPEG 字节有效性 vs Avalonia Bitmap 解码。</summary>
+/// <summary>
+/// 解码隔离验证。
+/// 已知限制（Headless 平台伪影）：Avalonia.Headless 下 Bitmap(Stream) 一律解码为 1x1、
+/// DecodeToWidth(w) 输出 w×w —— 仅影响测试断言，真实应用（Skia 平台）正常；
+/// 像素级验证一律用真实应用 --open + 截屏（见 BUG-001 记录）。
+/// </summary>
 public class DecodeIsolationTests
 {
     private static byte[] MakeJpeg(int w, int h)
@@ -23,35 +28,20 @@ public class DecodeIsolationTests
         return data.ToArray();
     }
 
-    private static byte[] MakePng(int w, int h)
-    {
-        using var bmp = new SKBitmap(w, h);
-        using (var canvas = new SKCanvas(bmp))
-        {
-            canvas.Clear(new SKColor(250, 250, 248));
-            using var paint = new SKPaint { Color = new SKColor(60, 60, 60) };
-            canvas.DrawRect(50, 50, 200, 200, paint);
-        }
-        using var img = SKImage.FromBitmap(bmp);
-        using var data = img.Encode(SKEncodedImageFormat.Png, 100);
-        return data.ToArray();
-    }
-
     [AvaloniaFact]
     public void Jpeg_Bytes_Are_Valid_And_Avalonia_Decodes()
     {
         var jpeg = MakeJpeg(2500, 3500);
-        Console.WriteLine($"[ISO] jpeg bytes: {jpeg.Length}");
+        Assert.True(jpeg.Length > 1000, "JPEG 字节应为有效图片");
 
-        // Skia 直接解码（基准事实）
         using var sk = SKBitmap.Decode(jpeg);
         Assert.NotNull(sk);
-        Console.WriteLine($"[ISO] skia decode: {sk!.Width}x{sk.Height}");
+        Assert.Equal(2500, sk!.Width);
+        Assert.Equal(3500, sk.Height);
 
-        // Avalonia Bitmap(Stream) 全尺寸解码
+        // Avalonia Bitmap(Stream) 在 Headless 下解码为 1x1（平台伪影），此处仅断言非空
         using var ms = new MemoryStream(jpeg);
         var bmp = new Bitmap(ms);
-        // 已知 Headless 限制：Bitmap(Stream) 在 Avalonia.Headless 下解码为 1x1（伪影，非真实应用行为）
-        Console.WriteLine($"[ISO] avalonia Bitmap(stream) jpeg (headless): {bmp.PixelSize.Width}x{bmp.PixelSize.Height}");
         Assert.NotNull(bmp);
     }
+}
