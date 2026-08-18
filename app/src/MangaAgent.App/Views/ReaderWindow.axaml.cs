@@ -43,11 +43,9 @@ public partial class ReaderWindow : Window
 
     private void OnScrollerSizeChanged(object? sender, SizeChangedEventArgs e) => Relayout();
 
-    // ---- P0-4 鼠标拖拽：未放大时水平拖拽翻页（RTL 感知）；放大时拖拽平移 ----
+    // ---- 鼠标拖拽 = 画面平移（YACReader/Perfect Viewer 标准；翻页交给滚轮/键盘）----
     private bool _isDragging;
     private Avalonia.Point _dragStart;
-    private double _dragAccumX;
-    private bool _dragWasPan;
 
     private void OnScrollerPointerPressed(object? sender, PointerPressedEventArgs e)
     {
@@ -55,10 +53,7 @@ public partial class ReaderWindow : Window
         if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
         {
             _isDragging = true;
-            _dragAccumX = 0;
-            _dragWasPan = false;
             _dragStart = e.GetPosition(Scroller);
-            e.Pointer.Capture(Scroller);
             e.Handled = true;
         }
     }
@@ -68,18 +63,13 @@ public partial class ReaderWindow : Window
         if (!_isDragging || _vm is null) return;
         var pos = e.GetPosition(Scroller);
         double dx = pos.X - _dragStart.X;
+        double dy = pos.Y - _dragStart.Y;
         _dragStart = pos;
-        bool hOverflow = PagePanel.Bounds.Width > Scroller.Bounds.Width + 1;
-        if (hOverflow)
-        {
-            _dragWasPan = true;
-            var off = Scroller.Offset;
-            Scroller.Offset = new Avalonia.Vector(Math.Max(0, off.X - dx), off.Y);
-        }
-        else
-        {
-            _dragAccumX += dx;
-        }
+        var off = Scroller.Offset;
+        // 用 Extent（内容总尺寸）而非 Panel.Bounds（ScrollViewer 内被 Arrange 成视口宽）
+        double maxX = Math.Max(0, Scroller.Extent.Width - Scroller.Viewport.Width);
+        double maxY = Math.Max(0, Scroller.Extent.Height - Scroller.Viewport.Height);
+        Scroller.Offset = PanOffset(off, dx, dy, maxX, maxY);
         e.Handled = true;
     }
 
@@ -87,14 +77,6 @@ public partial class ReaderWindow : Window
     {
         if (!_isDragging) return;
         _isDragging = false;
-        e.Pointer.Capture(null);
-        if (_vm is not null && !_dragWasPan && _dragAccumX != 0 && Math.Abs(_dragAccumX) > 60)
-        {
-            // RTL：向左拖 = 下一页；LTR 反之
-            bool next = _vm.Direction == ReadingDirection2.Rtl ? _dragAccumX < 0 : _dragAccumX > 0;
-            if (next) _vm.NextPageCommand.Execute(null);
-            else _vm.PrevPageCommand.Execute(null);
-        }
         e.Handled = true;
     }
 
@@ -118,6 +100,16 @@ public partial class ReaderWindow : Window
                 double tx = (off.X + px * vpW) * ratio - px * vpW;
                 double ty = (off.Y + py * vpH) * ratio - py * vpH;
                 Scroller.Offset = new Avalonia.Vector(Math.Max(0, tx), Math.Max(0, ty));
+            }
+            e.Handled = true;
+        }
+        else
+        {
+            // 滚轮 = 翻页（分页模式，CDisplayEx/YACReader 标准）：下滚=下一页，上滚=上一页
+            if (e.Delta.Y != 0)
+            {
+                if (e.Delta.Y > 0) _vm.PrevPageCommand.Execute(null);
+                else _vm.NextPageCommand.Execute(null);
             }
             e.Handled = true;
         }
@@ -160,6 +152,12 @@ public partial class ReaderWindow : Window
             case Key.B: _vm.ToggleBookmarkCommand.Execute(null); e.Handled = true; break;
         }
     }
+
+    /// <summary>拖拽平移计算（纯函数，可单测）：offset 跟随拖动位移，限制在内容范围内。</summary>
+    public static Avalonia.Vector PanOffset(Avalonia.Vector off, double dx, double dy, double maxX, double maxY)
+        => new(
+            Math.Clamp(off.X - dx, 0, Math.Max(0, maxX)),
+            Math.Clamp(off.Y - dy, 0, Math.Max(0, maxY)));
 
     private void Relayout()
     {

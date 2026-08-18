@@ -46,7 +46,7 @@
                   PointerPressed="OnScrollerPointerPressed"
                   PointerMoved="OnScrollerPointerMoved"
                   PointerReleased="OnScrollerPointerReleased">
-      <StackPanel x:Name="PagePanel" Orientation="Horizontal" Spacing="10" Margin="10">
+      <StackPanel x:Name="PagePanel" Orientation="Horizontal" Spacing="10" Margin="10" HorizontalAlignment="Left">
         <Image x:Name="PageImage1" Stretch="None"
                Source="{Binding Image1}"
                IsVisible="{Binding Image1, Converter={x:Static conv:ObjectConverters.IsNotNull}}"/>
