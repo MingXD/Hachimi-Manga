@@ -32,8 +32,8 @@
     </Border>
     <!-- 封面墙 -->
     <Border Background="#101014">
-      <ScrollViewer Margin="14">
-        <ListBox ItemsSource="{Binding Books}" SelectedItem="{Binding SelectedBook}"
+      <ScrollViewer x:Name="CoverScroller" Margin="14" ScrollChanged="OnCoverScrollChanged">
+        <ListBox x:Name="BooksList" ItemsSource="{Binding Books}" SelectedItem="{Binding SelectedBook}"
                  Background="Transparent" HorizontalAlignment="Left"
                  DoubleTapped="OnBookDoubleTapped">
           <ListBox.ItemsPanel>

@@ -80,6 +80,23 @@ public class ReaderE2eTests
             Assert.True(bmp.PixelSize.Width > 0);
             win.Close();
 
+            // 8) 逐页翻越 LRU 缓存上限（6 页）——缓存淘汰路径（逐步等待，避免竞态）
+            var db3 = Path.Combine(Path.GetTempPath(), $"mangaagent_e2e3_{Guid.NewGuid():N}.db");
+            var vm3 = new ReaderViewModel(StressBook, db3);
+            for (int i = 0; i < 12; i++)
+            {
+                vm3.NextPageCommand.Execute(null);
+                Assert.Equal(i + 1, vm3.CurrentIndex);
+                await WaitUntilAsync(() => vm3.Image1 is not null);
+                Assert.False(vm3.HasStatus, $"翻页到 {i + 1} 不应出现解码错误");
+            }
+            Assert.Equal(12, vm3.CurrentIndex);
+            vm3.PrevPageCommand.Execute(null);
+            vm3.PrevPageCommand.Execute(null);
+            Assert.Equal(10, vm3.CurrentIndex);
+            await vm3.DisposeAsync();
+            try { File.Delete(db3); } catch { }
+
             await vm.DisposeAsync();
             await vm2.DisposeAsync();
         }

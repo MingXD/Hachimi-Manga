@@ -34,6 +34,13 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
     [ObservableProperty] private string _pageText = "1 / 1";
     [ObservableProperty] private int _progressValue;
     [ObservableProperty] private ObservableCollection<int> _bookmarks = new();
+    [ObservableProperty] private string _statusText = string.Empty;
+    [ObservableProperty] private bool _hasStatus;
+
+    // 页面位图 LRU 缓存（上限 CacheCap 页，淘汰时 Dispose，控制内存峰值 —— BUG-001 修复）
+    private const int CacheCap = 6;
+    private readonly Dictionary<int, Bitmap> _pageCache = new();
+    private readonly LinkedList<int> _cacheOrder = new();
 
     public string BackgroundHex => IsDark ? "#101014" : "#F3F1EC";
     public string ToolbarHex => IsDark ? "#1C1C24" : "#FFFFFF";
@@ -87,6 +94,7 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
     private async Task LoadCurrentAsync()
     {
         if (_logical.Count == 0) return;
+        HasStatus = false;
         var lp = _logical[CurrentIndex];
         var showDouble = DoubleMode && lp.IsDouble;
         IsDoublePageShown = showDouble;
@@ -110,15 +118,51 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
 
     private async Task<Bitmap?> DecodeAsync(int physical)
     {
+        if (_pageCache.TryGetValue(physical, out var cached))
+        {
+            _cacheOrder.Remove(physical);
+            _cacheOrder.AddLast(physical);
+            return cached;
+        }
+
+        Bitmap? decoded = null;
+        string? error = null;
         try
         {
-            using var s = await _source.OpenPageAsync(physical);
+            using var stream = await _source.OpenPageAsync(physical);
             using var ms = new MemoryStream();
-            await s.CopyToAsync(ms);
+            await stream.CopyToAsync(ms);
             ms.Position = 0;
-            return new Bitmap(ms);
+            decoded = new Bitmap(ms);
         }
-        catch { return null; }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+        }
+
+        if (decoded is null)
+        {
+            StatusText = $"无法解码第 {physical + 1} 页：{error}";
+            HasStatus = true;
+            return null;
+        }
+
+        HasStatus = false;
+        _pageCache[physical] = decoded;
+        _cacheOrder.AddLast(physical);
+        EvictCache();
+        return decoded;
+    }
+
+    private void EvictCache()
+    {
+        while (_cacheOrder.Count > CacheCap)
+        {
+            var oldest = _cacheOrder.First!.Value;
+            _cacheOrder.RemoveFirst();
+            if (_pageCache.Remove(oldest, out var bmp))
+                bmp.Dispose();
+        }
     }
 
     private void SaveState() =>
@@ -189,5 +233,9 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
         SaveState();
         await _source.DisposeAsync();
         _state.Dispose();
+        foreach (var bmp in _pageCache.Values)
+            bmp.Dispose();
+        _pageCache.Clear();
+        _cacheOrder.Clear();
     }
 }
