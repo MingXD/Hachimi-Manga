@@ -9,10 +9,16 @@ namespace MangaAgent.App.Views;
 public partial class ReaderWindow : Window
 {
     private ReaderViewModel? _vm;
+    private bool _ctrlDown;   // 物理键盘 Ctrl 状态（IME/焦点干扰时兜底）
 
     public ReaderWindow()
     {
         InitializeComponent();
+        // 窗口级捕获滚轮（指针在任何子控件上都能处理，避免事件丢失/被默认滚动吞掉）
+        AddHandler(InputElement.PointerWheelChangedEvent, OnPointerWheelChanged, RoutingStrategies.Bubble);
+        // 窗口级捕获 Ctrl 键状态（KeyDown/KeyUp 是物理键盘事件，不受输入法干扰）
+        KeyDown += (_, e) => { if (e.Key == Key.LeftCtrl || e.Key == Key.RightCtrl) _ctrlDown = true; };
+        KeyUp += (_, e) => { if (e.Key == Key.LeftCtrl || e.Key == Key.RightCtrl) _ctrlDown = false; };
     }
 
     protected override void OnDataContextChanged(EventArgs e)
@@ -83,7 +89,9 @@ public partial class ReaderWindow : Window
     private void OnPointerWheelChanged(object? sender, PointerWheelEventArgs e)
     {
         if (_vm is null) return;
-        if (e.KeyModifiers.HasFlag(KeyModifiers.Control))
+        // Ctrl 判定：事件修饰键 + 物理键盘状态兜底（输入法/焦点切换时事件修饰键可能丢失）
+        bool ctrl = e.KeyModifiers.HasFlag(KeyModifiers.Control) || _ctrlDown;
+        if (ctrl)
         {
             // 以光标为中心缩放（YACReader 约定）：缩放前后保持光标处的内容点不动
             double px = e.GetPosition(Scroller).X / Math.Max(1, Scroller.Bounds.Width);
