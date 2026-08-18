@@ -55,36 +55,3 @@ public class DecodeIsolationTests
         Console.WriteLine($"[ISO] avalonia Bitmap(stream) jpeg (headless): {bmp.PixelSize.Width}x{bmp.PixelSize.Height}");
         Assert.NotNull(bmp);
     }
-
-
-    [AvaloniaFact]
-    public void Compare_Decode_Paths_To_Find_Working_Fix()
-    {
-        var jpeg = MakeJpeg(2500, 3500);
-        // A: new Bitmap(stream)，流随 using 释放（当前代码路径）
-        var report = new System.Text.StringBuilder();
-        using (var ms = new MemoryStream(jpeg))
-        {
-            var a = new Bitmap(ms);
-            report.AppendLine($"A stream-disposed: {a.PixelSize.Width}x{a.PixelSize.Height}");
-        }
-        var msB = new MemoryStream(jpeg);
-        var b = new Bitmap(msB);
-        report.AppendLine($"B stream-kept: {b.PixelSize.Width}x{b.PixelSize.Height}");
-        using (var ms = new MemoryStream(jpeg))
-        {
-            var c = Bitmap.DecodeToWidth(ms, 100_000);
-            report.AppendLine($"C DecodeToWidth(100000): {c.PixelSize.Width}x{c.PixelSize.Height}");
-        }
-        var tmp = Path.Combine(Path.GetTempPath(), $"manga_fix_{Guid.NewGuid():N}.jpg");
-        File.WriteAllBytes(tmp, jpeg);
-        try
-        {
-            var d = new Bitmap(tmp);
-            report.AppendLine($"D from-file: {d.PixelSize.Width}x{d.PixelSize.Height}");
-        }
-        finally { try { File.Delete(tmp); } catch { } }
-        File.WriteAllText("D:\\MangaAgent\\app\\decode-paths.txt", report.ToString());
-    }
-
-}
