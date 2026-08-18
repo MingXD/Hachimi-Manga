@@ -1,22 +1,61 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:MangaAgent.App.ViewModels"
-        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
         x:Class="MangaAgent.App.Views.MainWindow"
-        x:DataType="vm:MainViewModel"
-        Icon="/Assets/avalonia-logo.ico"
-        Title="MangaAgent.App">
+        x:DataType="vm:MainWindowViewModel"
+        Width="1200" Height="800"
+        Title="MangaAgent — 漫画阅读器">
 
-    <Design.DataContext>
-        <!-- This only sets the DataContext for the previewer in an IDE,
-             to set the actual DataContext for runtime, set the DataContext property in code (look at App.axaml.cs) -->
-        <vm:MainViewModel />
-    </Design.DataContext>
-
-    <TextBox Text="{Binding Greeting}"
-             HorizontalAlignment="Center"
-             VerticalAlignment="Center" />
-
+  <DockPanel>
+    <!-- 顶栏 -->
+    <Border DockPanel.Dock="Top" Padding="10,8" Background="#1C1C24">
+      <DockPanel>
+        <TextBlock DockPanel.Dock="Left" Text="MangaAgent" Foreground="#E8E8E8" FontSize="18" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,20,0"/>
+        <Button DockPanel.Dock="Left" Content="＋ 添加资料库" Command="{Binding AddLibraryCommand}" Margin="0,0,8,0"/>
+        <Button DockPanel.Dock="Left" Content="重新扫描" Command="{Binding RescanCommand}" IsEnabled="{Binding !IsScanning}" Margin="0,0,8,0"/>
+        <TextBox DockPanel.Dock="Right" Width="280" PlaceholderText="搜索标题 / 系列…" Text="{Binding SearchText}" VerticalContentAlignment="Center"/>
+        <TextBlock DockPanel.Dock="Right" Text="{Binding StatusText}" Foreground="#B0B0B0" VerticalAlignment="Center" Margin="0,0,14,0"/>
+      </DockPanel>
+    </Border>
+    <!-- 侧边栏 -->
+    <Border DockPanel.Dock="Left" Width="220" Background="#16161C">
+      <DockPanel>
+        <TextBlock DockPanel.Dock="Top" Text="资料库" Foreground="#888888" Margin="12,10,12,6" FontSize="12"/>
+        <ListBox ItemsSource="{Binding Libraries}" SelectedItem="{Binding SelectedLibrary}" Background="Transparent">
+          <ListBox.ItemTemplate>
+            <DataTemplate>
+              <TextBlock Text="{Binding Name}" Foreground="#E8E8E8" Margin="4,3"/>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </DockPanel>
+    </Border>
+    <!-- 封面墙 -->
+    <Border Background="#101014">
+      <ScrollViewer Margin="14">
+        <ListBox ItemsSource="{Binding Books}" SelectedItem="{Binding SelectedBook}"
+                 Background="Transparent" HorizontalAlignment="Left"
+                 DoubleTapped="OnBookDoubleTapped">
+          <ListBox.ItemsPanel>
+            <ItemsPanelTemplate>
+              <WrapPanel ItemWidth="184" ItemHeight="262"/>
+            </ItemsPanelTemplate>
+          </ListBox.ItemsPanel>
+          <ListBox.ItemTemplate>
+            <DataTemplate>
+              <Border Width="176" Height="254" Background="#1E1E26" CornerRadius="6" BorderBrush="#333333" BorderThickness="1" Margin="2">
+                <StackPanel Margin="6">
+                  <Border Background="#2A2A34" CornerRadius="4" Width="164" Height="200" ClipToBounds="True">
+                    <Image Source="{Binding Thumbnail}" Stretch="Uniform" Width="164" Height="200"/>
+                  </Border>
+                  <TextBlock Text="{Binding DisplayName}" Foreground="#E8E8E8" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" FontSize="12" Margin="0,6,0,0"/>
+                  <TextBlock Text="{Binding Subtitle}" Foreground="#888888" FontSize="10"/>
+                </StackPanel>
+              </Border>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </ScrollViewer>
+    </Border>
+  </DockPanel>
 </Window>

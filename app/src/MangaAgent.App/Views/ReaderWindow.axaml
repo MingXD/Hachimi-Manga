@@ -1,0 +1,51 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:MangaAgent.App.ViewModels"
+        xmlns:conv="using:Avalonia.Data.Converters"
+        x:Class="MangaAgent.App.Views.ReaderWindow"
+        x:DataType="vm:ReaderViewModel"
+        Width="1100" Height="800"
+        Title="{Binding BookTitle}"
+        Background="{Binding BackgroundHex}"
+        KeyDown="OnKeyDown">
+
+  <DockPanel>
+    <!-- 工具栏 -->
+    <Border DockPanel.Dock="Top" Padding="10,6" Background="{Binding ToolbarHex}">
+      <StackPanel Orientation="Horizontal" Spacing="6">
+        <TextBlock Text="{Binding BookTitle}" FontWeight="Bold" Foreground="{Binding ForegroundHex}"
+                   VerticalAlignment="Center" Margin="0,0,18,0" MaxWidth="340" TextTrimming="CharacterEllipsis"/>
+        <Button Content="◀" Command="{Binding PrevPageCommand}" ToolTip.Tip="上一页 (← / PageUp)" Foreground="{Binding ForegroundHex}"/>
+        <Button Content="▶" Command="{Binding NextPageCommand}" ToolTip.Tip="下一页 (→ / Space)" Foreground="{Binding ForegroundHex}"/>
+        <TextBlock Text="{Binding PageText}" VerticalAlignment="Center" Foreground="{Binding ForegroundHex}" Margin="8,0"/>
+        <Button Content="{Binding ModeText}" Command="{Binding ToggleModeCommand}" ToolTip.Tip="单页/双页 (M)" Foreground="{Binding ForegroundHex}"/>
+        <Button Content="{Binding DirectionText}" Command="{Binding ToggleDirectionCommand}" ToolTip.Tip="阅读方向 (D)" Foreground="{Binding ForegroundHex}"/>
+        <Button Content="{Binding ThemeText}" Command="{Binding ToggleThemeCommand}" ToolTip.Tip="白天/夜间 (T)" Foreground="{Binding ForegroundHex}"/>
+        <Button Content="−" Command="{Binding ZoomOutCommand}" ToolTip.Tip="缩小 (Ctrl+滚轮)" Foreground="{Binding ForegroundHex}"/>
+        <TextBlock Text="{Binding ScaleText}" VerticalAlignment="Center" Foreground="{Binding ForegroundHex}" Margin="2,0"/>
+        <Button Content="＋" Command="{Binding ZoomInCommand}" ToolTip.Tip="放大" Foreground="{Binding ForegroundHex}"/>
+        <Button Content="复位" Command="{Binding ResetZoomCommand}" ToolTip.Tip="适应宽度" Foreground="{Binding ForegroundHex}"/>
+        <Button Content="书签" Command="{Binding ToggleBookmarkCommand}" ToolTip.Tip="当前页书签 (B)" Foreground="{Binding ForegroundHex}"/>
+        <Button Content="◀书签" Command="{Binding PrevBookmarkCommand}" ToolTip.Tip="上一个书签" Foreground="{Binding ForegroundHex}"/>
+        <Button Content="书签▶" Command="{Binding NextBookmarkCommand}" ToolTip.Tip="下一个书签" Foreground="{Binding ForegroundHex}"/>
+      </StackPanel>
+    </Border>
+    <!-- 底部进度 -->
+    <Border DockPanel.Dock="Bottom" Background="{Binding ToolbarHex}" Padding="8,6">
+      <ProgressBar Minimum="1" Maximum="{Binding TotalLogical}" Value="{Binding ProgressValue}" Height="6"/>
+    </Border>
+    <!-- 阅读区 -->
+    <ScrollViewer x:Name="Scroller"
+                  HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
+                  Background="{Binding BackgroundHex}"
+                  SizeChanged="OnScrollerSizeChanged"
+                  PointerWheelChanged="OnPointerWheelChanged">
+      <StackPanel x:Name="PagePanel" Orientation="Horizontal" Spacing="10" Margin="10">
+        <Image x:Name="PageImage1" Stretch="None"
+               IsVisible="{Binding Image1, Converter={x:Static conv:ObjectConverters.IsNotNull}}"/>
+        <Image x:Name="PageImage2" Stretch="None"
+               IsVisible="{Binding Image2, Converter={x:Static conv:ObjectConverters.IsNotNull}}"/>
+      </StackPanel>
+    </ScrollViewer>
+  </DockPanel>
+</Window>
