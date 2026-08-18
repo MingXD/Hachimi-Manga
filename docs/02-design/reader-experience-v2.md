@@ -111,6 +111,16 @@
 5. 每步：dotnet test + 真实应用验证 + commit（`feat: reader-…`）+ 本文件更新进度
 6. P1 另起迭代
 
+## 2.1 缩放居中修复（2026-02，用户反馈）
+**问题**：缩小画面靠左/被遮挡、放大靠右且无法拖动。
+**根因**：`HorizontalContentAlignment=Center` 在内容>视口时中心对齐（放大靠右、左侧被裁）；
+`PagePanel HorizontalAlignment=Left` 又破坏缩小时的居中。
+**修复（参考 YACReader 居中容器逻辑）**：ScrollViewer 内容改为
+`Grid(HorizontalAlignment=Center, VerticalAlignment=Center)` 包裹 `PagePanel`——
+内容<视口时 Grid 居中（完整显示）；内容>视口时 Grid 按内容尺寸布局（左对齐可滚动/拖拽平移）。
+**验证**：`ZoomCenteringTests`（headless 布局断言：缩小 X>100 居中、放大 X<=15 左对齐）；
+测试 22/22 通过。
+
 ## 3.1 实施进度（2026-02）
 - [x] P0-5+P0-1 居中与默认显示（Relayout 重构：Fit 模式 + HorizontalContentAlignment=Center + 垂直居中）
 - [x] P0-2 缩放模式（FitWidth/Height/Screen/Custom）+ Ctrl+滚轮以光标为中心缩放

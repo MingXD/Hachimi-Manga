@@ -194,15 +194,5 @@ public partial class ReaderWindow : Window
         double displayW = _vm.IsDoublePageShown && _vm.Image2 is not null ? w1 + w2 + gutter : w1;
         _vm.DecodeTargetWidth = (int)Math.Clamp(displayW * dpr, 1600, 4096);
 
-        // 垂直居中：内容高度小于视口时，用 ScrollViewer 内容 margin 近似居中（水平已由 HorizontalContentAlignment 处理）
-        double contentH = PagePanel.Bounds.Height;
-        if (contentH < vpH && contentH > 0)
-        {
-            PagePanel.Margin = new Avalonia.Thickness(0, Math.Max(0, (vpH - contentH) / 2), 0, 0);
-        }
-        else
-        {
-            PagePanel.Margin = new Avalonia.Thickness(10);
-        }
     }
 }

@@ -39,21 +39,23 @@
     <!-- 阅读区 -->
     <ScrollViewer x:Name="Scroller"
                   HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
-                  HorizontalContentAlignment="Center"
                   Background="{Binding BackgroundHex}"
                   SizeChanged="OnScrollerSizeChanged"
                   PointerWheelChanged="OnPointerWheelChanged"
                   PointerPressed="OnScrollerPointerPressed"
                   PointerMoved="OnScrollerPointerMoved"
                   PointerReleased="OnScrollerPointerReleased">
-      <StackPanel x:Name="PagePanel" Orientation="Horizontal" Spacing="10" Margin="10" HorizontalAlignment="Left">
-        <Image x:Name="PageImage1" Stretch="None"
-               Source="{Binding Image1}"
-               IsVisible="{Binding Image1, Converter={x:Static conv:ObjectConverters.IsNotNull}}"/>
-        <Image x:Name="PageImage2" Stretch="None"
-               Source="{Binding Image2}"
-               IsVisible="{Binding Image2, Converter={x:Static conv:ObjectConverters.IsNotNull}}"/>
-      </StackPanel>
+      <!-- 居中容器（参考 YACReader 逻辑）：内容小于视口时居中；大于视口时按内容尺寸布局可滚动 -->
+      <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
+        <StackPanel x:Name="PagePanel" Orientation="Horizontal" Spacing="10" Margin="10">
+          <Image x:Name="PageImage1" Stretch="None"
+                 Source="{Binding Image1}"
+                 IsVisible="{Binding Image1, Converter={x:Static conv:ObjectConverters.IsNotNull}}"/>
+          <Image x:Name="PageImage2" Stretch="None"
+                 Source="{Binding Image2}"
+                 IsVisible="{Binding Image2, Converter={x:Static conv:ObjectConverters.IsNotNull}}"/>
+        </StackPanel>
+      </Grid>
     </ScrollViewer>
   </DockPanel>
 </Window>
