@@ -28,3 +28,6 @@ cache/
 
 # Logs
 *.log
+
+# Regenerable big fixtures
+reference/fixtures/big/
