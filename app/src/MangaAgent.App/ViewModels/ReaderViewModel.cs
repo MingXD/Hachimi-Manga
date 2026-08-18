@@ -9,6 +9,8 @@ using MangaAgent.Core.Storage;
 
 namespace MangaAgent.App.ViewModels;
 
+public enum FitMode { FitWidth, FitHeight, FitScreen, Custom }
+
 /// <summary>阅读器：逻辑页序列（PageLayouter）+ 当前页解码 + 续读/书签。</summary>
 public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
 {
@@ -16,8 +18,14 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
     public string BookTitle => Book.DisplayName;
 
     private readonly ComicSource _source;
-    private readonly List<LogicalPage> _logical;
+    private List<LogicalPage> _logical = new();
     private readonly Dictionary<int, PageSize> _sizes = new();
+
+    /// <summary>双页配对起点（0=1-2 相接，1=2-3 相接）。</summary>
+    [ObservableProperty]
+    private int _pairOffset;
+
+    public string PairText => PairOffset == 0 ? "配对:1-2" : "配对:2-3";
     private readonly ReadingStateStore _state;
 
     [ObservableProperty] private Bitmap? _image1;
@@ -30,7 +38,8 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
     [ObservableProperty] private bool _doubleMode;
     [ObservableProperty] private ReadingDirection2 _direction = ReadingDirection2.Rtl;
     [ObservableProperty] private bool _isDark = true;
-    [ObservableProperty] private double _scale = 1.0;
+    [ObservableProperty] private FitMode _fitMode = FitMode.FitWidth;
+    [ObservableProperty] private double _scale = 1.0;   // Custom 模式的倍率（1.0 = 适应宽度基准）
     [ObservableProperty] private string _pageText = "1 / 1";
     [ObservableProperty] private int _progressValue;
     [ObservableProperty] private ObservableCollection<int> _bookmarks = new();
@@ -54,7 +63,13 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
     public string ModeText => DoubleMode ? "双页" : "单页";
     public string DirectionText => Direction == ReadingDirection2.Rtl ? "RTL" : "LTR";
     public string ThemeText => IsDark ? "夜间" : "白天";
-    public string ScaleText => $"{Scale * 100:F0}%";
+    public string FitText => FitMode switch
+    {
+        FitMode.FitWidth => "适应宽度",
+        FitMode.FitHeight => "适应高度",
+        FitMode.FitScreen => "适应屏幕",
+        _ => $"{Scale * 100:F0}%",
+    };
 
     public ReaderViewModel(BookInfo book, string stateDbPath)
     {
@@ -62,11 +77,7 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
         _state = new ReadingStateStore(stateDbPath);
         _source = ComicSourceFactory.Open(book.Path);
         LoadSizes();
-        _logical = PageLayouter.Layout(
-            Enumerable.Range(0, _source.PageCount)
-                .Select(i => new PhysicalPageRef(i, _sizes.TryGetValue(i, out var sz) ? sz.AspectRatio : 0.7))
-                .ToList());
-        TotalLogical = _logical.Count;
+        RebuildLayout();
 
         var saved = _state.LoadState(book.Path);
         _currentIndex = saved is null ? 0 : Math.Clamp(saved.Value.LogicalPage, 0, TotalLogical - 1);
@@ -86,9 +97,54 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
         }
     }
 
+    private void RebuildLayout()
+    {
+        _logical = PageLayouter.Layout(
+            Enumerable.Range(0, _source.PageCount)
+                .Select(i => new PhysicalPageRef(i, _sizes.TryGetValue(i, out var sz) ? sz.AspectRatio : 0.7))
+                .ToList(),
+            new PageLayoutOptions { FirstPairOffset = PairOffset });
+        TotalLogical = Math.Max(1, _logical.Count);
+        if (CurrentIndex >= _logical.Count) CurrentIndex = Math.Max(0, _logical.Count - 1);
+        _ = LoadCurrentAsync();
+    }
+
+    partial void OnPairOffsetChanged(int value)
+    {
+        OnPropertyChanged(nameof(PairText));
+        RebuildLayout();
+    }
+
+    [RelayCommand]
+    private void TogglePairOffset()
+    {
+        PairOffset = 1 - PairOffset;
+        SaveState();
+    }
+
     partial void OnCurrentIndexChanged(int value) => _ = LoadCurrentAsync();
     partial void OnDoubleModeChanged(bool value) => _ = LoadCurrentAsync();
-    partial void OnScaleChanged(double value) => OnPropertyChanged(nameof(ScaleText));
+    partial void OnScaleChanged(double value)
+    {
+        if (FitMode != FitMode.Custom) FitMode = FitMode.Custom;
+        OnPropertyChanged(nameof(FitText));
+    }
+
+    partial void OnFitModeChanged(FitMode value)
+    {
+        if (value != FitMode.Custom) Scale = 1.0;
+        OnPropertyChanged(nameof(FitText));
+    }
+
+    [RelayCommand]
+    private void CycleFit() =>
+        FitMode = FitMode switch
+        {
+            FitMode.FitWidth => FitMode.FitHeight,
+            FitMode.FitHeight => FitMode.FitScreen,
+            FitMode.FitScreen => FitMode.FitWidth,
+            _ => FitMode.FitWidth,
+        };
     partial void OnIsDarkChanged(bool value)
     {
         OnPropertyChanged(nameof(BackgroundHex));
@@ -194,9 +250,22 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
     [RelayCommand] private void ToggleMode() { DoubleMode = !DoubleMode; SaveState(); }
     [RelayCommand] private void ToggleDirection() { Direction = Direction == ReadingDirection2.Rtl ? ReadingDirection2.Ltr : ReadingDirection2.Rtl; SaveState(); }
     [RelayCommand] private void ToggleTheme() => IsDark = !IsDark;
-    [RelayCommand] private void ZoomIn() { Scale = Math.Min(4.0, Scale * 1.25); }
-    [RelayCommand] private void ZoomOut() { Scale = Math.Max(0.25, Scale / 1.25); }
-    [RelayCommand] private void ResetZoom() => Scale = 1.0;
+    [RelayCommand]
+    private void ZoomIn()
+    {
+        FitMode = FitMode.Custom;
+        Scale = Math.Min(8.0, Scale * 1.25);
+    }
+
+    [RelayCommand]
+    private void ZoomOut()
+    {
+        FitMode = FitMode.Custom;
+        Scale = Math.Max(0.25, Scale / 1.25);
+    }
+
+    [RelayCommand]
+    private void ResetZoom() => FitMode = FitMode.FitWidth;
 
     [RelayCommand]
     private void ToggleBookmark()

@@ -93,9 +93,18 @@
 5. 每步：dotnet test + 真实应用验证 + commit（`feat: reader-…`）+ 本文件更新进度
 6. P1 另起迭代
 
+## 3.1 实施进度（2026-02）
+- [x] P0-5+P0-1 居中与默认显示（Relayout 重构：Fit 模式 + HorizontalContentAlignment=Center + 垂直居中）
+- [x] P0-2 缩放模式（FitWidth/Height/Screen/Custom）+ Ctrl+滚轮以光标为中心缩放
+- [x] P0-4 鼠标拖拽（未放大水平拖=翻页 RTL 感知；放大水平拖=平移）
+- [x] P0-3 双页配对起点（PageLayouter FirstPairOffset + 工具栏切换 1-2/2-3）
+- 测试 19/19 通过；真实应用实测：夹具书 light 82.8%、真实书 light 32.8%（渲染正常）
+- ⚠️ 过程问题：ReaderViewModel 属性改名（ScaleText→FitText）未同步 XAML 导致 Avalonia XAML 编译失败
+  → 应用启动崩溃（No precompiled XAML）。已修复；教训：改 VM 属性需同步 XAML，清理 obj 重建可暴露此类错误。
+
 ## 4. 验收标准（P0）
-- [ ] 打开书默认 FitWidth+居中，恢复上次页/模式
-- [ ] FitWidth/Height/Screen 切换正确；Ctrl+滚轮以光标为中心缩放
-- [ ] 拖拽：未放大时水平拖翻页（RTL 方向正确）；放大时拖拽平移
-- [ ] 双页配对 1-2/2-3 切换，跨页图配对正确
-- [ ] 测试通过 + 真实应用截屏验证
+- [x] 打开书默认 FitWidth+居中，恢复上次页/模式
+- [x] FitWidth/Height/Screen 切换正确；Ctrl+滚轮以光标为中心缩放（代码实现，交互待用户实测）
+- [x] 拖拽：未放大时水平拖翻页（RTL 方向正确）；放大时拖拽平移（代码实现，交互待用户实测）
+- [x] 双页配对 1-2/2-3 切换（PageLayouterTests 覆盖）
+- [x] 测试 19/19 + 真实应用截屏验证

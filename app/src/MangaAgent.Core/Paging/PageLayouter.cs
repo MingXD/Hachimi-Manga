@@ -20,6 +20,13 @@ public sealed class PageLayoutOptions
     public double SpreadThreshold { get; init; } = 1.6;
     /// <summary>首尾逻辑页强制单页（Komga 规则）。</summary>
     public bool ForceFirstLastSingle { get; init; } = true;
+
+    /// <summary>
+    /// 双页配对起点偏移（0 或 1）：
+    /// 0 = 封面单页后 (1,2) 成对（原作 1、2 相接）；
+    /// 1 = 封面与第 2 页均单页，(2,3) 成对（原作 2、3 相接，第 1 页是独立封面）。
+    /// </summary>
+    public int FirstPairOffset { get; init; } = 0;
 }
 
 /// <summary>
@@ -40,6 +47,13 @@ public static class PageLayouter
         {
             result.Add(new LogicalPage(pages[0].Index, -1));
             i = 1;
+        }
+
+        // 配对起点偏移：第 2 页也单页，从 (2,3) 开始成对（原作 2、3 相接）
+        if (o.FirstPairOffset > 0 && i < n)
+        {
+            result.Add(new LogicalPage(pages[i].Index, -1));
+            i++;
         }
 
         // 成对分组；横向页单页；最后若剩 1 页则单页
