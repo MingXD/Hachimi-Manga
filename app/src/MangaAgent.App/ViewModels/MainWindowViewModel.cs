@@ -21,6 +21,10 @@ public partial class MainWindowViewModel : ViewModelBase
     public ObservableCollection<LibraryItemViewModel> Libraries { get; } = new();
     public ObservableCollection<BookItemViewModel> Books { get; } = new();
     public ObservableCollection<MangaAgent.Core.Library.FolderNode> FolderTree { get; } = new();
+    /// <summary>目录浏览器：当前层级的混合条目（子文件夹 + 漫画书）。</summary>
+    public ObservableCollection<FolderEntryItemViewModel> FolderEntries { get; } = new();
+    /// <summary>目录浏览器：面包屑（根 → 当前）。</summary>
+    public ObservableCollection<MangaAgent.Core.Library.FolderNode> Breadcrumbs { get; } = new();
 
     [ObservableProperty] private LibraryItemViewModel? _selectedLibrary;
     [ObservableProperty] private MangaAgent.Core.Library.FolderNode? _selectedFolder;
@@ -43,10 +47,59 @@ public partial class MainWindowViewModel : ViewModelBase
 
     partial void OnSelectedFolderChanged(MangaAgent.Core.Library.FolderNode? value)
     {
-        if (value is null) return;
-        Books.Clear();
-        foreach (var b in value.Books) Books.Add(new BookItemViewModel(b));
-        foreach (var item in Books.Take(24)) _ = item.LoadThumbnailAsync();
+        if (value is not null) ShowFolderContents(value);
+    }
+
+    /// <summary>目录浏览器：展示指定文件夹的混合内容（子文件夹在前 + 漫画书），同步面包屑与侧边栏选中。</summary>
+    public void ShowFolderContents(MangaAgent.Core.Library.FolderNode folder)
+    {
+        CurrentFolder = folder;
+        FolderEntries.Clear();
+        foreach (var child in folder.Children)
+            FolderEntries.Add(WireEntry(new FolderEntryItemViewModel(child)));
+        foreach (var b in folder.Books)
+            FolderEntries.Add(WireEntry(new FolderEntryItemViewModel(b)));
+        // 懒加载可见封面（前 24 个漫画条目）
+        foreach (var item in FolderEntries.Where(e => !e.IsFolder).Take(24)) _ = item.LoadThumbnailAsync();
+
+        // 面包屑
+        Breadcrumbs.Clear();
+        foreach (var n in folder.PathChain) Breadcrumbs.Add(n);
+        // 侧边栏树选中同步（避免递归：SelectedFolder 已在同一值时不触发变化）
+        SelectedFolder = folder;
+    }
+
+    [ObservableProperty] private MangaAgent.Core.Library.FolderNode? _currentFolder;
+
+    /// <summary>进入子文件夹（双击文件夹条目）。</summary>
+    [RelayCommand]
+    private void EnterFolder(MangaAgent.Core.Library.FolderNode? folder)
+    {
+        if (folder is not null) ShowFolderContents(folder);
+    }
+
+    /// <summary>返回上级文件夹（面包屑 ⬆ 按钮）。</summary>
+    [RelayCommand]
+    private void GoUp()
+    {
+        if (CurrentFolder?.Parent is { } parent) ShowFolderContents(parent);
+    }
+
+    /// <summary>面包屑跳转。</summary>
+    [RelayCommand]
+    private void NavigateBreadcrumb(MangaAgent.Core.Library.FolderNode? folder)
+    {
+        if (folder is not null) ShowFolderContents(folder);
+    }
+
+    private FolderEntryItemViewModel WireEntry(FolderEntryItemViewModel item)
+    {
+        item.OpenAction = e =>
+        {
+            if (e.IsFolder) EnterFolderCommand.Execute(e.Folder);
+            else if (e.Book is { } book) OpenBookCommand.Execute(new BookItemViewModel(book));
+        };
+        return item;
     }
 
     private async Task LoadSavedLibrariesAsync()

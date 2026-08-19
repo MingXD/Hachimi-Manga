@@ -8,15 +8,32 @@ namespace MangaAgent.App;
 
 public partial class App : Application
 {
-    private static readonly string StartLog = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MangaAgent", "app-start.log");
+    private static readonly string LogDir = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MangaAgent", "logs");
+    private static readonly object LogLock = new();
 
+    /// <summary>写操作日志：按日期分文件（app-YYYY-MM-DD.log），保留最近 7 天（日志轮转）。
+    /// 排查"操作类 bug"时提供完整轨迹（时间戳+线程+事件）。</summary>
     internal static void SLog(string msg)
     {
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(StartLog)!);
-            File.AppendAllText(StartLog, $"{DateTime.Now:HH:mm:ss.fff} [{Environment.CurrentManagedThreadId}] {msg}{Environment.NewLine}");
+            lock (LogLock)
+            {
+                Directory.CreateDirectory(LogDir);
+                var file = Path.Combine(LogDir, $"app-{DateTime.Now:yyyy-MM-dd}.log");
+                File.AppendAllText(file, $"{DateTime.Now:HH:mm:ss.fff} [{Environment.CurrentManagedThreadId}] {msg}{Environment.NewLine}");
+                // 轮转：删除 7 天前的日志
+                foreach (var oldFile in Directory.GetFiles(LogDir, "app-*.log"))
+                {
+                    try
+                    {
+                        if ((DateTime.Now - File.GetLastWriteTime(oldFile)).TotalDays > 7)
+                            File.Delete(oldFile);
+                    }
+                    catch { }
+                }
+            }
         }
         catch { }
     }

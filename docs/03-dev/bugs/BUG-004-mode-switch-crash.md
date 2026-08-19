@@ -63,3 +63,14 @@ Object name: 'Ref<Avalonia.Platform.IBitmapImpl>'.
 ## 残留事项
 - [ ] 用户实测确认（双页 ↔ 单页/滚动反复切换不再闪退）
 - [ ] 重新发布 exe（app\publish）
+
+## v1.7 追加修复（2026-08-20，Webtoon 重构中再发现的竞态）
+- 现象：真实书压力测试（快速模式切换）仍有 ObjectDisposedException
+- 根因 1（Webtoon Load 并发）：UpdateWebtoonPages 对同一 physical 可能启动两个 LoadWebtoonImageAsync
+  （第一个 await 未 Add 前 ContainsKey 仍 false）→ 两个任务各自 Acquire 同一缓存位图（计数 2），
+  先完成者 Add 后，后者走 Release → 计数归零 → Dispose 掉仍被第一个 Image 引用的位图
+  → 修复：_webtoonLoading 集合并发去重（同一页同时只允许一个加载任务）+ Add 前检查是否仍在可见范围
+- 根因 2（DecodeAsync 高清重解码）：cached 被 UI 引用（_uiRefs>0）时 TryDispose 不 Dispose 但
+  仍从缓存移除 → 另一竞态路径 Release 使计数归零 → Dispose 掉仍被 UI 引用的位图（分页模式 StackPanel 崩溃）
+  → 修复：重解码时若 cached 被 UI 引用则直接复用（不重解码、不移除）
+- 验证：真实书 5/5 压力运行零崩溃；29/29 测试通过

@@ -92,3 +92,35 @@
 - 验证：压力复现 4/4 零崩溃；新增回归测试 ModeSwitchCrashTests（26/26 通过）
 - 归档：docs/03-dev/bugs/BUG-004-mode-switch-crash.md
 - 附带：App 增加全局异常记录（AppDomain + Dispatcher.UnhandledException → LocalAppData/MangaAgent/app-start.log）
+
+## v1.7 体验重构实施（2026-08-20，按 ux-v2-plan.md）
+### 日志增强（需求四）
+- App.SLog 改按日期分文件（logs/app-YYYY-MM-DD.log）+ 保留 7 天轮转
+- 阅读器记录操作日志：翻页(PAGE)/模式切换(MODE)/缩放(ZOOM)/跳页(JUMP)/滚轮采样(WHEEL 已精简)/Webtoon 虚拟化范围(WEBTOON)
+- 后续排查流程：用户操作 → 回传 %LOCALAPPDATA%\MangaAgent\logs\app-*.log + 截图 → 按日志轨迹定位
+
+### Webtoon 虚拟化重构（需求二，参考 mihon/Tachiyomi WebtoonViewer）
+- Canvas 绝对定位 + 增量渲染：只实例化可见页 ±2 缓冲（300 页书只 ~6 页实例化），滚动增量增删，无全量 Clear 重建
+- 滚轮按事件计数滚动（步长 = 视口高 40%，修复 #9858 Delta 极小导致滚动缓慢——与缩放慢同根因）
+- Ctrl+滚轮缩放（复用 ZoomToFocus 锚定）、鼠标拖拽平移、边界 Clamp、可见页号状态显示
+- 键盘 ←→/Space/PageUp/PageDown = 按屏滚动
+- 测试：WebtoonVirtualizationTests（虚拟化数量 + 滚动 + 缩放不崩溃）
+- 竞态修复 2 项（见 BUG-004 v1.7）：LoadWebtoonImageAsync 并发去重；DecodeAsync 重解码保护 UI 引用位图
+
+### 快速翻页（需求三，参考 KOReader 进度条 + 跳页对话框）
+- 底部进度条（Slider）：拖动实时显页码、松手跳转（不逐页解码）；翻页/跳页后自动同步
+- 跳页对话框：G 键或点击页码 → 输入 1..N 回车跳转（Webtoon 按物理页、分页按逻辑页）
+- VM：JumpToPage（逻辑页）/ JumpToPhysical（物理页→逻辑页映射，修复单页 SecondIndex=-1 短路 bug）
+- 测试：QuickJumpTests
+
+### 目录浏览器混合展示（需求一）
+- FolderNode 加 Parent + PathChain（面包屑）；FolderTreeScanner 保留所有子文件夹（文件系统导航语义）
+- 新增 FolderEntryItemViewModel（IsFolder/Book 混合）；MainWindowViewModel：CurrentFolder + FolderEntries +
+  EnterFolder/GoUp/NavigateBreadcrumb
+- 右侧内容区：面包屑栏（⬆ 上级 + 路径）+ 混合条目（📁 文件夹样式 / 漫画封面样式）；
+  双击文件夹进入下一层、双击漫画打开；侧边栏树选中同步
+- 测试：FolderBrowserTests（A/B/C/D 场景：B 子文件夹、C/D 漫画，导航/面包屑/上级）
+
+### 其他
+- 修复 DockPanel LastChildFill 布局 bug：Slider 声明在 Viewport 之后导致 Viewport 失去 Fill（宽度收缩到内容宽）→ 调整声明顺序
+- 全量测试 29/29 通过；真实书压力 5/5 零崩溃

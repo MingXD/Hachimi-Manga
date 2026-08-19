@@ -136,7 +136,8 @@ public class ReaderInputTests
             win.MouseDown(new Point(550, 400), MouseButton.Left, RawInputModifiers.None);
             win.MouseMove(new Point(450, 350), RawInputModifiers.None);
             win.MouseUp(new Point(450, 350), MouseButton.Left, RawInputModifiers.None);
-            Assert.True(Math.Abs(win.CanvasX - x0) > 5, $"拖拽应平移 X: {x0}->{win.CanvasX}");
+            Console.WriteLine($"[DRAG] winW={win.Width} client={win.ClientSize} vp={win.ViewportSize} source={win.LastPressSource} left={win.LastPressLeft}");
+            Assert.True(Math.Abs(win.CanvasX - x0) > 5, $"拖拽应平移 X: {x0}->{win.CanvasX} (client={win.ClientSize} vp={win.ViewportSize} img1={win.PageImage1Vis})");
             Assert.True(Math.Abs(win.CanvasY - y0) > 5, $"拖拽应平移 Y: {y0}->{win.CanvasY}");
 
             // 可拖出边界：大幅拖动 → 无 clamp（CanvasX 可 < 0 或 > 视口）

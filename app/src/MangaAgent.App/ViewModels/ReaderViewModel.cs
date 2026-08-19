@@ -228,6 +228,23 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
     /// <summary>Webtoon：指定页宽高比。</summary>
     public double RatioOfPage(int physical) => RatioOf(physical);
 
+    /// <summary>Webtoon：当前逻辑页对应的首个物理页索引（进入 Webtoon 时定位用）。</summary>
+    public int CurrentFirstPhysical
+    {
+        get
+        {
+            if (_logical.Count == 0) return 0;
+            var lp = _logical[Math.Clamp(CurrentIndex, 0, _logical.Count - 1)];
+            return Math.Max(0, lp.FirstIndex);
+        }
+    }
+
+    /// <summary>Webtoon：滚动时更新状态显示（只改 PageText，不动 CurrentIndex —— 避免每滚动一页触发重解码）。</summary>
+    public void UpdateWebtoonPageText(int physical)
+    {
+        PageText = $"{Math.Clamp(physical + 1, 1, _source.PageCount)} / {_source.PageCount}";
+    }
+
     private readonly Dictionary<int, int> _pageCacheWidth = new();
 
     private async Task<Bitmap?> DecodeAsync(int physical)
@@ -241,6 +258,14 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
                 _cacheOrder.Remove(physical);
                 _cacheOrder.AddLast(physical);
                 AcquireUiBitmap(cached);   // 返回前 Acquire：位图从缓存取出即受 UI 保护（BUG-004）
+                return cached;
+            }
+            // 高清重解码：若 cached 仍被 UI（PageImage/Webtoon）引用，则复用不重解码——
+            // 否则从缓存移除后若另一竞态路径 Release 使计数归零 → Dispose 掉仍被 UI 引用的位图 → 布局崩溃
+            if (_uiRefs.ContainsKey(cached))
+            {
+                _cacheOrder.Remove(physical);
+                _cacheOrder.AddLast(physical);
                 return cached;
             }
             TryDispose(cached);
@@ -327,13 +352,50 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
     [RelayCommand]
     private void NextPage()
     {
-        if (CurrentIndex < TotalLogical - 1) { CurrentIndex++; SaveState(); }
+        if (CurrentIndex < TotalLogical - 1) { CurrentIndex++; global::MangaAgent.App.App.SLog($"PAGE -> {CurrentIndex + 1}/{TotalLogical}"); SaveState(); }
     }
 
     [RelayCommand]
     private void PrevPage()
     {
-        if (CurrentIndex > 0) { CurrentIndex--; SaveState(); }
+        if (CurrentIndex > 0) { CurrentIndex--; global::MangaAgent.App.App.SLog($"PAGE -> {CurrentIndex + 1}/{TotalLogical}"); SaveState(); }
+    }
+
+    /// <summary>快速翻页：跳转到指定逻辑页（0-based），越界 clamp（长漫画几百页 → 快速定位）。</summary>
+    [RelayCommand]
+    private void JumpToPage(int page)
+    {
+        if (_logical.Count == 0) return;
+        int target = Math.Clamp(page, 0, _logical.Count - 1);
+        if (target != CurrentIndex)
+        {
+            CurrentIndex = target;
+            global::MangaAgent.App.App.SLog($"JUMP -> logical {target + 1}/{TotalLogical}");
+            SaveState();
+        }
+    }
+
+    /// <summary>快速翻页：跳转到指定物理页（Webtoon 用），转成逻辑页后跳转。</summary>
+    [RelayCommand]
+    private void JumpToPhysical(int physical)
+    {
+        if (_logical.Count == 0) return;
+        int target = Math.Clamp(physical, 0, _source.PageCount - 1);
+        int newIndex = CurrentIndex;
+        for (int i = 0; i < _logical.Count; i++)
+        {
+            var p = _logical[i];
+            // 单页 (First,-1)：仅 FirstIndex == target；双页 (First,Second)：First <= target <= Second
+            bool hit = p.SecondIndex < 0 ? p.FirstIndex == target
+                                         : p.FirstIndex <= target && target <= p.SecondIndex;
+            if (hit) { newIndex = i; break; }
+        }
+        if (newIndex != CurrentIndex)
+        {
+            CurrentIndex = newIndex;
+            global::MangaAgent.App.App.SLog($"JUMP_PHYS -> physical {target + 1} logical {newIndex + 1}/{TotalLogical}");
+            SaveState();
+        }
     }
 
     [RelayCommand]
@@ -345,6 +407,7 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
             ViewMode.Double => ViewMode.Webtoon,
             _ => ViewMode.Single,
         };
+        global::MangaAgent.App.App.SLog($"MODE -> {ViewMode} (index={CurrentIndex} logical={TotalLogical})");
         SaveState();
     }
     [RelayCommand] private void ToggleDirection() { Direction = Direction == ReadingDirection2.Rtl ? ReadingDirection2.Ltr : ReadingDirection2.Rtl; SaveState(); }

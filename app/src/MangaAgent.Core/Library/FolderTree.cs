@@ -15,12 +15,12 @@ public static class FolderTreeScanner
     private static async Task FillAsync(FolderNode node, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
+        // 目录浏览器 = 文件系统导航：保留所有子文件夹（含暂无漫画的，用户可能手动整理后放入）
         foreach (var sub in Directory.GetDirectories(node.Path).OrderBy(d => d, StringComparer.OrdinalIgnoreCase))
         {
-            var child = new FolderNode { Name = Path.GetFileName(sub), Path = sub };
+            var child = new FolderNode { Name = Path.GetFileName(sub), Path = sub, Parent = node };
             await FillAsync(child, ct);
-            if (child.Children.Count > 0 || child.Books.Count > 0)
-                node.Children.Add(child);
+            node.Children.Add(child);
         }
         // 本目录的书（CBZ + 文件夹型）
         foreach (var file in Directory.GetFiles(node.Path).Where(f =>
