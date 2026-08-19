@@ -29,20 +29,17 @@ public partial class ReaderWindow : Window
     public double CanvasY => _ty;
     private bool _isDragging;
     private Avalonia.Point _dragStart;
-    private readonly ScaleTransform _layerScale = new(1, 1);
-    private readonly TranslateTransform _layerTranslate = new(0, 0);
     private double _wheelAccum;
     private Avalonia.Point _lastWheelPos;
 
     public ReaderWindow()
     {
         InitializeComponent();
-        // 顺序关键：Translate 在前、Scale 在后 → p' = t + scale·p（先 Scale 后 Translate 应用），
-        // 与锚定公式 tx' = f - (f-tx)·(scale'/scale) 匹配；顺序反了会导致 translate 被缩放放大、焦点偏移
-        PageLayer.RenderTransform = new TransformGroup
-        {
-            Children = { _layerTranslate, _layerScale },
-        };
+        // 根因（BUG-003）：Avalonia 的 RenderTransformOrigin 默认是 RelativePoint.Center（元素中心），
+        // 与 WPF 的 TopLeft 不同 → 缩放围绕中心而非左上角 → p' = scale·p + t + (1-scale)·center，
+        // 锚定数学 p' = scale·p + t 失效，焦点随放大向右下漂移。
+        // 修复：显式设为 TopLeft，使渲染与锚定数学一致。
+        PageLayer.RenderTransformOrigin = Avalonia.RelativePoint.TopLeft;
         KeyDown += (_, e) => { if (e.Key == Key.LeftCtrl || e.Key == Key.RightCtrl) _ctrlDown = true; };
         KeyUp += (_, e) => { if (e.Key == Key.LeftCtrl || e.Key == Key.RightCtrl) _ctrlDown = false; };
     }
@@ -74,6 +71,56 @@ public partial class ReaderWindow : Window
     {
         base.OnOpened(e);
         Relayout();
+        if (Environment.GetCommandLineArgs().Contains("--diag"))
+            RunZoomDiagnostics();
+    }
+
+    /// <summary>诊断：缩放前后内容中心/左上角的真实屏幕位置（TranslatePoint 含 RenderTransform）。</summary>
+    private async void RunZoomDiagnostics()
+    {
+        await Task.Delay(2000);
+        try
+        {
+            var sb = new System.Text.StringBuilder();
+            var origBg = Viewport.Background;
+            Viewport.Background = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Colors.Magenta);
+            void Capture(string file)
+            {
+                var bmp = new Avalonia.Media.Imaging.RenderTargetBitmap(new PixelSize((int)Viewport.Bounds.Width, (int)Viewport.Bounds.Height));
+                bmp.Render(Viewport);
+                bmp.Save(file);
+            }
+            if (_vm != null) _vm.FitMode = FitMode.Custom;
+            double vpW = Math.Max(100, Viewport.Bounds.Width);
+            double vpH = Math.Max(100, Viewport.Bounds.Height);
+            double baseW = ComputeBaseW();
+            double fitScreen = Math.Min(vpW / baseW, vpH / BaseH);
+            _scale = 0.4 * fitScreen;
+            _tx = (vpW - baseW * _scale) / 2;
+            _ty = (vpH - BaseH * _scale) / 2;
+            ApplyTransform();
+            await Task.Delay(900);
+            sb.AppendLine($"VP={vpW:F0}x{vpH:F0} baseW={baseW:F1} fitScreen={fitScreen:F4}");
+            sb.AppendLine($"PageLayer.Bounds={PageLayer.Bounds} PageImage1.Bounds={PageImage1.Bounds} PageImage1.Width={PageImage1.Width:F1} Height={PageImage1.Height:F1}");
+            sb.AppendLine($"RTO={PageLayer.RenderTransformOrigin}  Transform={PageLayer.RenderTransform}");
+            var centerLocal = new Avalonia.Point(ComputeBaseW() / 2, BaseH / 2);
+            var cs0 = ContentToScreen(centerLocal);
+            sb.AppendLine($"STEP0 s={_scale:F4} tx={_tx:F2} ty={_ty:F2} mathCenter={cs0}");
+            Capture("D:\\MangaAgent\\app\\zoom-before.png");
+            ZoomRelative(1.5);
+            await Task.Delay(900);
+            var cs1 = ContentToScreen(centerLocal);
+            sb.AppendLine($"STEP1 s={_scale:F4} tx={_tx:F2} ty={_ty:F2} mathCenter={cs1}");
+            Capture("D:\\MangaAgent\\app\\zoom-after.png");
+            ZoomRelative(1.5);
+            await Task.Delay(900);
+            var cs2 = ContentToScreen(centerLocal);
+            sb.AppendLine($"STEP2 s={_scale:F4} tx={_tx:F2} ty={_ty:F2} mathCenter={cs2}");
+            Capture("D:\\MangaAgent\\app\\zoom-after2.png");
+            Viewport.Background = origBg;
+            File.WriteAllText("D:\\MangaAgent\\app\\diag-zoom.txt", sb.ToString());
+        }
+        catch (Exception ex) { try { File.WriteAllText("D:\\MangaAgent\\app\\diag-zoom.txt", "ERR: " + ex); } catch { } }
     }
 
     // ---------- 布局：基准内容 + Fit 计算 + 变换应用 ----------
@@ -113,6 +160,12 @@ public partial class ReaderWindow : Window
         double vpW = Math.Max(100, Viewport.Bounds.Width);
         double vpH = Math.Max(100, Viewport.Bounds.Height);
         double baseW = ComputeBaseW();
+
+        // 布局根因（BUG-003 残余）：StackPanel 在 Grid 中被视口压缩（Bounds 高=视口高），
+        // 超高 Image 被垂直居中偏移 → 缩放后 y 方向漂移 -30×scale。
+        // 修复：PageLayer/PagePanel 显式高度 = BaseH，Image 顶部对齐。
+        PageLayer.Height = BaseH;
+        PagePanel.Height = BaseH;
 
         // 基准图片尺寸（Uniform 填满控件，控件比例 = 图片比例）
         PageImage1.Width = Math.Max(1, Math.Max(0.05, _vm.Ratio1) * BaseH);

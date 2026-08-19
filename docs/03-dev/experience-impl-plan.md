@@ -53,3 +53,25 @@
 - 修复：改用 **MatrixTransform（p' = scale·p + t）**，消除顺序歧义，与锚定公式精确匹配
 - 验证：数学验证（按钮缩放以内容中心为焦点，缩放后中心保持 <1px）+ 25/25 测试
 - 说明：headless RenderTargetBitmap.Save 输出不可解码（已知限制），像素级验证改用 ContentToScreen 数学验证
+
+## v1.5 BUG-003 真根因修复：RenderTransformOrigin（2026-08-19）
+- 现象：v1.4 数学验证通过（<1px）但用户实测"症状完全没有改变"（仍右下角）
+- 深究方法（bug 修复方法论）：先在真实应用加 --diag 实证，再广泛搜索资料
+  1. TranslatePoint 诊断：中心漂移 280/362px，随 scale 变化 → 怀疑渲染语义 ≠ 数学模型
+  2. **决定性实验**：应用内 RenderTargetBitmap 渲染到 PNG（背景临时设品红），像素级测白色页面矩形
+     → 页面尺寸正确但位置偏移 (1-scale)·(baseW/2, ...) → **缩放围绕元素中心发生**
+  3. 官方文档证实：[Avalonia: RenderTransformOrigin 默认 RelativePoint.Center]（WPF 默认 TopLeft）——
+     https://v11.docs.avaloniaui.net/docs/get-started/wpf/rendertransforms-and-rendertransformorigin/
+- 根因：**Avalonia 的 RenderTransform 默认围绕元素中心缩放**（p' = scale·p + t + (1-scale)·center），
+  与全程假设的 WPF 语义 p' = scale·p + t（原点左上角）不符 → 锚定公式缺 (1-scale)·center 项 →
+  放大时内容围绕中心向外扩张，焦点处内容向右下漂移 scale·center·(r-1)。
+  v1.0→v1.4 换任何变换实现都无效，因为 RenderTransformOrigin 默认值从未被设置。
+- 修复（ReaderWindow.axaml.cs）：
+  1. `PageLayer.RenderTransformOrigin = Avalonia.RelativePoint.TopLeft;`（根因）
+  2. 残余 y 偏移（-30×scale）：PageLayer/PagePanel 显式 Height = BaseH
+     （StackPanel 被视口压缩到 738 高 → 800 高 Image 垂直居中偏移 30px）
+  3. Image 加 VerticalAlignment="Top"
+  4. 清理遗留 _layerScale/_layerTranslate 字段
+- 验证（像素级，品红背景白页矩形）：内容中心固定 (550, 368±1) vs 数学 (550,369)；
+  x 偏移从 +178px → +0.2px；三档缩放中心不漂移；25/25 测试通过
+- 归档：docs/03-dev/bugs/BUG-003-zoom-focus.md（完整排查史 + 教训）

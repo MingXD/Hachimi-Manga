@@ -47,10 +47,10 @@
             DoubleTapped="OnViewportDoubleTapped">
       <Grid x:Name="PageLayer" HorizontalAlignment="Left" VerticalAlignment="Top">
         <StackPanel x:Name="PagePanel" Orientation="Horizontal" Spacing="0">
-          <Image x:Name="PageImage1" Stretch="Uniform"
+          <Image x:Name="PageImage1" Stretch="Uniform" VerticalAlignment="Top"
                  Source="{Binding Image1}"
                  IsVisible="{Binding Image1, Converter={x:Static conv:ObjectConverters.IsNotNull}}"/>
-          <Image x:Name="PageImage2" Stretch="Uniform"
+          <Image x:Name="PageImage2" Stretch="Uniform" VerticalAlignment="Top"
                  Source="{Binding Image2}"
                  IsVisible="{Binding Image2, Converter={x:Static conv:ObjectConverters.IsNotNull}}"/>
         </StackPanel>
