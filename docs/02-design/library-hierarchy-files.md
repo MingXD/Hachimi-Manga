@@ -1,6 +1,6 @@
 # 层级库与文件操作设计 v1
 
-> 状态：**设计稿，等待用户确认后实施**。
+> 状态：**已确认，实施中（见 docs/03-dev/experience-impl-plan.md）**。
 > 参考：CDisplayEx（文件夹树浏览）、ComicRack（库管理+批量操作）、Calibre（库编辑/Tag Browser）、
 > Kavita/Komga（系列分层）。
 

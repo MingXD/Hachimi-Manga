@@ -39,18 +39,17 @@ public class ZoomWheelTests
             int page0 = vm.CurrentIndex;
             double scale0 = vm.Scale;
 
-            // Ctrl+滚轮向上 → 缩放（不是翻页）
-            win.MouseWheel(new Point(500, 400), new Vector(0, 120), RawInputModifiers.Control);
-            await WaitUntilAsync(() => vm.Scale > scale0 || vm.CurrentIndex != page0, 3000);
-            Assert.True(vm.Scale > scale0, $"Ctrl+滚轮应缩放: scale {scale0}->{vm.Scale}");
+            // 滚轮向上 → 缩放（不是翻页）——看图器：滚轮即缩放
+            win.MouseWheel(new Point(500, 400), new Vector(0, 120), RawInputModifiers.None);
+            await WaitUntilAsync(() => win.CanvasScale > scale0 + 0.001 || vm.CurrentIndex != page0, 3000);
+            Assert.True(win.CanvasScale > scale0, $"滚轮应缩放: scale {scale0}->{win.CanvasScale}");
             Assert.Equal(page0, vm.CurrentIndex);   // 不应翻页
 
-            // 普通滚轮 → 翻页（不缩放）
-            double s1 = vm.Scale;
+            // 滚轮向下 → 缩小
+            double s1 = win.CanvasScale;
             win.MouseWheel(new Point(500, 400), new Vector(0, -120), RawInputModifiers.None);
-            await WaitUntilAsync(() => vm.CurrentIndex != page0, 3000);
-            Assert.Equal(page0 + 1, vm.CurrentIndex);
-            Assert.Equal(s1, vm.Scale);             // 不应缩放
+            await WaitUntilAsync(() => win.CanvasScale < s1 - 0.001, 3000);
+            Assert.True(win.CanvasScale < s1, "滚轮向下应缩小");
             win.Close();
             await vm.DisposeAsync();
         }

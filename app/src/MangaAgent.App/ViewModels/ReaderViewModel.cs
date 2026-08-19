@@ -126,7 +126,7 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
     partial void OnDoubleModeChanged(bool value) => _ = LoadCurrentAsync();
     partial void OnScaleChanged(double value)
     {
-        if (FitMode != FitMode.Custom) FitMode = FitMode.Custom;
+        // FitMode 由 CycleFit/Reset 或画布缩放（code-behind）管理；此处仅刷新显示
         OnPropertyChanged(nameof(FitText));
     }
 
@@ -250,22 +250,19 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
     [RelayCommand] private void ToggleMode() { DoubleMode = !DoubleMode; SaveState(); }
     [RelayCommand] private void ToggleDirection() { Direction = Direction == ReadingDirection2.Rtl ? ReadingDirection2.Ltr : ReadingDirection2.Rtl; SaveState(); }
     [RelayCommand] private void ToggleTheme() => IsDark = !IsDark;
-    [RelayCommand]
-    private void ZoomIn()
+    // 缩放由画布视图（ReaderWindow）管理：滚轮/双击/工具栏按钮（Click 事件）
+
+    /// <summary>供画布视图在 Fit 模式下同步显示倍率（不触发 Custom 切换）。</summary>
+    public void ResetScaleInternal()
     {
-        FitMode = FitMode.Custom;
-        Scale = Math.Min(8.0, Scale * 1.25);
+        Scale = 1.0;
     }
 
-    [RelayCommand]
-    private void ZoomOut()
+    /// <summary>画布缩放后同步显示倍率（relative to FitWidth）。</summary>
+    public void SyncScaleFromView(double relative)
     {
-        FitMode = FitMode.Custom;
-        Scale = Math.Max(0.25, Scale / 1.25);
+        Scale = Math.Max(0.02, relative);
     }
-
-    [RelayCommand]
-    private void ResetZoom() => FitMode = FitMode.FitWidth;
 
     [RelayCommand]
     private void ToggleBookmark()

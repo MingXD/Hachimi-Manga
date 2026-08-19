@@ -2,7 +2,6 @@ using Avalonia;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
-using Avalonia.VisualTree;
 using MangaAgent.App.ViewModels;
 using MangaAgent.App.Views;
 using MangaAgent.Core.Library;
@@ -10,7 +9,7 @@ using Xunit;
 
 namespace MangaAgent.Tests.PoC;
 
-/// <summary>基础阅读操作验证：滚轮翻页、拖拽平移（Avalonia.Headless 官方输入模拟）。</summary>
+/// <summary>画布模型交互：滚轮=精细缩放(焦点锚定)；拖拽图片=平移(可出界)；空白不拖。</summary>
 public class ReaderInputTests
 {
     private static readonly string Fixtures = Path.GetFullPath(
@@ -23,13 +22,12 @@ public class ReaderInputTests
     private static async Task WaitUntilAsync(Func<bool> cond, int timeoutMs = 8000)
     {
         var sw = System.Diagnostics.Stopwatch.StartNew();
-        while (!cond() && sw.ElapsedMilliseconds < timeoutMs)
-            await Task.Delay(50);
+        while (!cond() && sw.ElapsedMilliseconds < timeoutMs) await Task.Delay(50);
         Assert.True(cond(), "条件超时");
     }
 
     [AvaloniaFact]
-    public async Task MouseWheel_Turns_Page_Not_Scrolls()
+    public async Task Wheel_Zooms_Fine_With_Focus_Anchor()
     {
         var db = Path.Combine(Path.GetTempPath(), $"manga_in_{Guid.NewGuid():N}.db");
         try
@@ -38,44 +36,57 @@ public class ReaderInputTests
             var win = new ReaderWindow { DataContext = vm };
             win.Show();
             await WaitUntilAsync(() => vm.Image1 is not null);
-            Assert.Equal(0, vm.CurrentIndex);
+            int page = vm.CurrentIndex;
+            double s0 = win.CanvasScale;
+            double x0 = win.CanvasX;
 
-            // 向下滚 = 下一页
-            win.MouseWheel(new Point(500, 400), new Vector(0, -120), RawInputModifiers.None);
-            await WaitUntilAsync(() => vm.CurrentIndex == 1);
-            Assert.Equal(1, vm.CurrentIndex);
+            // 滚轮向上 → 缩放（不翻页）
+            var pos = new Point(500, 400);
+            win.MouseWheel(pos, new Vector(0, 120), RawInputModifiers.None);
+            await WaitUntilAsync(() => win.CanvasScale > s0 + 0.001, 3000);
+            Assert.True(win.CanvasScale > s0, $"滚轮应缩放: {s0}->{win.CanvasScale}");
+            Assert.Equal(page, vm.CurrentIndex);   // 不翻页
 
-            // 向上滚 = 上一页
-            win.MouseWheel(new Point(500, 400), new Vector(0, 120), RawInputModifiers.None);
-            await WaitUntilAsync(() => vm.CurrentIndex == 0);
-            Assert.Equal(0, vm.CurrentIndex);
+            // 焦点锚定：鼠标下内容点在缩放前后应大致不变
+            double cBefore = (pos.X - x0) / s0;
+            double cAfter = (pos.X - win.CanvasX) / win.CanvasScale;
+            Assert.True(Math.Abs(cBefore - cAfter) < 2.0, $"焦点锚定失败: {cBefore} vs {cAfter}");
             win.Close();
             await vm.DisposeAsync();
         }
         finally { try { File.Delete(db); } catch { } }
     }
 
-    [Fact]
-    public void PanOffset_Clamps_To_Content_Range()
+    [AvaloniaFact]
+    public async Task Drag_Image_Pans_And_Can_Go_Out_Of_Bounds()
     {
-        // 向右拖（dx<0）→ offset.X 增大；限制在 maxX
-        var r1 = ReaderWindow.PanOffset(new Avalonia.Vector(0, 0), -120, 0, 500, 300);
-        Assert.Equal(120, r1.X);
-        Assert.Equal(0, r1.Y);
-        // 超界 clamp
-        var r2 = ReaderWindow.PanOffset(new Avalonia.Vector(0, 0), -999, 0, 500, 300);
-        Assert.Equal(500, r2.X);
-        // 向左拖（dx>0）→ offset.X 减小
-        var r3 = ReaderWindow.PanOffset(new Avalonia.Vector(200, 100), 80, 0, 500, 300);
-        Assert.Equal(120, r3.X);
-        Assert.Equal(100, r3.Y);
-        // 负 max（内容小于视口）→ 不允许平移
-        var r4 = ReaderWindow.PanOffset(new Avalonia.Vector(0, 0), -120, 0, -10, -10);
-        Assert.Equal(0, r4.X);
-        Assert.Equal(0, r4.Y);
-        // 垂直平移
-        var r5 = ReaderWindow.PanOffset(new Avalonia.Vector(0, 0), 0, -80, 500, 300);
-        Assert.Equal(0, r5.X);
-        Assert.Equal(80, r5.Y);
+        var db = Path.Combine(Path.GetTempPath(), $"manga_in2_{Guid.NewGuid():N}.db");
+        try
+        {
+            var vm = new ReaderViewModel(StressBook, db);
+            var win = new ReaderWindow { DataContext = vm };
+            win.Show();
+            await WaitUntilAsync(() => vm.Image1 is not null);
+            win.Measure(new Size(1100, 800));
+            win.Arrange(new Rect(0, 0, 1100, 800));
+
+            double x0 = win.CanvasX, y0 = win.CanvasY;
+            // 在图片上拖拽（图片位于视口中心附近）→ 平移
+            win.MouseDown(new Point(550, 400), MouseButton.Left, RawInputModifiers.None);
+            win.MouseMove(new Point(450, 350), RawInputModifiers.None);
+            win.MouseUp(new Point(450, 350), MouseButton.Left, RawInputModifiers.None);
+            Assert.True(Math.Abs(win.CanvasX - x0) > 5, $"拖拽应平移 X: {x0}->{win.CanvasX}");
+            Assert.True(Math.Abs(win.CanvasY - y0) > 5, $"拖拽应平移 Y: {y0}->{win.CanvasY}");
+
+            // 可拖出边界：大幅拖动 → 无 clamp（CanvasX 可 < 0 或 > 视口）
+            double before = win.CanvasX;
+            win.MouseDown(new Point(500, 400), MouseButton.Left, RawInputModifiers.None);
+            win.MouseMove(new Point(500 + 5000, 400), RawInputModifiers.None);
+            win.MouseUp(new Point(500 + 5000, 400), MouseButton.Left, RawInputModifiers.None);
+            Assert.True(Math.Abs(win.CanvasX - before) > 1000, "大幅拖拽应无边界限制（可出界）");
+            win.Close();
+            await vm.DisposeAsync();
+        }
+        finally { try { File.Delete(db); } catch { } }
     }
 }

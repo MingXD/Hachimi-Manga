@@ -1,7 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
-using Avalonia.VisualTree;
 using MangaAgent.App.ViewModels;
 using MangaAgent.App.Views;
 using MangaAgent.Core.Library;
@@ -32,29 +31,20 @@ public class ZoomCenteringTests
             while (vm.Image1 is null && sw.ElapsedMilliseconds < 8000) await Task.Delay(50);
             Assert.NotNull(vm.Image1);
 
-            var panel = win.GetVisualDescendants().OfType<StackPanel>().FirstOrDefault(p => p.Name == "PagePanel");
-            Assert.NotNull(panel);
+            // 画布模型：Fit 模式由 code-behind 计算居中 translate
+            double fitScale = win.CanvasScale;
+            Assert.True(fitScale > 0.1, "画布应有缩放");
+            Assert.True(win.CanvasX >= 0, "FitWidth 居中或左对齐：CanvasX>=0");
 
-            // 缩小：内容 < 视口 → 水平居中（X > 0）
-            vm.FitMode = FitMode.Custom;
-            vm.Scale = 0.5;
-            await Task.Delay(150);
-            win.Measure(new Size(1100, 800));
-            win.Arrange(new Rect(0, 0, 1100, 800));
-            var pos1 = panel.TranslatePoint(new Avalonia.Point(0, 0), win);
-            Assert.NotNull(pos1);
-            Console.WriteLine($"[ZOOM] shrink X={pos1!.Value.X:F0}");
-            Assert.True(pos1.Value.X > 100, $"缩小应水平居中（X>100），实际 X={pos1.Value.X:F0}");
+            // 缩小（画布交互，看图器规则：内容<视口时自动居中）
+            win.ZoomRelative(0.5);
+            Assert.True(win.CanvasScale < fitScale - 0.5, $"缩小后 scale 应小于 fit（{fitScale}）: {win.CanvasScale}");
+            Assert.True(win.CanvasX > 0, $"缩小应水平居中（CanvasX>0），实际 {win.CanvasX}");
+            double shrunk = win.CanvasScale;
 
-            // 放大：内容 > 视口 → 左对齐（X≈0，可滚动）
-            vm.Scale = 2.0;
-            await Task.Delay(150);
-            win.Measure(new Size(1100, 800));
-            win.Arrange(new Rect(0, 0, 1100, 800));
-            var pos2 = panel.TranslatePoint(new Avalonia.Point(0, 0), win);
-            Assert.NotNull(pos2);
-            Console.WriteLine($"[ZOOM] zoom X={pos2!.Value.X:F0}");
-            Assert.True(pos2.Value.X <= 15, $"放大应左对齐（X<=15），实际 X={pos2.Value.X:F0}");
+            // 放大：相对放大（1.03 × 2 = 2.06 ≈ fit 是正确行为）
+            win.ZoomRelative(2.0);
+            Assert.True(win.CanvasScale > shrunk + 0.5, $"放大后 scale 应大于缩小值（{shrunk}）: {win.CanvasScale}");
 
             win.Close();
             await vm.DisposeAsync();

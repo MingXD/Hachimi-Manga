@@ -1,6 +1,6 @@
 # 阅读器交互重构设计 v1（Windows 看图器逻辑）
 
-> 状态：**设计稿，等待用户确认后实施**。
+> 状态：**已确认，实施中（见 docs/03-dev/experience-impl-plan.md）**。
 > 参考：Windows 照片查看器 / ImageGlass / HoneyView（看图器交互）、CDisplayEx/YACReader（漫画阅读交互）。
 
 ## 0. 目标（用户需求）
