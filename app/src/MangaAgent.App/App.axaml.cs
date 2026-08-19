@@ -28,6 +28,19 @@ public partial class App : Application
 
     public override void OnFrameworkInitializationCompleted()
     {
+        // 全局异常记录（闪退排查）：UI 线程未处理异常 → 写 crash 日志
+        AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+            SLog("CRASH AppDomain: " + e.ExceptionObject);
+        try
+        {
+            Avalonia.Threading.Dispatcher.UIThread.UnhandledException += (_, e) =>
+            {
+                SLog("CRASH Dispatcher: " + e.Exception);
+                e.Handled = true; // 记录后继续（避免窗口直接关闭，便于观察）
+            };
+        }
+        catch (Exception ex) { SLog("CRASH hook fail: " + ex.Message); }
+
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             var args = desktop.Args ?? Array.Empty<string>();

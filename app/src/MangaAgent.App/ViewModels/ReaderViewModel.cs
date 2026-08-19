@@ -53,6 +53,11 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
     private const int CacheCap = 6;
     private readonly Dictionary<int, Bitmap> _pageCache = new();
     private readonly LinkedList<int> _cacheOrder = new();
+    // BUG-004：UI 引用计数 —— 位图同时被缓存与 UI Image 控件引用（缓存共享返回同一对象），
+    // 缓存淘汰/重解码直接 Dispose 会让布局时 Image.MeasureOverride → Bitmap.get_Size() 抛
+    // ObjectDisposedException（模式切换大量解码触发淘汰时闪退）。
+    // 修复：被 UI 引用的位图延迟 Dispose，直到引用归零且不在缓存。
+    private readonly Dictionary<Bitmap, int> _uiRefs = new();
 
     /// <summary>解码目标宽度（按显示尺寸降采样，4K 扫描页从 104MB 降到 ~10MB）。</summary>
     [ObservableProperty]
@@ -183,16 +188,31 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
             img2 = await DecodeAsync(lp.SecondIndex);
 
         // 竞态防护：期间用户已翻页/切换模式，则丢弃本次结果（BUG-001 修复）
-        if (mySeq != _loadSeq || CurrentIndex >= _logical.Count) return;
+        if (mySeq != _loadSeq || CurrentIndex >= _logical.Count)
+        {
+            ReleaseUiBitmap(img1);
+            ReleaseUiBitmap(img2);
+            return;
+        }
         var cur = _logical[CurrentIndex];
-        if (cur.FirstIndex != lp.FirstIndex || (showDouble != (ViewMode == ViewMode.Double && cur.IsDouble))) return;
+        if (cur.FirstIndex != lp.FirstIndex || (showDouble != (ViewMode == ViewMode.Double && cur.IsDouble)))
+        {
+            ReleaseUiBitmap(img1);
+            ReleaseUiBitmap(img2);
+            return;
+        }
 
         HasStatus = false;
         IsDoublePageShown = showDouble;
+        // UI 引用计数（BUG-004）：DecodeAsync 返回时已 Acquire；这里只 Release 旧位图（替换瞬间不 Dispose）
+        var old1 = Image1;
+        var old2 = Image2;
         Image1 = img1;
         Ratio1 = RatioOf(lp.FirstIndex);
         Image2 = img2;
         if (img2 is not null) Ratio2 = RatioOf(lp.SecondIndex);
+        ReleaseUiBitmap(old1);
+        ReleaseUiBitmap(old2);
         PageText = $"{CurrentIndex + 1} / {TotalLogical}";
         ProgressValue = CurrentIndex + 1;
     }
@@ -220,9 +240,10 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
             {
                 _cacheOrder.Remove(physical);
                 _cacheOrder.AddLast(physical);
+                AcquireUiBitmap(cached);   // 返回前 Acquire：位图从缓存取出即受 UI 保护（BUG-004）
                 return cached;
             }
-            cached.Dispose();
+            TryDispose(cached);
             _pageCache.Remove(physical);
             _pageCacheWidth.Remove(physical);
             _cacheOrder.Remove(physical);
@@ -255,6 +276,7 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
         _pageCache[physical] = decoded;
         _cacheOrder.AddLast(physical);
         EvictCache();
+        AcquireUiBitmap(decoded);   // 返回前 Acquire（BUG-004）
         return decoded;
     }
 
@@ -265,8 +287,37 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
             var oldest = _cacheOrder.First!.Value;
             _cacheOrder.RemoveFirst();
             if (_pageCache.Remove(oldest, out var bmp))
-                bmp.Dispose();
+                TryDispose(bmp);
         }
+    }
+
+    /// <summary>UI 取得位图引用（Image.Source 赋值前调用；缓存共享对象，计数防止被淘汰 Dispose）。</summary>
+    public void AcquireUiBitmap(Bitmap? bmp)
+    {
+        if (bmp is null) return;
+        _uiRefs.TryGetValue(bmp, out var n);
+        _uiRefs[bmp] = n + 1;
+    }
+
+    /// <summary>UI 释放位图引用（Image.Source 替换/移除时调用）。引用归零且不在缓存 → Dispose。</summary>
+    public void ReleaseUiBitmap(Bitmap? bmp)
+    {
+        if (bmp is null) return;
+        if (!_uiRefs.TryGetValue(bmp, out var n)) return;
+        if (n <= 1)
+        {
+            _uiRefs.Remove(bmp);
+            TryDispose(bmp);
+        }
+        else _uiRefs[bmp] = n - 1;
+    }
+
+    /// <summary>安全释放：仍被 UI 引用或仍在缓存 → 不 Dispose（缓存淘汰/重解码用）。</summary>
+    private void TryDispose(Bitmap bmp)
+    {
+        if (_uiRefs.ContainsKey(bmp)) return;
+        if (_pageCache.ContainsValue(bmp)) return;
+        bmp.Dispose();
     }
 
     private void SaveState() =>
@@ -358,9 +409,16 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
         SaveState();
         await _source.DisposeAsync();
         _state.Dispose();
+        // 关闭时 UI 即将销毁：Dispose 全部位图（含 UI 引用中的 —— BUG-004 计数清零）
         foreach (var bmp in _pageCache.Values)
             bmp.Dispose();
+        foreach (var bmp in _uiRefs.Keys)
+        {
+            if (!_pageCache.ContainsValue(bmp))
+                bmp.Dispose();
+        }
         _pageCache.Clear();
         _cacheOrder.Clear();
+        _uiRefs.Clear();
     }
 }

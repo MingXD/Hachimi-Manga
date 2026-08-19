@@ -75,3 +75,20 @@
 - 验证（像素级，品红背景白页矩形）：内容中心固定 (550, 368±1) vs 数学 (550,369)；
   x 偏移从 +178px → +0.2px；三档缩放中心不漂移；25/25 测试通过
 - 归档：docs/03-dev/bugs/BUG-003-zoom-focus.md（完整排查史 + 教训）
+
+## v1.6 BUG-004 修复：双页→单页切换闪退（2026-08-19）
+- 现象：双页浏览时点击模式切换按钮 → 应用闪退
+- 根因：页面位图 LRU 缓存（上限 6 页）淘汰/重解码时直接 Dispose，但同一 Bitmap 对象被 UI Image
+  控件 Source 引用（缓存共享返回）→ 布局 Image.MeasureOverride → Bitmap.get_Size() 抛
+  ObjectDisposedException。切到 Webtoon 时 UpdateWebtoonPages 逐页解码大量触发淘汰 → 闪退。
+  二次压力测试还发现 await 竞态：await GetPageBitmapAsync 恢复前位图已被淘汰 Dispose。
+- 修复（位图 UI 引用计数）：
+  1. VM 增加 _uiRefs（Acquire/Release/TryDispose）；EvictCache/重解码走 TryDispose（UI 引用中或
+     在缓存 → 不 Dispose）
+  2. Acquire 提前到 DecodeAsync 返回前（消除 await 后 Source 赋值前的淘汰竞态）
+  3. LoadCurrentAsync 替换 Image1/2 前 Release 旧位图；竞态丢弃路径 Release 防泄漏
+  4. View UpdateWebtoonPages/ExitWebtoon 释放面板位图引用 + _webtoonSeq 序列保护
+  5. DisposeAsync 关闭时 Dispose 全部
+- 验证：压力复现 4/4 零崩溃；新增回归测试 ModeSwitchCrashTests（26/26 通过）
+- 归档：docs/03-dev/bugs/BUG-004-mode-switch-crash.md
+- 附带：App 增加全局异常记录（AppDomain + Dispatcher.UnhandledException → LocalAppData/MangaAgent/app-start.log）

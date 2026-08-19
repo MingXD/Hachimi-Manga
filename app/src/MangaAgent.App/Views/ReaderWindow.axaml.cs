@@ -80,42 +80,36 @@ public partial class ReaderWindow : Window
         try
         {
             var sb = new System.Text.StringBuilder();
-            var origBg = Viewport.Background;
-            Viewport.Background = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Colors.Magenta);
-            void Capture(string file)
+            App.SLog("DIAG start");
+            if (_vm != null)
             {
-                var bmp = new Avalonia.Media.Imaging.RenderTargetBitmap(new PixelSize((int)Viewport.Bounds.Width, (int)Viewport.Bounds.Height));
-                bmp.Render(Viewport);
-                bmp.Save(file);
+                // 复现用户场景：先切到双页（含翻页制造缓存压力），再反复切换模式（快速连续，竞态窗口最大）
+                _vm.ToggleModeCommand.Execute(null);   // Single -> Double
+                await Task.Delay(1500);
+                for (int pg = 0; pg < 8; pg++) { _vm.NextPageCommand.Execute(null); await Task.Delay(300); }
+                // 快速连续切换 3 轮（Double->Webtoon->Single->Double...）
+                for (int round = 0; round < 3; round++)
+                {
+                    try
+                    {
+                        _vm.ToggleModeCommand.Execute(null);
+                        await Task.Delay(250);
+                        _vm.ToggleModeCommand.Execute(null);
+                        await Task.Delay(250);
+                        sb.AppendLine($"R{round}: vm={_vm.ViewMode} img1={(_vm.Image1 is null ? "null" : "ok")} img2={(_vm.Image2 is null ? "null" : "ok")}");
+                        App.SLog($"DIAG R{round} -> {_vm.ViewMode}");
+                    }
+                    catch (Exception ex)
+                    {
+                        sb.AppendLine($"R{round}: EX " + ex);
+                        App.SLog("DIAG R" + round + " EX: " + ex);
+                    }
+                }
+                // 稳定在 Webtoon 等待渲染（大量页面解码 + 淘汰）
+                _vm.ToggleModeCommand.Execute(null);
+                await Task.Delay(3000);
+                sb.AppendLine($"FINAL: vm={_vm.ViewMode} img1={(_vm.Image1 is null ? "null" : "ok")}");
             }
-            if (_vm != null) _vm.FitMode = FitMode.Custom;
-            double vpW = Math.Max(100, Viewport.Bounds.Width);
-            double vpH = Math.Max(100, Viewport.Bounds.Height);
-            double baseW = ComputeBaseW();
-            double fitScreen = Math.Min(vpW / baseW, vpH / BaseH);
-            _scale = 0.4 * fitScreen;
-            _tx = (vpW - baseW * _scale) / 2;
-            _ty = (vpH - BaseH * _scale) / 2;
-            ApplyTransform();
-            await Task.Delay(900);
-            sb.AppendLine($"VP={vpW:F0}x{vpH:F0} baseW={baseW:F1} fitScreen={fitScreen:F4}");
-            sb.AppendLine($"PageLayer.Bounds={PageLayer.Bounds} PageImage1.Bounds={PageImage1.Bounds} PageImage1.Width={PageImage1.Width:F1} Height={PageImage1.Height:F1}");
-            sb.AppendLine($"RTO={PageLayer.RenderTransformOrigin}  Transform={PageLayer.RenderTransform}");
-            var centerLocal = new Avalonia.Point(ComputeBaseW() / 2, BaseH / 2);
-            var cs0 = ContentToScreen(centerLocal);
-            sb.AppendLine($"STEP0 s={_scale:F4} tx={_tx:F2} ty={_ty:F2} mathCenter={cs0}");
-            Capture("D:\\MangaAgent\\app\\zoom-before.png");
-            ZoomRelative(1.5);
-            await Task.Delay(900);
-            var cs1 = ContentToScreen(centerLocal);
-            sb.AppendLine($"STEP1 s={_scale:F4} tx={_tx:F2} ty={_ty:F2} mathCenter={cs1}");
-            Capture("D:\\MangaAgent\\app\\zoom-after.png");
-            ZoomRelative(1.5);
-            await Task.Delay(900);
-            var cs2 = ContentToScreen(centerLocal);
-            sb.AppendLine($"STEP2 s={_scale:F4} tx={_tx:F2} ty={_ty:F2} mathCenter={cs2}");
-            Capture("D:\\MangaAgent\\app\\zoom-after2.png");
-            Viewport.Background = origBg;
             File.WriteAllText("D:\\MangaAgent\\app\\diag-zoom.txt", sb.ToString());
         }
         catch (Exception ex) { try { File.WriteAllText("D:\\MangaAgent\\app\\diag-zoom.txt", "ERR: " + ex); } catch { } }
@@ -303,6 +297,7 @@ public partial class ReaderWindow : Window
 
     private StackPanel? _webtoonPanel;
     private (int first, int last) _webtoonLoadedRange = (-1, -1);
+    private int _webtoonSeq;
 
     private void EnterWebtoon()
     {
@@ -321,6 +316,13 @@ public partial class ReaderWindow : Window
 
     private void ExitWebtoon()
     {
+        // 释放 webtoon 面板 Image 的位图引用（BUG-004：避免退出后残留计数/窗口关闭时重复释放）
+        if (_vm is not null && _webtoonPanel is not null)
+        {
+            foreach (var ch in _webtoonPanel.Children.OfType<Image>())
+                _vm.ReleaseUiBitmap(ch.Source as Avalonia.Media.Imaging.Bitmap);
+            _webtoonPanel.Children.Clear();
+        }
         if (PageLayer.Children.Count == 0 || PageLayer.Children[0] != PagePanel)
         {
             PageLayer.Children.Clear();
@@ -342,6 +344,10 @@ public partial class ReaderWindow : Window
         var cur = _webtoonLoadedRange;
         if (cur.first == first && cur.last == last) return;
         _webtoonLoadedRange = (first, last);
+        var mySeq = ++_webtoonSeq;
+        // 释放旧面板中所有 Image 的位图引用（BUG-004：位图被缓存与 UI 共享，需引用计数）
+        foreach (var ch in _webtoonPanel.Children.OfType<Image>())
+            _vm.ReleaseUiBitmap(ch.Source as Avalonia.Media.Imaging.Bitmap);
         _webtoonPanel.Children.Clear();
         for (int i = first; i <= last; i++)
         {
@@ -351,7 +357,9 @@ public partial class ReaderWindow : Window
                 Width = Math.Max(0.05, _vm.RatioOfPage(i)) * BaseH,
                 Height = BaseH,
             };
+            // DecodeAsync 返回时已 Acquire（BUG-004）；await 后若已切走则丢弃（Release 由下次 Enter/Exit 处理）
             var bmp = await _vm.GetPageBitmapAsync(i);
+            if (mySeq != _webtoonSeq) { _vm.ReleaseUiBitmap(bmp); break; }
             if (bmp is not null) img.Source = bmp;
             _webtoonPanel.Children.Add(img);
         }
