@@ -27,6 +27,7 @@
         <Button Content="＋" Click="OnZoomInClick" ToolTip.Tip="放大" Foreground="{Binding ForegroundHex}"/>
         <Button Content="{Binding FitText}" Command="{Binding CycleFitCommand}" ToolTip.Tip="切换适应模式（宽度/高度/屏幕）" Foreground="{Binding ForegroundHex}"/>
         <Button Content="复位" Click="OnResetZoomClick" ToolTip.Tip="适应宽度" Foreground="{Binding ForegroundHex}"/>
+        <Button x:Name="SensitivityButton" Content="缩放×1" Click="OnSensitivityClick" ToolTip.Tip="滚轮缩放灵敏度（快/中/慢）" Foreground="{Binding ForegroundHex}"/>
         <Button Content="书签" Command="{Binding ToggleBookmarkCommand}" ToolTip.Tip="当前页书签 (B)" Foreground="{Binding ForegroundHex}"/>
         <Button Content="◀书签" Command="{Binding PrevBookmarkCommand}" ToolTip.Tip="上一个书签" Foreground="{Binding ForegroundHex}"/>
         <Button Content="书签▶" Command="{Binding NextBookmarkCommand}" ToolTip.Tip="下一个书签" Foreground="{Binding ForegroundHex}"/>

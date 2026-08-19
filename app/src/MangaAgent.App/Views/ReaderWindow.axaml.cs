@@ -31,6 +31,8 @@ public partial class ReaderWindow : Window
     private Avalonia.Point _dragStart;
     private readonly ScaleTransform _layerScale = new(1, 1);
     private readonly TranslateTransform _layerTranslate = new(0, 0);
+    private double _wheelAccum;
+    private Avalonia.Point _lastWheelPos;
 
     public ReaderWindow()
     {
@@ -81,6 +83,9 @@ public partial class ReaderWindow : Window
             ? r1 + Math.Max(0.05, _vm.Ratio2)
             : r1) * BaseH;
     }
+
+    /// <summary>缩放灵敏度（1.0 默认；>1 更快，<1 更慢）。设置 UI 后续提供。</summary>
+    public double ZoomSensitivity { get; set; } = 1.0;
 
     private double CurrentFitScale()
     {
@@ -232,9 +237,21 @@ public partial class ReaderWindow : Window
             e.Handled = true;
             return;
         }
-        // 分页模式：滚轮 = 缩放（以指针为焦点；每格 ~10%，标准看图器速率）
-        double factor = Math.Pow(1.1, e.Delta.Y / 120.0);
-        ZoomToFocus(factor, e.GetPosition(Viewport));
+        // 分页模式：滚轮 = 缩放（累积阈值触发，不依赖单次 Delta 绝对值——Avalonia #9858）
+        // 每累积 60 触发一次 5% 缩放；普通鼠标一格≈120 → 每格 ≈10%；灵敏度系数可调
+        _lastWheelPos = e.GetPosition(Viewport);
+        _wheelAccum += e.Delta.Y;
+        double threshold = 60.0 / Math.Max(0.1, ZoomSensitivity);
+        while (_wheelAccum >= threshold)
+        {
+            _wheelAccum -= threshold;
+            ZoomToFocus(1.05, _lastWheelPos);
+        }
+        while (_wheelAccum <= -threshold)
+        {
+            _wheelAccum += threshold;
+            ZoomToFocus(1.0 / 1.05, _lastWheelPos);
+        }
         e.Handled = true;
     }
 
@@ -325,6 +342,17 @@ public partial class ReaderWindow : Window
     }
 
     private void OnZoomInClick(object? sender, RoutedEventArgs e) => ZoomRelative(1.25);
+
+    private static readonly double[] SensLevels = { 0.5, 1.0, 2.0 };
+    private int _sensIdx = 1;
+
+    private void OnSensitivityClick(object? sender, RoutedEventArgs e)
+    {
+        _sensIdx = (_sensIdx + 1) % SensLevels.Length;
+        ZoomSensitivity = SensLevels[_sensIdx];
+        if (SensitivityButton is not null)
+            SensitivityButton.Content = $"缩放×{ZoomSensitivity:0.#}";
+    }
 
     private void OnZoomOutClick(object? sender, RoutedEventArgs e) => ZoomRelative(0.8);
 
