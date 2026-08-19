@@ -29,8 +29,6 @@ public partial class ReaderWindow : Window
     public double CanvasY => _ty;
     private bool _isDragging;
     private Avalonia.Point _dragStart;
-    private double _wheelAccum;
-    private Avalonia.Point _lastWheelPos;
 
     public ReaderWindow()
     {
