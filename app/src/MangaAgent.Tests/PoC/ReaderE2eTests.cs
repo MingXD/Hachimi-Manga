@@ -46,7 +46,7 @@ public class ReaderE2eTests
 
             // 3) 双页模式：逻辑页 index1 = 物理页(1,2) 双页
             vm.ToggleModeCommand.Execute(null);
-            Assert.True(vm.DoubleMode);
+            Assert.True(vm.ViewMode == ViewMode.Double);
             Assert.True(vm.IsDoublePageShown);
             await WaitUntilAsync(() => vm.Image1 is not null && vm.Image2 is not null);
             Assert.NotNull(vm.Image1);
@@ -60,7 +60,7 @@ public class ReaderE2eTests
             // 5) 续读：新开 VM 恢复 index=1 + 双页模式
             var vm2 = new ReaderViewModel(StressBook, db);
             Assert.Equal(1, vm2.CurrentIndex);
-            Assert.True(vm2.DoubleMode);
+            Assert.True(vm2.ViewMode == ViewMode.Double);
 
             // 6) 书签
             vm2.ToggleBookmarkCommand.Execute(null);

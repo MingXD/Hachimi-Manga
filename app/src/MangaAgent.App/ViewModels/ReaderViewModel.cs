@@ -11,6 +11,8 @@ namespace MangaAgent.App.ViewModels;
 
 public enum FitMode { FitWidth, FitHeight, FitScreen, Custom }
 
+public enum ViewMode { Single, Double, Webtoon }
+
 /// <summary>阅读器：逻辑页序列（PageLayouter）+ 当前页解码 + 续读/书签。</summary>
 public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
 {
@@ -33,9 +35,10 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
     [ObservableProperty] private double _ratio1 = 0.7;
     [ObservableProperty] private double _ratio2 = 0.7;
     [ObservableProperty] private bool _isDoublePageShown;
+    [ObservableProperty] private bool _isWebtoon;
     [ObservableProperty] private int _currentIndex;
     [ObservableProperty] private int _totalLogical = 1;
-    [ObservableProperty] private bool _doubleMode;
+    [ObservableProperty] private ViewMode _viewMode = ViewMode.Single;
     [ObservableProperty] private ReadingDirection2 _direction = ReadingDirection2.Rtl;
     [ObservableProperty] private bool _isDark = true;
     [ObservableProperty] private FitMode _fitMode = FitMode.FitWidth;
@@ -60,7 +63,12 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
     public string BackgroundHex => IsDark ? "#101014" : "#F3F1EC";
     public string ToolbarHex => IsDark ? "#1C1C24" : "#FFFFFF";
     public string ForegroundHex => IsDark ? "#E8E8E8" : "#1A1A1A";
-    public string ModeText => DoubleMode ? "双页" : "单页";
+    public string ModeText => ViewMode switch
+    {
+        ViewMode.Double => "双页",
+        ViewMode.Webtoon => "滚动",
+        _ => "单页",
+    };
     public string DirectionText => Direction == ReadingDirection2.Rtl ? "RTL" : "LTR";
     public string ThemeText => IsDark ? "夜间" : "白天";
     public string FitText => FitMode switch
@@ -81,7 +89,11 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
 
         var saved = _state.LoadState(book.Path);
         _currentIndex = saved is null ? 0 : Math.Clamp(saved.Value.LogicalPage, 0, TotalLogical - 1);
-        _doubleMode = saved?.Mode == ReadingMode.Double;
+        _viewMode = saved?.Mode switch
+        {
+            ReadingMode.Double => ViewMode.Double,
+            _ => ViewMode.Single,
+        };
         _direction = saved?.Direction ?? ReadingDirection2.Rtl;
         LoadBookmarks();
         _ = LoadCurrentAsync();
@@ -123,7 +135,12 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
     }
 
     partial void OnCurrentIndexChanged(int value) => _ = LoadCurrentAsync();
-    partial void OnDoubleModeChanged(bool value) => _ = LoadCurrentAsync();
+    partial void OnViewModeChanged(ViewMode value)
+    {
+        OnPropertyChanged(nameof(ModeText));
+        OnPropertyChanged(nameof(IsDoublePageShown));
+        _ = LoadCurrentAsync();
+    }
     partial void OnScaleChanged(double value)
     {
         // FitMode 由 CycleFit/Reset 或画布缩放（code-behind）管理；此处仅刷新显示
@@ -158,7 +175,7 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
         if (_logical.Count == 0) return;
         var mySeq = ++_loadSeq;
         var lp = _logical[CurrentIndex];
-        var showDouble = DoubleMode && lp.IsDouble;
+        var showDouble = ViewMode == ViewMode.Double && lp.IsDouble;
 
         var img1 = await DecodeAsync(lp.FirstIndex);
         Bitmap? img2 = null;
@@ -168,7 +185,7 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
         // 竞态防护：期间用户已翻页/切换模式，则丢弃本次结果（BUG-001 修复）
         if (mySeq != _loadSeq || CurrentIndex >= _logical.Count) return;
         var cur = _logical[CurrentIndex];
-        if (cur.FirstIndex != lp.FirstIndex || (showDouble != (DoubleMode && cur.IsDouble))) return;
+        if (cur.FirstIndex != lp.FirstIndex || (showDouble != (ViewMode == ViewMode.Double && cur.IsDouble))) return;
 
         HasStatus = false;
         IsDoublePageShown = showDouble;
@@ -182,13 +199,33 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
 
     private double RatioOf(int physical) => _sizes.TryGetValue(physical, out var sz) ? sz.AspectRatio : 0.7;
 
+    /// <summary>Webtoon：获取指定物理页位图（带缓存）。</summary>
+    public Task<Bitmap?> GetPageBitmapAsync(int physical) => DecodeAsync(physical);
+
+    /// <summary>Webtoon：页数。</summary>
+    public int PhysicalPageCount => _source.PageCount;
+
+    /// <summary>Webtoon：指定页宽高比。</summary>
+    public double RatioOfPage(int physical) => RatioOf(physical);
+
+    private readonly Dictionary<int, int> _pageCacheWidth = new();
+
     private async Task<Bitmap?> DecodeAsync(int physical)
     {
+        int wantWidth = Math.Max(400, DecodeTargetWidth);
         if (_pageCache.TryGetValue(physical, out var cached))
         {
+            // 按需高清：放大超过当前解码宽度时重新解码更大（C 阶段）
+            if (_pageCacheWidth.TryGetValue(physical, out var w) && w >= wantWidth)
+            {
+                _cacheOrder.Remove(physical);
+                _cacheOrder.AddLast(physical);
+                return cached;
+            }
+            cached.Dispose();
+            _pageCache.Remove(physical);
+            _pageCacheWidth.Remove(physical);
             _cacheOrder.Remove(physical);
-            _cacheOrder.AddLast(physical);
-            return cached;
         }
 
         Bitmap? decoded = null;
@@ -233,7 +270,8 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
     }
 
     private void SaveState() =>
-        _state.SaveState(Book.Path, CurrentIndex, DoubleMode ? ReadingMode.Double : ReadingMode.Single, Direction);
+        _state.SaveState(Book.Path, CurrentIndex,
+            ViewMode == ViewMode.Double ? ReadingMode.Double : ReadingMode.Single, Direction);
 
     [RelayCommand]
     private void NextPage()
@@ -247,7 +285,17 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
         if (CurrentIndex > 0) { CurrentIndex--; SaveState(); }
     }
 
-    [RelayCommand] private void ToggleMode() { DoubleMode = !DoubleMode; SaveState(); }
+    [RelayCommand]
+    private void ToggleMode()
+    {
+        ViewMode = ViewMode switch
+        {
+            ViewMode.Single => ViewMode.Double,
+            ViewMode.Double => ViewMode.Webtoon,
+            _ => ViewMode.Single,
+        };
+        SaveState();
+    }
     [RelayCommand] private void ToggleDirection() { Direction = Direction == ReadingDirection2.Rtl ? ReadingDirection2.Ltr : ReadingDirection2.Rtl; SaveState(); }
     [RelayCommand] private void ToggleTheme() => IsDark = !IsDark;
     // 缩放由画布视图（ReaderWindow）管理：滚轮/双击/工具栏按钮（Click 事件）

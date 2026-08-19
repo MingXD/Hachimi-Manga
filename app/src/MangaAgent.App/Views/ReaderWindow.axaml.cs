@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Layout;
 using Avalonia.Media;
 using MangaAgent.App.ViewModels;
 using MangaAgent.Core.Storage;
@@ -124,8 +125,16 @@ public partial class ReaderWindow : Window
             _ty = (vpH - BaseH * _scale) / 2;
             if (Math.Abs(_vm.Scale - 1.0) > 0.001) _vm.ResetScaleInternal();
         }
-        // Custom 模式：scale/translate 由画布交互（滚轮/拖拽/按钮）管理，Relayout 不重置
+        // Custom 模式：scale/translate 由画布交互管理，Relayout 不重置
         ApplyTransform();
+        if (_vm.ViewMode == ViewMode.Webtoon)
+        {
+            EnterWebtoon();
+        }
+        else
+        {
+            ExitWebtoon();
+        }
     }
 
     // ---------- 缩放（精细、鼠标焦点锚定） ----------
@@ -140,7 +149,13 @@ public partial class ReaderWindow : Window
         _ty = pos.Y - (pos.Y - _ty) * r;
         ApplyTransform();
         ClampToViewportIfSmaller();
-        if (_vm is not null) _vm.SyncScaleFromView(_scale / CurrentFitScale());
+        if (_vm is not null)
+        {
+            _vm.SyncScaleFromView(_scale / CurrentFitScale());
+            // 按需高清：解码目标宽度随显示尺寸增长（上限 4096）
+            double dpr = RenderScaling > 0 ? RenderScaling : 1.0;
+            _vm.DecodeTargetWidth = (int)Math.Clamp(ComputeBaseW() * _scale * dpr, 1200, 4096);
+        }
     }
 
     /// <summary>看图器规则：内容小于视口时自动居中（缩放后）；放大时保持当前位置。</summary>
@@ -165,10 +180,76 @@ public partial class ReaderWindow : Window
     private void OnPointerWheelChanged(object? sender, PointerWheelEventArgs e)
     {
         if (_vm is null) return;
-        // 滚轮 = 精细缩放（复刻看图器：以鼠标为焦点，无修饰键也可缩放）
+        bool ctrl = e.KeyModifiers.HasFlag(KeyModifiers.Control) || _ctrlDown;
+        if (_vm.ViewMode == ViewMode.Webtoon && !ctrl)
+        {
+            // Webtoon：滚轮 = 向下滚动（内容上移）
+            _ty -= e.Delta.Y * 3.0;
+            ApplyTransform();
+            UpdateWebtoonPages();
+            e.Handled = true;
+            return;
+        }
+        // 分页模式：滚轮 = 精细缩放（复刻看图器：以鼠标为焦点）
         double factor = Math.Pow(1.0015, e.Delta.Y);
         ZoomTo(_scale * factor, e.GetPosition(Viewport));
         e.Handled = true;
+    }
+
+    private StackPanel? _webtoonPanel;
+    private (int first, int last) _webtoonLoadedRange = (-1, -1);
+
+    private void EnterWebtoon()
+    {
+        if (_webtoonPanel is null)
+        {
+            _webtoonPanel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 0 };
+        }
+        if (PageLayer.Children.Count == 0 || PageLayer.Children[0] != _webtoonPanel)
+        {
+            PageLayer.Children.Clear();
+            PageLayer.Children.Add(_webtoonPanel);
+        }
+        _webtoonLoadedRange = (-1, -1);
+        UpdateWebtoonPages();
+    }
+
+    private void ExitWebtoon()
+    {
+        if (PageLayer.Children.Count == 0 || PageLayer.Children[0] != PagePanel)
+        {
+            PageLayer.Children.Clear();
+            PageLayer.Children.Add(PagePanel);
+        }
+        PagePanel.Orientation = Orientation.Horizontal;
+    }
+
+    /// <summary>Webtoon：按可见区域懒加载页面（复用页面位图缓存）。</summary>
+    private async void UpdateWebtoonPages()
+    {
+        if (_vm is null || _webtoonPanel is null) return;
+        double vpH = Math.Max(1, Viewport.Bounds.Height);
+        double pageH = BaseH * _scale;
+        if (pageH <= 0) return;
+        double top = _ty;
+        int first = Math.Max(0, (int)(top / pageH) - 1);
+        int last = Math.Min(_vm.PhysicalPageCount - 1, (int)((top + vpH) / pageH) + 1);
+        var cur = _webtoonLoadedRange;
+        if (cur.first == first && cur.last == last) return;
+        _webtoonLoadedRange = (first, last);
+        _webtoonPanel.Children.Clear();
+        for (int i = first; i <= last; i++)
+        {
+            var img = new Image
+            {
+                Stretch = Stretch.Uniform,
+                Width = Math.Max(0.05, _vm.RatioOfPage(i)) * BaseH,
+                Height = BaseH,
+            };
+            var bmp = await _vm.GetPageBitmapAsync(i);
+            if (bmp is not null) img.Source = bmp;
+            _webtoonPanel.Children.Add(img);
+        }
     }
 
     private void OnViewportPointerPressed(object? sender, PointerPressedEventArgs e)
@@ -210,6 +291,8 @@ public partial class ReaderWindow : Window
         if (_vm is null) return;
         _vm.FitMode = FitMode.FitWidth;
     }
+
+    
 
     private void OnViewportDoubleTapped(object? sender, TappedEventArgs e)
     {
