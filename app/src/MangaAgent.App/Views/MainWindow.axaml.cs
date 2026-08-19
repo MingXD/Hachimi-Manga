@@ -57,4 +57,10 @@ public partial class MainWindow : Window
         if (_vm is { SelectedBook: { } book })
             _vm.OpenBookCommand.Execute(book);
     }
+
+    private void RefreshLibrary()
+    {
+        if (_vm?.SelectedLibrary is { } lib)
+            _vm.RescanCommand.Execute(null);
+    }
 }

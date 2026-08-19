@@ -17,17 +17,17 @@
         <TextBlock DockPanel.Dock="Right" Text="{Binding StatusText}" Foreground="#B0B0B0" VerticalAlignment="Center" Margin="0,0,14,0"/>
       </DockPanel>
     </Border>
-    <!-- 侧边栏 -->
-    <Border DockPanel.Dock="Left" Width="220" Background="#16161C">
+    <!-- 侧边栏：文件夹层级树（库根 → 目录 → 选中显示内容区） -->
+    <Border DockPanel.Dock="Left" Width="240" Background="#16161C">
       <DockPanel>
-        <TextBlock DockPanel.Dock="Top" Text="资料库" Foreground="#888888" Margin="12,10,12,6" FontSize="12"/>
-        <ListBox ItemsSource="{Binding Libraries}" SelectedItem="{Binding SelectedLibrary}" Background="Transparent">
-          <ListBox.ItemTemplate>
-            <DataTemplate>
+        <TextBlock DockPanel.Dock="Top" Text="文件夹" Foreground="#888888" Margin="12,10,12,6" FontSize="12"/>
+        <TreeView ItemsSource="{Binding FolderTree}" SelectedItem="{Binding SelectedFolder}" Background="Transparent">
+          <TreeView.ItemTemplate>
+            <TreeDataTemplate ItemsSource="{Binding Children}">
               <TextBlock Text="{Binding Name}" Foreground="#E8E8E8" Margin="4,3"/>
-            </DataTemplate>
-          </ListBox.ItemTemplate>
-        </ListBox>
+            </TreeDataTemplate>
+          </TreeView.ItemTemplate>
+        </TreeView>
       </DockPanel>
     </Border>
     <!-- 封面墙 -->
@@ -44,6 +44,15 @@
           <ListBox.ItemTemplate>
             <DataTemplate>
               <Border Width="176" Height="254" Background="#1E1E26" CornerRadius="6" BorderBrush="#333333" BorderThickness="1" Margin="2">
+                <Border.ContextMenu>
+                  <ContextMenu>
+                    <MenuItem Header="打开" Command="{Binding OpenCommand}"/>
+                    <MenuItem Header="在资源管理器中显示" Command="{Binding ShowInExplorerCommand}"/>
+                    <MenuItem Header="重命名" Command="{Binding RenameCommand}"/>
+                    <MenuItem Header="删除（回收站）" Command="{Binding DeleteCommand}"/>
+                    <MenuItem Header="属性" Command="{Binding PropertiesCommand}"/>
+                  </ContextMenu>
+                </Border.ContextMenu>
                 <StackPanel Margin="6">
                   <Border Background="#2A2A34" CornerRadius="4" Width="164" Height="200" ClipToBounds="True">
                     <Image Source="{Binding Thumbnail}" Stretch="Uniform" Width="164" Height="200"/>

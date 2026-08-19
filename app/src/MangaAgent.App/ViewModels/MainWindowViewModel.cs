@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using MangaAgent.App.Views;
 using MangaAgent.Core.Library;
+using Avalonia.Threading;
 using MangaAgent.Core.Storage;
 
 namespace MangaAgent.App.ViewModels;
@@ -19,8 +20,10 @@ public partial class MainWindowViewModel : ViewModelBase
 
     public ObservableCollection<LibraryItemViewModel> Libraries { get; } = new();
     public ObservableCollection<BookItemViewModel> Books { get; } = new();
+    public ObservableCollection<MangaAgent.Core.Library.FolderNode> FolderTree { get; } = new();
 
     [ObservableProperty] private LibraryItemViewModel? _selectedLibrary;
+    [ObservableProperty] private MangaAgent.Core.Library.FolderNode? _selectedFolder;
     [ObservableProperty] private BookItemViewModel? _selectedBook;
     [ObservableProperty] private string _searchText = string.Empty;
     [ObservableProperty] private string _statusText = "就绪";
@@ -37,6 +40,14 @@ public partial class MainWindowViewModel : ViewModelBase
 
     partial void OnSearchTextChanged(string value) => ApplyFilter();
     partial void OnSelectedLibraryChanged(LibraryItemViewModel? value) { if (value is not null) ShowBooks(value); }
+
+    partial void OnSelectedFolderChanged(MangaAgent.Core.Library.FolderNode? value)
+    {
+        if (value is null) return;
+        Books.Clear();
+        foreach (var b in value.Books) Books.Add(new BookItemViewModel(b));
+        foreach (var item in Books.Take(24)) _ = item.LoadThumbnailAsync();
+    }
 
     private async Task LoadSavedLibrariesAsync()
     {
@@ -76,6 +87,11 @@ public partial class MainWindowViewModel : ViewModelBase
             var lib = new LibraryItemViewModel(path, await LibraryScanner.ScanAsync(path));
             Libraries.Add(lib);
             SelectedLibrary = lib;
+            // 构建文件夹树
+            var tree = await MangaAgent.Core.Library.FolderTreeScanner.ScanAsync(path);
+            FolderTree.Clear();
+            FolderTree.Add(tree);
+            SelectedFolder = tree;
             StatusText = $"已添加：{lib.Name}（{lib.Books.Count} 本）";
             // 持久化库根
             var existing = File.Exists(LibrariesFile) ? await File.ReadAllLinesAsync(LibrariesFile) : Array.Empty<string>();
@@ -107,9 +123,20 @@ public partial class MainWindowViewModel : ViewModelBase
     private void ShowBooks(LibraryItemViewModel lib)
     {
         Books.Clear();
-        foreach (var b in lib.Books) Books.Add(new BookItemViewModel(b));
+        foreach (var b in lib.Books) Books.Add(Wire(new BookItemViewModel(b)));
         ApplyFilter();
         foreach (var item in Books.Take(24)) _ = item.LoadThumbnailAsync();
+    }
+
+    private BookItemViewModel Wire(BookItemViewModel item)
+    {
+        item.OpenAction = b => OpenBookCommand.Execute(b);
+        item.RefreshAction = () => Dispatcher.UIThread.Post(() =>
+        {
+            if (SelectedFolder is not null) SelectedFolder = SelectedFolder;   // 触发刷新
+            else RescanCommand.Execute(null);
+        });
+        return item;
     }
 
     private void ApplyFilter()
@@ -121,13 +148,13 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             if (q.Length == 0 || b.Title.Contains(q, StringComparison.OrdinalIgnoreCase)
                 || (b.Series?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false))
-                Books.Add(new BookItemViewModel(b));
+                Books.Add(Wire(new BookItemViewModel(b)));
         }
         foreach (var item in Books.Take(24)) _ = item.LoadThumbnailAsync();
     }
 
     [RelayCommand]
-    private void OpenBook(BookItemViewModel? book)
+    public void OpenBook(BookItemViewModel? book)
     {
         if (book is null) return;
         try
