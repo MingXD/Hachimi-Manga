@@ -1,10 +1,13 @@
 using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
+using Avalonia.VisualTree;
 using MangaAgent.App.ViewModels;
 using MangaAgent.App.Views;
 using MangaAgent.Core.Library;
+using MangaAgent.Core.Storage;
 using Xunit;
 
 namespace MangaAgent.Tests.PoC;
@@ -47,10 +50,38 @@ public class ReaderInputTests
             Assert.True(win.CanvasScale > s0, $"滚轮应缩放: {s0}->{win.CanvasScale}");
             Assert.Equal(page, vm.CurrentIndex);   // 不翻页
 
-            // 焦点锚定：鼠标下内容点在缩放前后应大致不变
+            // 焦点锚定（严格）：鼠标下内容点在缩放前后应不变（误差<1px）
             double cBefore = (pos.X - x0) / s0;
             double cAfter = (pos.X - win.CanvasX) / win.CanvasScale;
-            Assert.True(Math.Abs(cBefore - cAfter) < 2.0, $"焦点锚定失败: {cBefore} vs {cAfter}");
+            Assert.True(Math.Abs(cBefore - cAfter) < 1.0, $"焦点锚定失败: {cBefore} vs {cAfter}");
+            win.Close();
+            await vm.DisposeAsync();
+        }
+        finally { try { File.Delete(db); } catch { } }
+    }
+
+    [AvaloniaFact]
+    public async Task Rtl_Double_Page_Order_Reversed()
+    {
+        var db = Path.Combine(Path.GetTempPath(), $"manga_rtl_{Guid.NewGuid():N}.db");
+        try
+        {
+            var vm = new ReaderViewModel(StressBook, db);
+            vm.ViewMode = ViewMode.Double;   // 双页模式
+            var win = new ReaderWindow { DataContext = vm };
+            win.Show();
+            await WaitUntilAsync(() => vm.Image1 is not null);
+            vm.NextPageCommand.Execute(null);   // 第 1 页是封面单页，翻到双页逻辑页 (1,2)
+            await WaitUntilAsync(() => vm.Image1 is not null && vm.Image2 is not null);
+            // RTL（默认）：右页=前页 → PagePanel 顺序应为 [Image2, Image1]
+            var panel = win.GetVisualDescendants().OfType<Avalonia.Controls.StackPanel>().FirstOrDefault(p => p.Name == "PagePanel");
+            Assert.NotNull(panel);
+            if (vm.Direction == ReadingDirection2.Rtl)
+                Assert.True(panel.Children.IndexOf(panel.Children.OfType<Image>().Last()) > 0, "RTL 双页顺序应反转");
+            // 切换 LTR → 顺序恢复 [Image1, Image2]
+            vm.Direction = ReadingDirection2.Ltr;
+            await Task.Delay(150);
+            win.Measure(new Size(1100, 800)); win.Arrange(new Rect(0, 0, 1100, 800));
             win.Close();
             await vm.DisposeAsync();
         }

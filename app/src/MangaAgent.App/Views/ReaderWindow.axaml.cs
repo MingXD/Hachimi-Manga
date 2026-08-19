@@ -55,9 +55,11 @@ public partial class ReaderWindow : Window
                     or nameof(ReaderViewModel.Image2)
                     or nameof(ReaderViewModel.IsDoublePageShown)
                     or nameof(ReaderViewModel.FitMode)
-                    or nameof(ReaderViewModel.Scale))
+                    or nameof(ReaderViewModel.Scale)
+                    or nameof(ReaderViewModel.Direction))
                 {
                     Relayout();
+                    ArrangeDoublePageOrder();
                 }
             };
             Relayout();
@@ -134,6 +136,7 @@ public partial class ReaderWindow : Window
         else
         {
             ExitWebtoon();
+            ArrangeDoublePageOrder();
         }
     }
 
@@ -174,6 +177,45 @@ public partial class ReaderWindow : Window
     public void ZoomRelative(double factor)
         => ZoomTo(_scale * factor, new Avalonia.Point(Viewport.Bounds.Width / 2, Viewport.Bounds.Height / 2));
 
+    /// <summary>内容渲染区域（视口坐标）。</summary>
+    private Avalonia.Rect ContentScreenRect()
+    {
+        double cw = ComputeBaseW() * _scale;
+        double ch = BaseH * _scale;
+        return new Avalonia.Rect(_tx, _ty, cw, ch);
+    }
+
+    /// <summary>焦点：指针位置 clamp 到内容区域（指针在画面外时取最近边界点）。</summary>
+    private Avalonia.Point EffectiveFocus(Avalonia.Point mouse)
+    {
+        var r = ContentScreenRect();
+        return new Avalonia.Point(
+            Math.Clamp(mouse.X, r.Left, Math.Max(r.Left, r.Right)),
+            Math.Clamp(mouse.Y, r.Top, Math.Max(r.Top, r.Bottom)));
+    }
+
+    /// <summary>标准焦点锚定缩放（zoooom 等 pan/zoom 库算法）。</summary>
+    public void ZoomToFocus(double factor, Avalonia.Point mouse)
+    {
+        double old = _scale;
+        if (_vm is not null && _vm.FitMode != FitMode.Custom)
+            _vm.FitMode = FitMode.Custom;
+        double target = Math.Clamp(_scale * factor, 0.02, 8.0);
+        double r = target / old;
+        var f = EffectiveFocus(mouse);
+        _tx = f.X - (f.X - _tx) * r;
+        _ty = f.Y - (f.Y - _ty) * r;
+        _scale = target;
+        ApplyTransform();
+        ClampToViewportIfSmaller();
+        if (_vm is not null)
+        {
+            _vm.SyncScaleFromView(_scale / CurrentFitScale());
+            double dpr = RenderScaling > 0 ? RenderScaling : 1.0;
+            _vm.DecodeTargetWidth = (int)Math.Clamp(ComputeBaseW() * _scale * dpr, 1200, 4096);
+        }
+    }
+
     // ---------- 输入 ----------
     private void OnViewportSizeChanged(object? sender, SizeChangedEventArgs e) => Relayout();
 
@@ -190,9 +232,9 @@ public partial class ReaderWindow : Window
             e.Handled = true;
             return;
         }
-        // 分页模式：滚轮 = 精细缩放（复刻看图器：以鼠标为焦点）
-        double factor = Math.Pow(1.0015, e.Delta.Y);
-        ZoomTo(_scale * factor, e.GetPosition(Viewport));
+        // 分页模式：滚轮 = 缩放（以指针为焦点；每格 ~10%，标准看图器速率）
+        double factor = Math.Pow(1.1, e.Delta.Y / 120.0);
+        ZoomToFocus(factor, e.GetPosition(Viewport));
         e.Handled = true;
     }
 
@@ -293,6 +335,27 @@ public partial class ReaderWindow : Window
     }
 
     
+
+    /// <summary>按阅读方向排列双页左右顺序（RTL：右=前页；LTR：左=前页）。</summary>
+    private void ArrangeDoublePageOrder()
+    {
+        if (_vm is null || !_vm.IsDoublePageShown) return;
+        bool rtl = _vm.Direction == ReadingDirection2.Rtl;
+        // PagePanel 子顺序：[PageImage1(前), PageImage2(后)] LTR；RTL 反转
+        int i1 = PagePanel.Children.IndexOf(PageImage1);
+        int i2 = PagePanel.Children.IndexOf(PageImage2);
+        if (i1 < 0 || i2 < 0) return;
+        if (rtl && i1 < i2)
+        {
+            PagePanel.Children.Remove(PageImage1);
+            PagePanel.Children.Insert(i2, PageImage1);
+        }
+        else if (!rtl && i1 > i2)
+        {
+            PagePanel.Children.Remove(PageImage2);
+            PagePanel.Children.Insert(i1, PageImage2);
+        }
+    }
 
     private void OnViewportDoubleTapped(object? sender, TappedEventArgs e)
     {
