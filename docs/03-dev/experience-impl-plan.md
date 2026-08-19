@@ -47,3 +47,9 @@
 - 修复：**按事件计数缩放**（每次滚轮事件 = 一次 5% 缩放，方向由 Delta 符号决定，完全不依赖数值）
 - 按钮缩放：焦点从"视口中心"改为"**内容中心**"（ContentScreenRect().Center）——修复"焦点在右下角"
 - 24/24 测试通过
+
+## v1.4 焦点右下角根因修复（2026-08-19）
+- 根因：TransformGroup 子变换复合顺序与锚定公式假设不一致（translate 被 scale 放大）→ 缩放时画面向右下偏移
+- 修复：改用 **MatrixTransform（p' = scale·p + t）**，消除顺序歧义，与锚定公式精确匹配
+- 验证：数学验证（按钮缩放以内容中心为焦点，缩放后中心保持 <1px）+ 25/25 测试
+- 说明：headless RenderTargetBitmap.Save 输出不可解码（已知限制），像素级验证改用 ContentToScreen 数学验证

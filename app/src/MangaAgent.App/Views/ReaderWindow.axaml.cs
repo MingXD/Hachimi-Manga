@@ -37,9 +37,11 @@ public partial class ReaderWindow : Window
     public ReaderWindow()
     {
         InitializeComponent();
+        // 顺序关键：Translate 在前、Scale 在后 → p' = t + scale·p（先 Scale 后 Translate 应用），
+        // 与锚定公式 tx' = f - (f-tx)·(scale'/scale) 匹配；顺序反了会导致 translate 被缩放放大、焦点偏移
         PageLayer.RenderTransform = new TransformGroup
         {
-            Children = { _layerScale, _layerTranslate },
+            Children = { _layerTranslate, _layerScale },
         };
         KeyDown += (_, e) => { if (e.Key == Key.LeftCtrl || e.Key == Key.RightCtrl) _ctrlDown = true; };
         KeyUp += (_, e) => { if (e.Key == Key.LeftCtrl || e.Key == Key.RightCtrl) _ctrlDown = false; };
@@ -102,10 +104,7 @@ public partial class ReaderWindow : Window
 
     private void ApplyTransform()
     {
-        _layerScale.ScaleX = _scale;
-        _layerScale.ScaleY = _scale;
-        _layerTranslate.X = _tx;
-        _layerTranslate.Y = _ty;
+        PageLayer.RenderTransform = new MatrixTransform(new Matrix(_scale, 0, 0, _scale, _tx, _ty));
     }
 
     private void Relayout()
@@ -181,6 +180,10 @@ public partial class ReaderWindow : Window
     /// <summary>测试/按钮用：以内容中心为焦点缩放（factor=1.25/0.8）。</summary>
     public void ZoomRelative(double factor)
         => ZoomToFocus(factor, ContentScreenRect().Center);
+
+    /// <summary>内容局部点 → 屏幕坐标（与 MatrixTransform 同一数学模型：p' = scale·p + t）。</summary>
+    public Avalonia.Point ContentToScreen(Avalonia.Point local)
+        => new(_scale * local.X + _tx, _scale * local.Y + _ty);
 
     /// <summary>内容渲染区域（视口坐标）。</summary>
     private Avalonia.Rect ContentScreenRect()

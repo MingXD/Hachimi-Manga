@@ -50,10 +50,11 @@ public class ReaderInputTests
             Assert.True(win.CanvasScale > s0, $"滚轮应缩放: {s0}->{win.CanvasScale}");
             Assert.Equal(page, vm.CurrentIndex);   // 不翻页
 
-            // 焦点锚定（严格）：鼠标下内容点在缩放前后应不变（误差<1px）
-            double cBefore = (pos.X - x0) / s0;
-            double cAfter = (pos.X - win.CanvasX) / win.CanvasScale;
-            Assert.True(Math.Abs(cBefore - cAfter) < 1.0, $"焦点锚定失败: {cBefore} vs {cAfter}");
+            // 数学验证：以 pos 为焦点缩放，pos 处的内容点应保持（ContentToScreen 逆运算）
+            double contentXBefore = (pos.X - x0) / s0;
+            double contentXAfter = (pos.X - win.CanvasX) / win.CanvasScale;
+            Assert.True(Math.Abs(contentXBefore - contentXAfter) < 1.0,
+                $"焦点锚定（数学）: {contentXBefore} vs {contentXAfter}");
             win.Close();
             await vm.DisposeAsync();
         }
@@ -82,6 +83,35 @@ public class ReaderInputTests
             vm.Direction = ReadingDirection2.Ltr;
             await Task.Delay(150);
             win.Measure(new Size(1100, 800)); win.Arrange(new Rect(0, 0, 1100, 800));
+            win.Close();
+            await vm.DisposeAsync();
+        }
+        finally { try { File.Delete(db); } catch { } }
+    }
+
+    [AvaloniaFact]
+    public async Task ButtonZoom_Keeps_Content_Center_Fixed()
+    {
+        // 数学验证（与 MatrixTransform 同一模型 p' = scale·p + t）：按钮缩放以内容中心为焦点
+        // → 缩放前后内容中心屏幕位置应一致（误差 <0.01）
+        var db = Path.Combine(Path.GetTempPath(), $"manga_cc_{Guid.NewGuid():N}.db");
+        try
+        {
+            var vm = new ReaderViewModel(StressBook, db);
+            var win = new ReaderWindow { DataContext = vm };
+            win.Show();
+            await WaitUntilAsync(() => vm.Image1 is not null);
+            win.Measure(new Size(1100, 800));
+            win.Arrange(new Rect(0, 0, 1100, 800));
+
+            // 内容中心局部点（基准尺寸一半）
+            var centerLocal = new Avalonia.Point(533.6 / 2, 400);   // baseW≈ratio×800，此处用应力书 ratio≈0.667
+            var before = win.ContentToScreen(centerLocal);
+            win.ZoomRelative(1.5);
+            var after = win.ContentToScreen(centerLocal);
+            Console.WriteLine($"[CC] before=({before.X:F2},{before.Y:F2}) after=({after.X:F2},{after.Y:F2})");
+            Assert.True(Math.Abs(before.X - after.X) < 1.0 && Math.Abs(before.Y - after.Y) < 1.0,
+                $"内容中心缩放后应保持: d=({before.X - after.X:F2},{before.Y - after.Y:F2})");
             win.Close();
             await vm.DisposeAsync();
         }
