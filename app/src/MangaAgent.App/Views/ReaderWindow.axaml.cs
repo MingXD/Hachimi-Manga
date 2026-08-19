@@ -178,9 +178,9 @@ public partial class ReaderWindow : Window
         ApplyTransform();
     }
 
-    /// <summary>测试/按钮用：以视口中心缩放（factor=1.25/0.8）。</summary>
+    /// <summary>测试/按钮用：以内容中心为焦点缩放（factor=1.25/0.8）。</summary>
     public void ZoomRelative(double factor)
-        => ZoomTo(_scale * factor, new Avalonia.Point(Viewport.Bounds.Width / 2, Viewport.Bounds.Height / 2));
+        => ZoomToFocus(factor, ContentScreenRect().Center);
 
     /// <summary>内容渲染区域（视口坐标）。</summary>
     private Avalonia.Rect ContentScreenRect()
@@ -237,20 +237,12 @@ public partial class ReaderWindow : Window
             e.Handled = true;
             return;
         }
-        // 分页模式：滚轮 = 缩放（累积阈值触发，不依赖单次 Delta 绝对值——Avalonia #9858）
-        // 每累积 60 触发一次 5% 缩放；普通鼠标一格≈120 → 每格 ≈10%；灵敏度系数可调
-        _lastWheelPos = e.GetPosition(Viewport);
-        _wheelAccum += e.Delta.Y;
-        double threshold = 60.0 / Math.Max(0.1, ZoomSensitivity);
-        while (_wheelAccum >= threshold)
+        // 分页模式：滚轮 = 缩放（按事件计数，完全不依赖 Delta 数值——Avalonia #9858 Delta 不稳定/极小）
+        // 每次滚轮事件 = 一次缩放 step（5% × 灵敏度），方向由 Delta 符号决定
+        if (e.Delta.Y != 0)
         {
-            _wheelAccum -= threshold;
-            ZoomToFocus(1.05, _lastWheelPos);
-        }
-        while (_wheelAccum <= -threshold)
-        {
-            _wheelAccum += threshold;
-            ZoomToFocus(1.0 / 1.05, _lastWheelPos);
+            double step = 0.05 * Math.Max(0.1, ZoomSensitivity);
+            ZoomToFocus(e.Delta.Y > 0 ? 1.0 + step : 1.0 / (1.0 + step), e.GetPosition(Viewport));
         }
         e.Handled = true;
     }
