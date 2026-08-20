@@ -10,21 +10,24 @@ public static class LibraryScanner
 {
     private static readonly string[] ImageExts = { ".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp" };
 
-    public static async Task<List<BookInfo>> ScanAsync(string root, CancellationToken ct = default)
+    public static async Task<List<BookInfo>> ScanAsync(string root, CancellationToken ct = default,
+        Action<string, int>? progress = null)
     {
         var books = new List<BookInfo>();
-        await ScanDirectoryAsync(root, books, ct);
+        await ScanDirectoryAsync(root, books, ct, progress);
         return books.OrderBy(b => b.Series, StringComparer.OrdinalIgnoreCase)
                     .ThenBy(b => ParseVolumeNumber(b.Volume), Comparer<int>.Default)
                     .ThenBy(b => b.Title, StringComparer.OrdinalIgnoreCase)
                     .ToList();
     }
 
-    private static async Task ScanDirectoryAsync(string dir, List<BookInfo> books, CancellationToken ct)
+    private static async Task ScanDirectoryAsync(string dir, List<BookInfo> books, CancellationToken ct,
+        Action<string, int>? progress = null)
     {
         ct.ThrowIfCancellationRequested();
         var parent = new DirectoryInfo(dir);
         var series = parent.Name;
+        progress?.Invoke(dir, books.Count);
 
         // 本目录内直接的图片 → 文件夹型书
         var images = Directory.GetFiles(dir)
@@ -44,7 +47,7 @@ public static class LibraryScanner
 
         // 递归子目录 + 收集 CBZ
         foreach (var sub in Directory.GetDirectories(dir))
-            await ScanDirectoryAsync(sub, books, ct);
+            await ScanDirectoryAsync(sub, books, ct, progress);
 
         foreach (var file in Directory.GetFiles(dir, "*.cbz", SearchOption.TopDirectoryOnly))
         {

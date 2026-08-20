@@ -42,6 +42,7 @@ public class ReaderInputTests
             int page = vm.CurrentIndex;
             double s0 = win.CanvasScale;
             double x0 = win.CanvasX;
+            double ty0 = win.CanvasY;   // 缩放前的 ty（必须在此读取）
 
             // 滚轮向上 → 缩放（不翻页）
             var pos = new Point(500, 400);
@@ -50,11 +51,12 @@ public class ReaderInputTests
             Assert.True(win.CanvasScale > s0, $"滚轮应缩放: {s0}->{win.CanvasScale}");
             Assert.Equal(page, vm.CurrentIndex);   // 不翻页
 
-            // 数学验证：以 pos 为焦点缩放，pos 处的内容点应保持（ContentToScreen 逆运算）
-            double contentXBefore = (pos.X - x0) / s0;
-            double contentXAfter = (pos.X - win.CanvasX) / win.CanvasScale;
-            Assert.True(Math.Abs(contentXBefore - contentXAfter) < 1.0,
-                $"焦点锚定（数学）: {contentXBefore} vs {contentXAfter}");
+            // 数学验证（y 轴锚定公式）：缩放后 ty' = fY - (fY - ty0)·r，fY = 鼠标 Viewport 坐标
+            double mouseY = pos.Y - win.ViewportOrigin.Y;   // 窗口坐标 → Viewport 坐标
+            double r2 = win.CanvasScale / s0;
+            double expectedTy = mouseY - (mouseY - ty0) * r2;
+            Assert.True(Math.Abs(win.CanvasY - expectedTy) < 1.5,
+                $"锚定公式: ty0={ty0:F2} mouseY={mouseY:F2} r={r2:F3} expect={expectedTy:F2} actual={win.CanvasY:F2} [vp={win.ViewportSize} origin={win.ViewportOrigin}]");
             win.Close();
             await vm.DisposeAsync();
         }

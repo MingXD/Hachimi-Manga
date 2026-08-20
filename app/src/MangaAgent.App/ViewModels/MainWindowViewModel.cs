@@ -99,6 +99,22 @@ public partial class MainWindowViewModel : ViewModelBase
             if (e.IsFolder) EnterFolderCommand.Execute(e.Folder);
             else if (e.Book is { } book) OpenBookCommand.Execute(new BookItemViewModel(book));
         };
+        item.RefreshAction = () => Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            if (CurrentFolder is not null) ShowFolderContents(CurrentFolder);
+        });
+        item.PickTargetFolderAction = async () =>
+        {
+            var window = GetOwnerWindow?.Invoke();
+            var top = window is not null ? TopLevel.GetTopLevel(window) : null;
+            if (top is null) return null;
+            var folders = await top.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+            {
+                Title = "选择目标文件夹（复制/移动到）",
+                AllowMultiple = false,
+            });
+            return folders.Count > 0 ? folders[0].TryGetLocalPath() : null;
+        };
         return item;
     }
 
@@ -115,7 +131,19 @@ public partial class MainWindowViewModel : ViewModelBase
             }
             catch { /* 跳过不可读的库 */ }
         }
-        if (Libraries.Count > 0) SelectedLibrary = Libraries[0];
+        if (Libraries.Count > 0)
+        {
+            SelectedLibrary = Libraries[0];
+            // BUG-1：启动加载历史库后也建文件夹树（否则重启左侧树空白）
+            try
+            {
+                var tree = await MangaAgent.Core.Library.FolderTreeScanner.ScanAsync(Libraries[0].Path);
+                FolderTree.Clear();
+                FolderTree.Add(tree);
+                SelectedFolder = tree;
+            }
+            catch { /* 建树失败不阻塞启动 */ }
+        }
     }
 
     [RelayCommand]
@@ -137,7 +165,14 @@ public partial class MainWindowViewModel : ViewModelBase
         StatusText = "正在扫描…";
         try
         {
-            var lib = new LibraryItemViewModel(path, await LibraryScanner.ScanAsync(path));
+            // 扫描进度反馈（BUG-1：深层目录扫描慢，实时显示避免"无反应"）
+            var lib = new LibraryItemViewModel(path, await Task.Run(async () =>
+                await LibraryScanner.ScanAsync(path, progress: (dir, found) =>
+                {
+                    // 进度回调可能在线程池线程执行 → 切回 UI 线程更新状态
+                    Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                        StatusText = $"正在扫描… 已发现 {found} 本（{Path.GetFileName(dir.TrimEnd('\\'))}）");
+                })));
             Libraries.Add(lib);
             SelectedLibrary = lib;
             // 构建文件夹树
@@ -164,10 +199,18 @@ public partial class MainWindowViewModel : ViewModelBase
         StatusText = "正在重新扫描…";
         try
         {
-            var lib = new LibraryItemViewModel(SelectedLibrary.Path, await LibraryScanner.ScanAsync(SelectedLibrary.Path));
+            var lib = new LibraryItemViewModel(SelectedLibrary.Path, await Task.Run(async () =>
+                await LibraryScanner.ScanAsync(SelectedLibrary.Path,
+                    progress: (dir, found) => Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                        StatusText = $"正在重新扫描… 已发现 {found} 本"))));
             int idx = Libraries.IndexOf(SelectedLibrary);
             if (idx >= 0) Libraries[idx] = lib;
             SelectedLibrary = lib;
+            // BUG-1：重建文件夹树 + 选中根（此前只更新库列表 → 扫描后左侧空白）
+            var tree = await MangaAgent.Core.Library.FolderTreeScanner.ScanAsync(SelectedLibrary.Path);
+            FolderTree.Clear();
+            FolderTree.Add(tree);
+            ShowFolderContents(tree);
             StatusText = $"扫描完成：{lib.Books.Count} 本";
         }
         finally { IsScanning = false; }

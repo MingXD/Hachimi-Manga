@@ -36,15 +36,15 @@ public class ZoomCenteringTests
             Assert.True(fitScale > 0.1, "画布应有缩放");
             Assert.True(win.CanvasX >= 0, "FitWidth 居中或左对齐：CanvasX>=0");
 
-            // 缩小（画布交互，看图器规则：内容<视口时自动居中）
+            // 缩小（画布交互，看图器规则：内容<视口时自动居中）—— 默认 FitScreen
             win.ZoomRelative(0.5);
-            Assert.True(win.CanvasScale < fitScale - 0.5, $"缩小后 scale 应小于 fit（{fitScale}）: {win.CanvasScale}");
+            Assert.True(win.CanvasScale < fitScale * 0.6, $"缩小后 scale 应 < fit×0.6（{fitScale}）: {win.CanvasScale}");
             Assert.True(win.CanvasX > 0, $"缩小应水平居中（CanvasX>0），实际 {win.CanvasX}");
             double shrunk = win.CanvasScale;
 
-            // 放大：相对放大（1.03 × 2 = 2.06 ≈ fit 是正确行为）
+            // 放大：相对放大（shrunk × 2）
             win.ZoomRelative(2.0);
-            Assert.True(win.CanvasScale > shrunk + 0.5, $"放大后 scale 应大于缩小值（{shrunk}）: {win.CanvasScale}");
+            Assert.True(win.CanvasScale > shrunk * 1.5, $"放大后 scale 应大于缩小值×1.5（{shrunk}）: {win.CanvasScale}");
 
             win.Close();
             await vm.DisposeAsync();

@@ -31,6 +31,8 @@
         </TreeView>
       </DockPanel>
     </Border>
+    <!-- 侧栏可拖动宽度（v1.8 问题12） -->
+    <GridSplitter DockPanel.Dock="Left" Width="4" Background="#2A2A34" HorizontalAlignment="Stretch"/>
     <!-- 内容区：面包屑 + 目录浏览器（混合：子文件夹 + 漫画封面） -->
     <DockPanel>
       <Border DockPanel.Dock="Top" Padding="10,5" Background="#14141A">
@@ -63,10 +65,20 @@
             </ListBox.ItemsPanel>
             <ListBox.ItemTemplate>
               <DataTemplate x:DataType="vm:FolderEntryItemViewModel">
-                <Border Width="176" Height="254" Background="#1E1E26" CornerRadius="6" BorderBrush="#333333" BorderThickness="1" Margin="2">
+                <Border Width="176" Height="254" Background="#1E1E26" CornerRadius="6" BorderBrush="#333333" BorderThickness="1" Margin="2"
+                        ToolTip.Tip="{Binding DisplayName}">
                   <Border.ContextMenu>
                     <ContextMenu>
                       <MenuItem Header="打开" Command="{Binding OpenCommand}"/>
+                      <Separator/>
+                      <MenuItem Header="复制到…" Command="{Binding CopyToCommand}"/>
+                      <MenuItem Header="移动到…" Command="{Binding MoveToCommand}"/>
+                      <Separator/>
+                      <MenuItem Header="重命名" Command="{Binding RenameCommand}"/>
+                      <MenuItem Header="删除（回收站）" Command="{Binding DeleteCommand}"/>
+                      <Separator/>
+                      <MenuItem Header="在资源管理器中显示" Command="{Binding ShowInExplorerCommand}"/>
+                      <MenuItem Header="属性" Command="{Binding PropertiesCommand}"/>
                     </ContextMenu>
                   </Border.ContextMenu>
                   <Grid>

@@ -37,7 +37,7 @@ public class ZoomWheelTests
             win.Show();
             await WaitUntilAsync(() => vm.Image1 is not null);
             int page0 = vm.CurrentIndex;
-            double scale0 = vm.Scale;
+            double scale0 = win.CanvasScale;   // 画布绝对值（默认 FitScreen ~0.92）
 
             // 滚轮向上 → 缩放（不是翻页）——看图器：滚轮即缩放
             win.MouseWheel(new Point(500, 400), new Vector(0, 120), RawInputModifiers.None);

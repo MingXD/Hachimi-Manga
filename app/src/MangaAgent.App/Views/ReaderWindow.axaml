@@ -15,12 +15,20 @@
       <StackPanel Orientation="Horizontal" Spacing="6">
         <TextBlock Text="{Binding BookTitle}" FontWeight="Bold" Foreground="{Binding ForegroundHex}"
                    VerticalAlignment="Center" Margin="0,0,18,0" MaxWidth="340" TextTrimming="CharacterEllipsis"/>
-        <Button Content="◀" Command="{Binding PrevPageCommand}" ToolTip.Tip="上一页 (← / PageUp)" Foreground="{Binding ForegroundHex}"/>
-        <Button Content="▶" Command="{Binding NextPageCommand}" ToolTip.Tip="下一页 (→ / Space)" Foreground="{Binding ForegroundHex}"/>
+        <Button x:Name="NavPrevButton" Content="◀" Click="OnNavPrevClick" Foreground="{Binding ForegroundHex}"/>
+        <Button x:Name="NavNextButton" Content="▶" Click="OnNavNextClick" Foreground="{Binding ForegroundHex}"/>
         <Button Content="{Binding PageText}" Click="OnPageTextClick" ToolTip.Tip="点击跳转到指定页 (G)" Background="Transparent" Foreground="{Binding ForegroundHex}" Padding="6,2" Margin="8,0"/>
-        <Button Content="{Binding ModeText}" Command="{Binding ToggleModeCommand}" ToolTip.Tip="单页/双页 (M)" Foreground="{Binding ForegroundHex}"/>
-        <Button Content="{Binding PairText}" Command="{Binding TogglePairOffsetCommand}" ToolTip.Tip="双页配对起点（1-2 相接 / 2-3 相接）" Foreground="{Binding ForegroundHex}"/>
-        <Button Content="{Binding DirectionText}" Command="{Binding ToggleDirectionCommand}" ToolTip.Tip="阅读方向 (D)" Foreground="{Binding ForegroundHex}"/>
+        <Button x:Name="ModeButton" Content="{Binding ModeText}" Click="OnModeMenuClick" Foreground="{Binding ForegroundHex}">
+          <Button.ContextMenu>
+            <ContextMenu>
+              <MenuItem Header="单页" Tag="Single" Click="OnModeMenuItemClick"/>
+              <MenuItem Header="双页" Tag="Double" Click="OnModeMenuItemClick"/>
+              <MenuItem Header="滚动" Tag="Webtoon" Click="OnModeMenuItemClick"/>
+            </ContextMenu>
+          </Button.ContextMenu>
+        </Button>
+        <Button x:Name="PairButton" Content="{Binding PairText}" Command="{Binding TogglePairOffsetCommand}" ToolTip.Tip="双页配对起点（第1张起 / 第2张起）" Foreground="{Binding ForegroundHex}"/>
+        <Button x:Name="DirectionButton" Content="{Binding DirectionText}" Command="{Binding ToggleDirectionCommand}" ToolTip.Tip="阅读方向 (D)" Foreground="{Binding ForegroundHex}"/>
         <Button Content="{Binding ThemeText}" Command="{Binding ToggleThemeCommand}" ToolTip.Tip="白天/夜间 (T)" Foreground="{Binding ForegroundHex}"/>
         <Button Content="−" Click="OnZoomOutClick" ToolTip.Tip="缩小" Foreground="{Binding ForegroundHex}"/>
         <TextBlock Text="{Binding FitText}" VerticalAlignment="Center" Foreground="{Binding ForegroundHex}" Margin="2,0"/>
@@ -28,6 +36,7 @@
         <Button Content="{Binding FitText}" Command="{Binding CycleFitCommand}" ToolTip.Tip="切换适应模式（宽度/高度/屏幕）" Foreground="{Binding ForegroundHex}"/>
         <Button Content="复位" Click="OnResetZoomClick" ToolTip.Tip="适应宽度" Foreground="{Binding ForegroundHex}"/>
         <Button x:Name="SensitivityButton" Content="缩放×1" Click="OnSensitivityClick" ToolTip.Tip="滚轮缩放灵敏度（快/中/慢）" Foreground="{Binding ForegroundHex}"/>
+        <Button x:Name="WebtoonSpeedButton" Content="滚动速度×1" Click="OnWebtoonSpeedClick" ToolTip.Tip="滚动模式滚动速度（快/中/慢）" Foreground="{Binding ForegroundHex}" IsVisible="False"/>
         <Button Content="书签" Command="{Binding ToggleBookmarkCommand}" ToolTip.Tip="当前页书签 (B)" Foreground="{Binding ForegroundHex}"/>
         <Button Content="◀书签" Command="{Binding PrevBookmarkCommand}" ToolTip.Tip="上一个书签" Foreground="{Binding ForegroundHex}"/>
         <Button Content="书签▶" Command="{Binding NextBookmarkCommand}" ToolTip.Tip="下一个书签" Foreground="{Binding ForegroundHex}"/>
@@ -40,11 +49,11 @@
     <!-- 阅读区：画布模型（视口 + 图片层，Scale/Translate 变换，复刻 Windows 看图器） -->
 
 
-    <!-- 底部快速翻页进度条（悬停显示，拖动跳页） -->
-    <Border DockPanel.Dock="Bottom" Background="#CC1C1C24" Padding="12,3" IsHitTestVisible="False">
+    <!-- 底部快速翻页进度条（拖动跳页） -->
+    <Border DockPanel.Dock="Bottom" Background="#CC1C1C24" Padding="12,3">
       <Grid>
         <Slider x:Name="JumpSlider" Minimum="0" Maximum="100" ValueChanged="OnJumpSliderValueChanged"
-                IsHitTestVisible="True" Background="Transparent" VerticalAlignment="Center"/>
+                Background="Transparent" VerticalAlignment="Center"/>
       </Grid>
     </Border>
     <Border x:Name="Viewport" ClipToBounds="True" Background="{Binding BackgroundHex}"

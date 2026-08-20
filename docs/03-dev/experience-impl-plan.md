@@ -124,3 +124,25 @@
 ### 其他
 - 修复 DockPanel LastChildFill 布局 bug：Slider 声明在 Viewport 之后导致 Viewport 失去 Fill（宽度收缩到内容宽）→ 调整声明顺序
 - 全量测试 29/29 通过；真实书压力 5/5 零崩溃
+
+## v1.8 问题修复（2026-08-20，按 v1.8-plan / v1.8-final-plan）
+### Bug 修复
+- BUG-3 竞态防护：_layoutVersion 替代 FirstIndex 对比 → 配对/切模式画面必然更新（此前被误杀丢弃）
+- BUG-1 资料库：扫描进度回调（Task.Run 离线 + Dispatcher 更新）；Rescan/LoadSaved 补建 FolderTree
+- BUG-4 进度条：去掉外层 Border IsHitTestVisible=False → 可拖动
+### 滚动模式重构（BUG-006）
+- 等宽：所有页宽度一致（基准=进入时视口宽），高度=宽/ratio，页位置前缀和+二分定位
+- 卡顿：解码限流（SemaphoreSlim 2）；黑屏：先加后删；缩放焦点：ZoomWebtoon 鼠标原始锚定
+- 滚动速度按钮（工具栏，Webtoon 模式显示）
+### UI 调整
+- 模式切换：下拉菜单（单页/双页/滚动 三选一）
+- 配对改名"配对起点1/2"、RTL 改名"右→左/左→右"（仅单页/双页显示）
+- 左右翻页按钮按方向映射 + ToolTip"下一页/上一页"
+- 默认 FitScreen（打开/切模式/复位）
+- 悬停 ToolTip 全名；侧栏 GridSplitter 可拖宽
+### 右键菜单
+- 恢复：打开/资源管理器/重命名/删除(回收站)/属性
+- 新增：复制到…/移动到…（任意目录，文件夹选择器）
+### 测试/验证
+- 新增 PairOffsetSwitchTests、RescanBuildsTreeTests；更新 WebtoonVirtualization/ZoomCentering/CtrlWheel/焦点锚定测试
+- 31/31 通过；真实书压力 4/4 零崩溃

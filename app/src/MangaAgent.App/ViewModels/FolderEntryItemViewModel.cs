@@ -19,6 +19,15 @@ public partial class FolderEntryItemViewModel : ViewModelBase
     /// <summary>打开动作（MainWindow 注入：文件夹 → 进入下一层；书 → 打开阅读器）。</summary>
     public Action<FolderEntryItemViewModel>? OpenAction { get; set; }
 
+    /// <summary>复制/移动目标选择（MainWindow 注入：弹文件夹选择器 → 返回目标路径；null = 取消）。</summary>
+    public Func<Task<string?>>? PickTargetFolderAction { get; set; }
+
+    /// <summary>操作后刷新（删除/重命名/复制/移动后重建列表）。</summary>
+    public Action? RefreshAction { get; set; }
+
+    /// <summary>源路径（文件夹或书）。</summary>
+    public string SourcePath => IsFolder ? (Folder?.Path ?? "") : (Book?.Path ?? "");
+
     /// <summary>名称：文件夹名 / 书名。</summary>
     public string DisplayName => IsFolder ? (Folder?.Name ?? "") : (Book?.DisplayName ?? "");
 
@@ -52,4 +61,60 @@ public partial class FolderEntryItemViewModel : ViewModelBase
 
     [RelayCommand]
     private void Open() => OpenAction?.Invoke(this);
+
+    [RelayCommand]
+    private void ShowInExplorer()
+    {
+        if (SourcePath.Length > 0) MangaAgent.Core.Library.FileOps.ShowInExplorer(SourcePath);
+    }
+
+    [RelayCommand]
+    private void Rename()
+    {
+        if (SourcePath.Length == 0) return;
+        var newName = MangaAgent.App.Views.RenameDialog.Show(DisplayName);
+        if (string.IsNullOrWhiteSpace(newName)) return;
+        try
+        {
+            MangaAgent.Core.Library.FileOps.Rename(SourcePath, newName);
+            RefreshAction?.Invoke();
+        }
+        catch { }
+    }
+
+    [RelayCommand]
+    private void Delete()
+    {
+        if (SourcePath.Length == 0) return;
+        var ok = MangaAgent.Core.Library.FileOps.DeleteToRecycleBin(SourcePath);
+        if (ok) RefreshAction?.Invoke();
+    }
+
+    [RelayCommand]
+    private void Properties()
+    {
+        if (Book is { } b) MangaAgent.App.Views.PropertiesDialog.Show(b);
+    }
+
+    [RelayCommand]
+    private async Task CopyToAsync()
+    {
+        if (SourcePath.Length == 0 || PickTargetFolderAction is null) return;
+        var dest = await PickTargetFolderAction();
+        if (string.IsNullOrEmpty(dest)) return;
+        var ok = MangaAgent.Core.Library.FileOps.CopyTo(SourcePath, dest);
+        if (ok) RefreshAction?.Invoke();
+        global::MangaAgent.App.App.SLog($"COPY {SourcePath} -> {dest} ok={ok}");
+    }
+
+    [RelayCommand]
+    private async Task MoveToAsync()
+    {
+        if (SourcePath.Length == 0 || PickTargetFolderAction is null) return;
+        var dest = await PickTargetFolderAction();
+        if (string.IsNullOrEmpty(dest)) return;
+        var ok = MangaAgent.Core.Library.FileOps.MoveTo(SourcePath, dest);
+        if (ok) RefreshAction?.Invoke();
+        global::MangaAgent.App.App.SLog($"MOVE {SourcePath} -> {dest} ok={ok}");
+    }
 }

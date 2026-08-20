@@ -27,7 +27,7 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
     [ObservableProperty]
     private int _pairOffset;
 
-    public string PairText => PairOffset == 0 ? "配对:1-2" : "配对:2-3";
+    public string PairText => PairOffset == 0 ? "配对起点1" : "配对起点2";
     private readonly ReadingStateStore _state;
 
     [ObservableProperty] private Bitmap? _image1;
@@ -41,7 +41,8 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
     [ObservableProperty] private ViewMode _viewMode = ViewMode.Single;
     [ObservableProperty] private ReadingDirection2 _direction = ReadingDirection2.Rtl;
     [ObservableProperty] private bool _isDark = true;
-    [ObservableProperty] private FitMode _fitMode = FitMode.FitWidth;
+    // 默认适应屏幕（v1.8：打开漫画/切模式默认 FitScreen，看到整页）
+    [ObservableProperty] private FitMode _fitMode = FitMode.FitScreen;
     [ObservableProperty] private double _scale = 1.0;   // Custom 模式的倍率（1.0 = 适应宽度基准）
     [ObservableProperty] private string _pageText = "1 / 1";
     [ObservableProperty] private int _progressValue;
@@ -64,6 +65,10 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
     private int _decodeTargetWidth = 2048;
 
     private int _loadSeq;
+    /// <summary>布局版本：RebuildLayout/ToggleMode 等改变逻辑页结构时自增。
+    /// LoadCurrentAsync 快照此版本，仅当版本过期才丢弃结果（BUG-3：此前对比 FirstIndex 会把
+    /// 配对切换后的新布局误判为竞态而丢弃 → 画面不更新）。</summary>
+    private int _layoutVersion;
 
     public string BackgroundHex => IsDark ? "#101014" : "#F3F1EC";
     public string ToolbarHex => IsDark ? "#1C1C24" : "#FFFFFF";
@@ -74,7 +79,7 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
         ViewMode.Webtoon => "滚动",
         _ => "单页",
     };
-    public string DirectionText => Direction == ReadingDirection2.Rtl ? "RTL" : "LTR";
+    public string DirectionText => Direction == ReadingDirection2.Rtl ? "右→左" : "左→右";
     public string ThemeText => IsDark ? "夜间" : "白天";
     public string FitText => FitMode switch
     {
@@ -116,6 +121,7 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
 
     private void RebuildLayout()
     {
+        _layoutVersion++;
         _logical = PageLayouter.Layout(
             Enumerable.Range(0, _source.PageCount)
                 .Select(i => new PhysicalPageRef(i, _sizes.TryGetValue(i, out var sz) ? sz.AspectRatio : 0.7))
@@ -179,6 +185,7 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
     {
         if (_logical.Count == 0) return;
         var mySeq = ++_loadSeq;
+        var myLayout = _layoutVersion;
         var lp = _logical[CurrentIndex];
         var showDouble = ViewMode == ViewMode.Double && lp.IsDouble;
 
@@ -187,15 +194,10 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
         if (showDouble && lp.SecondIndex >= 0)
             img2 = await DecodeAsync(lp.SecondIndex);
 
-        // 竞态防护：期间用户已翻页/切换模式，则丢弃本次结果（BUG-001 修复）
-        if (mySeq != _loadSeq || CurrentIndex >= _logical.Count)
-        {
-            ReleaseUiBitmap(img1);
-            ReleaseUiBitmap(img2);
-            return;
-        }
-        var cur = _logical[CurrentIndex];
-        if (cur.FirstIndex != lp.FirstIndex || (showDouble != (ViewMode == ViewMode.Double && cur.IsDouble)))
+        // 竞态防护：期间用户已翻页/切换模式/重布局，则丢弃本次结果。
+        // 注意：只对比"版本号/序号"，不再对比 FirstIndex —— 配对切换会重建布局
+        // （同 CurrentIndex 的 FirstIndex 变化），对比 FirstIndex 会把新布局误杀（BUG-3）。
+        if (mySeq != _loadSeq || myLayout != _layoutVersion || CurrentIndex >= _logical.Count)
         {
             ReleaseUiBitmap(img1);
             ReleaseUiBitmap(img2);
@@ -401,6 +403,7 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
     [RelayCommand]
     private void ToggleMode()
     {
+        _layoutVersion++;
         ViewMode = ViewMode switch
         {
             ViewMode.Single => ViewMode.Double,
@@ -408,6 +411,16 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
             _ => ViewMode.Single,
         };
         global::MangaAgent.App.App.SLog($"MODE -> {ViewMode} (index={CurrentIndex} logical={TotalLogical})");
+        SaveState();
+    }
+
+    /// <summary>直接设置阅读模式（下拉菜单三选一，v1.8）。</summary>
+    public void SetViewMode(ViewMode mode)
+    {
+        if (ViewMode == mode) return;
+        _layoutVersion++;
+        ViewMode = mode;
+        global::MangaAgent.App.App.SLog($"MODE -> {mode} (index={CurrentIndex} logical={TotalLogical})");
         SaveState();
     }
     [RelayCommand] private void ToggleDirection() { Direction = Direction == ReadingDirection2.Rtl ? ReadingDirection2.Ltr : ReadingDirection2.Rtl; SaveState(); }
