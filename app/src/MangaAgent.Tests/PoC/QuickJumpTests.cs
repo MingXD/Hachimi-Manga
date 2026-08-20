@@ -37,7 +37,8 @@ public class QuickJumpTests
             // 封面单页 → 共 151 逻辑页（0..150）；跳到第 100 逻辑页（0-based 99）
             vm.JumpToPageCommand.Execute(99);
             await WaitUntilAsync(() => vm.CurrentIndex == 99);
-            Assert.Equal("100 / 151", vm.PageText);
+            // BUG-A v1.9：单页模式显示物理页号（逻辑99 → 物理198）
+            Assert.Equal("198 / 300", vm.PageText);
 
             // 越界 clamp
             vm.JumpToPageCommand.Execute(10000);

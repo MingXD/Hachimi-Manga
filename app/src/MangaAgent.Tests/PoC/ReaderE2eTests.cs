@@ -36,12 +36,12 @@ public class ReaderE2eTests
         {
             // 1) 打开：封面单页 + 299 页成对 → 150 逻辑页
             var vm = new ReaderViewModel(StressBook, db);
-            Assert.Equal("1 / 151", vm.PageText); // 封面单页 + 149 双页 + 末页单页
+            Assert.Equal("1 / 300", vm.PageText); // BUG-A v1.9：单页显示物理页号
             Assert.False(vm.IsDoublePageShown);
 
-            // 2) 翻页 + 状态保存
+            // 2) 翻页 + 状态保存（单页逐物理页）
             vm.NextPageCommand.Execute(null);
-            Assert.Equal("2 / 151", vm.PageText);
+            Assert.Equal("2 / 300", vm.PageText);
             await WaitUntilAsync(() => vm.Image1 is not null);
 
             // 3) 双页模式：逻辑页 index1 = 物理页(1,2) 双页
@@ -57,10 +57,10 @@ public class ReaderE2eTests
             vm.ToggleThemeCommand.Execute(null);
             Assert.False(vm.IsDark);
 
-            // 5) 续读：新开 VM 恢复 index=1 + 双页模式
+            // 5) 续读：新开 VM 恢复物理页（上一逻辑页首物理=1）+ 双页模式
             var vm2 = new ReaderViewModel(StressBook, db);
-            Assert.Equal(1, vm2.CurrentIndex);
             Assert.True(vm2.ViewMode == ViewMode.Double);
+            await WaitUntilAsync(() => vm2.CurrentIndex == 1, 3000);
 
             // 6) 书签
             vm2.ToggleBookmarkCommand.Execute(null);
@@ -86,14 +86,14 @@ public class ReaderE2eTests
             for (int i = 0; i < 12; i++)
             {
                 vm3.NextPageCommand.Execute(null);
-                Assert.Equal(i + 1, vm3.CurrentIndex);
+                Assert.Equal(i + 1, vm3.CurrentPhysical);   // BUG-A：单页逐物理页
                 await WaitUntilAsync(() => vm3.Image1 is not null);
                 Assert.False(vm3.HasStatus, $"翻页到 {i + 1} 不应出现解码错误");
             }
-            Assert.Equal(12, vm3.CurrentIndex);
+            Assert.Equal(12, vm3.CurrentPhysical);
             vm3.PrevPageCommand.Execute(null);
             vm3.PrevPageCommand.Execute(null);
-            Assert.Equal(10, vm3.CurrentIndex);
+            Assert.Equal(10, vm3.CurrentPhysical);
             await vm3.DisposeAsync();
             try { File.Delete(db3); } catch { }
 

@@ -55,8 +55,14 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         CurrentFolder = folder;
         FolderEntries.Clear();
+        // BUG-D v1.9：子文件夹判定 —— 有子文件夹 → 文件夹条目；无子文件夹但有书（纯图片叶子）→ 漫画条目
         foreach (var child in folder.Children)
-            FolderEntries.Add(WireEntry(new FolderEntryItemViewModel(child)));
+        {
+            if (child.Children.Count == 0 && child.Books.Count > 0)
+                FolderEntries.Add(WireEntry(new FolderEntryItemViewModel(child.Books[0])));
+            else
+                FolderEntries.Add(WireEntry(new FolderEntryItemViewModel(child)));
+        }
         foreach (var b in folder.Books)
             FolderEntries.Add(WireEntry(new FolderEntryItemViewModel(b)));
         // 懒加载可见封面（前 24 个漫画条目）
@@ -185,6 +191,12 @@ public partial class MainWindowViewModel : ViewModelBase
             var existing = File.Exists(LibrariesFile) ? await File.ReadAllLinesAsync(LibrariesFile) : Array.Empty<string>();
             await File.WriteAllLinesAsync(LibrariesFile, existing.Append(path).Distinct(StringComparer.OrdinalIgnoreCase));
         }
+        catch (Exception ex)
+        {
+            // BUG-C v1.9：扫描异常不得静默失败 —— 显示错误 + 记日志
+            StatusText = $"添加失败：{ex.Message}";
+            global::MangaAgent.App.App.SLog($"ADDLIB FAIL {path}: {ex}");
+        }
         finally
         {
             IsScanning = false;
@@ -212,6 +224,12 @@ public partial class MainWindowViewModel : ViewModelBase
             FolderTree.Add(tree);
             ShowFolderContents(tree);
             StatusText = $"扫描完成：{lib.Books.Count} 本";
+        }
+        catch (Exception ex)
+        {
+            // BUG-C v1.9：扫描异常不得静默失败
+            StatusText = $"重新扫描失败：{ex.Message}";
+            global::MangaAgent.App.App.SLog($"RESCAN FAIL: {ex}");
         }
         finally { IsScanning = false; }
     }

@@ -49,14 +49,7 @@ public static class LibraryScanner
         foreach (var sub in Directory.GetDirectories(dir))
             await ScanDirectoryAsync(sub, books, ct, progress);
 
-        foreach (var file in Directory.GetFiles(dir, "*.cbz", SearchOption.TopDirectoryOnly))
-        {
-            books.Add(await MakeZipBookAsync(file, series, ct));
-        }
-        foreach (var file in Directory.GetFiles(dir, "*.zip", SearchOption.TopDirectoryOnly))
-        {
-            books.Add(await MakeZipBookAsync(file, series, ct));
-        }
+        await AddZipBooksAsync(dir, series, books, ct);
     }
 
     private static async Task<BookInfo> MakeZipBookAsync(string file, string? series, CancellationToken ct)
@@ -67,6 +60,25 @@ public static class LibraryScanner
         var title = meta?.Title is { Length: > 0 } t ? t : Path.GetFileNameWithoutExtension(file);
         var volume = meta?.Volume ?? ParseVolumeFromName(Path.GetFileNameWithoutExtension(file));
         return new BookInfo(file, title, meta?.Series ?? series, volume, BookKind.Zip, info.LastWriteTimeUtc, src.PageCount);
+    }
+
+    /// <summary>安全收集 CBZ/ZIP：单个损坏/无权限文件跳过，不中断整个扫描（BUG-C v1.9）。</summary>
+    private static async Task AddZipBooksAsync(string dir, string series, List<BookInfo> books, CancellationToken ct)
+    {
+        foreach (var file in Directory.GetFiles(dir, "*.cbz", SearchOption.TopDirectoryOnly)
+                     .Concat(Directory.GetFiles(dir, "*.zip", SearchOption.TopDirectoryOnly)))
+        {
+            ct.ThrowIfCancellationRequested();
+            try
+            {
+                books.Add(await MakeZipBookAsync(file, series, ct));
+            }
+            catch (Exception ex)
+            {
+                // 坏文件跳过（不中断扫描）；由调用方记录
+                System.Diagnostics.Debug.WriteLine($"SKIP bad archive {file}: {ex.Message}");
+            }
+        }
     }
 
     private static string TitleFromPath(string dir)

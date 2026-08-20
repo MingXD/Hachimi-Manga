@@ -41,6 +41,8 @@ public partial class ReaderWindow : Window
     public Size ViewportSize => Viewport?.Bounds.Size ?? default;
     /// <summary>诊断：Viewport 在窗口中的位置（测试坐标换算用）。</summary>
     public Point ViewportOrigin => Viewport?.TranslatePoint(new Point(0, 0), this) ?? default;
+    /// <summary>诊断：PageLayer 当前子元素（测试确认 Webtoon 已退出）。</summary>
+    public string PageLayerChildType => PageLayer?.Children.Count > 0 ? PageLayer.Children[0].GetType().Name : "empty";
     /// <summary>诊断：PageImage1 可见性与位置。</summary>
     public string PageImage1Vis => $"{PageImage1?.IsVisible}@{PageImage1?.Bounds.Position} {PageImage1?.Bounds.Size}";
     private bool _isDragging;
@@ -90,6 +92,34 @@ public partial class ReaderWindow : Window
         if (Environment.GetCommandLineArgs().Contains("--diag"))
             RunZoomDiagnostics();
     }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        // 窗口关闭：先退出 Webtoon 清空画布位图引用，再释放 VM
+        try
+        {
+            _windowClosed = true;
+            _webtoonSeq++;   // 使所有挂起 Webtoon 任务过期
+            // 释放分页 Image 的 Source（否则 Close 后布局访问已 Dispose 位图 → headless Cleanup 崩溃）
+            if (PageImage1 is not null) PageImage1.Source = null;
+            if (PageImage2 is not null) PageImage2.Source = null;
+            if (_webtoonCanvas is not null && _vm is not null)
+            {
+                foreach (var ch in _webtoonCanvas.Children.OfType<Image>())
+                {
+                    var bmp = ch.Source as Avalonia.Media.Imaging.Bitmap;
+                    ch.Source = null;
+                    _vm.ReleaseUiBitmap(bmp);
+                }
+                _webtoonCanvas.Children.Clear();
+            }
+            _webtoonImages.Clear();
+            _ = _vm?.DisposeAsync().AsTask();
+        }
+        catch { }
+        base.OnClosed(e);
+    }
+
 
     /// <summary>诊断：缩放前后内容中心/左上角的真实屏幕位置（TranslatePoint 含 RenderTransform）。</summary>
     private async void RunZoomDiagnostics()
@@ -207,15 +237,16 @@ public partial class ReaderWindow : Window
         {
             EnterWebtoon();
             if (WebtoonSpeedButton is not null) WebtoonSpeedButton.IsVisible = true;
-            if (PairButton is not null) PairButton.IsVisible = false;      // 配对仅单页/双页
-            if (DirectionButton is not null) DirectionButton.IsVisible = false;  // 方向仅单页/双页
+            if (PairButton is not null) PairButton.IsVisible = false;      // 配对仅双页（BUG-E v1.9）
+            if (DirectionButton is not null) DirectionButton.IsVisible = false;
         }
         else
         {
             ExitWebtoon();
             ArrangeDoublePageOrder();
             if (WebtoonSpeedButton is not null) WebtoonSpeedButton.IsVisible = false;
-            if (PairButton is not null) PairButton.IsVisible = true;
+            // BUG-E v1.9：配对按钮仅双页模式显示（单页无配对概念）
+            if (PairButton is not null) PairButton.IsVisible = _vm.ViewMode == ViewMode.Double;
             if (DirectionButton is not null) DirectionButton.IsVisible = true;
         }
         // 方向感知翻页按钮 ToolTip（v1.8）
@@ -260,9 +291,15 @@ public partial class ReaderWindow : Window
         ApplyTransform();
     }
 
-    /// <summary>测试/按钮用：以内容中心为焦点缩放（factor=1.25/0.8）。</summary>
+    /// <summary>测试/按钮用：以内容中心为焦点缩放（factor=1.25/0.8）。Webtoon 走独立路径（BUG-G/I）。</summary>
     public void ZoomRelative(double factor)
-        => ZoomToFocus(factor, ContentScreenRect().Center);
+    {
+        if (_vm?.ViewMode == ViewMode.Webtoon)
+        {
+            ZoomWebtoon(factor, new Avalonia.Point(Viewport.Bounds.Width / 2, Viewport.Bounds.Height / 2));
+        }
+        else ZoomToFocus(factor, ContentScreenRect().Center);
+    }
 
     /// <summary>内容局部点 → 屏幕坐标（与 MatrixTransform 同一数学模型：p' = scale·p + t）。</summary>
     public Avalonia.Point ContentToScreen(Avalonia.Point local)
@@ -308,10 +345,7 @@ public partial class ReaderWindow : Window
             ApplyTransform();
             UpdateWebtoonPages();
         }
-        else
-        {
-            ClampToViewportIfSmaller();
-        }
+        // BUG-B v1.9：分页模式缩放后不强制居中 —— 保留拖拽/焦点位置（复位按钮可恢复居中）
         if (_vm is not null)
         {
             _vm.SyncScaleFromView(_scale / CurrentFitScale());
@@ -368,6 +402,7 @@ public partial class ReaderWindow : Window
     private int _webtoonVisibleFirst, _webtoonVisibleLast;
     private int _webtoonSeq;
     private const int WebtoonBufferPages = 2;
+    private bool _windowClosed;   // 窗口关闭后禁止 Webtoon 异步任务继续操作画布
 
     /// <summary>Webtoon 总高（基准坐标）。</summary>
     private double WebtoonTotalHeight => _webtoonOffsets.Length > 0
@@ -398,8 +433,8 @@ public partial class ReaderWindow : Window
         }
         if (firstEnter)
         {
-            // 首次进入：等宽 FitScreen 语义，定位当前逻辑页对应物理页
-            _webtoonWidth = newW;
+            // 首次进入（BUG-G/H + 功能-3 v1.9）：默认宽度 = 视口 50%，定位当前逻辑页对应物理页
+            _webtoonWidth = Math.Max(100, newW * 0.5);
             _scale = 1.0;
             BuildWebtoonOffsets();
             int firstPhys = _vm.CurrentFirstPhysical;
@@ -416,10 +451,16 @@ public partial class ReaderWindow : Window
 
     private void ExitWebtoon()
     {
+        App.SLog($"EXIT_WEBTOON children={_webtoonCanvas?.Children.Count} images={_webtoonImages.Count}");
         if (_vm is not null && _webtoonCanvas is not null)
         {
+            // 先置空 Source 再释放引用：确保布局 pass 不再访问将被 Dispose 的位图（Cleanup 崩溃修复）
             foreach (var ch in _webtoonCanvas.Children.OfType<Image>())
-                _vm.ReleaseUiBitmap(ch.Source as Avalonia.Media.Imaging.Bitmap);
+            {
+                var bmp = ch.Source as Avalonia.Media.Imaging.Bitmap;
+                ch.Source = null;
+                _vm.ReleaseUiBitmap(bmp);
+            }
             _webtoonCanvas.Children.Clear();
         }
         _webtoonImages.Clear();
@@ -521,7 +562,7 @@ public partial class ReaderWindow : Window
             try
             {
                 var bmp = await _vm.GetPageBitmapAsync(physical);
-                if (mySeq != _webtoonSeq || _vm.ViewMode != ViewMode.Webtoon || _webtoonCanvas is null)
+                if (_windowClosed || mySeq != _webtoonSeq || _vm.ViewMode != ViewMode.Webtoon || _webtoonCanvas is null)
                 {
                     _vm.ReleaseUiBitmap(bmp);
                     return;
@@ -549,6 +590,18 @@ public partial class ReaderWindow : Window
             finally { _webtoonDecodeGate.Release(); }
         }
         finally { _webtoonLoading.Remove(physical); }
+    }
+
+    /// <summary>Webtoon：滚动到指定物理页（页顶对齐视口顶，BUG-F v1.9）。</summary>
+    private void ScrollWebtoonToPhysical(int physical)
+    {
+        if (_vm is null || _webtoonOffsets.Length == 0) return;
+        int target = Math.Clamp(physical, 0, _vm.PhysicalPageCount - 1);
+        _ty = -(PageOffset(target) * _scale);
+        ClampWebtoonScroll();
+        ApplyTransform();
+        UpdateWebtoonPages();
+        _vm.UpdateWebtoonPageText(target);
     }
 
     /// <summary>Webtoon：按事件滚动（步长 × 滚动速度，方向按 Delta 符号）。</summary>
@@ -628,7 +681,15 @@ public partial class ReaderWindow : Window
         e.Handled = true;
     }
 
-    private void OnZoomInClick(object? sender, RoutedEventArgs e) => ZoomRelative(1.25);
+    private void OnZoomInClick(object? sender, RoutedEventArgs e)
+    {
+        if (_vm?.ViewMode == ViewMode.Webtoon)
+        {
+            var center = new Avalonia.Point(Viewport.Bounds.Width / 2, Viewport.Bounds.Height / 2);
+            ZoomWebtoon(1.25, center);
+        }
+        else ZoomRelative(1.25);
+    }
 
     private static readonly double[] SensLevels = { 0.5, 1.0, 2.0 };
     private int _sensIdx = 1;
@@ -650,12 +711,50 @@ public partial class ReaderWindow : Window
             WebtoonSpeedButton.Content = $"滚动速度×{WebtoonSpeed:0.#}";
     }
 
-    private void OnZoomOutClick(object? sender, RoutedEventArgs e) => ZoomRelative(0.8);
+    private void OnZoomOutClick(object? sender, RoutedEventArgs e)
+    {
+        if (_vm?.ViewMode == ViewMode.Webtoon)
+        {
+            // BUG-G v1.9：Webtoon 按钮缩放以视口中心为焦点（不附带上下移动）
+            var center = new Avalonia.Point(Viewport.Bounds.Width / 2, Viewport.Bounds.Height / 2);
+            ZoomWebtoon(0.8, center);
+        }
+        else ZoomRelative(0.8);
+    }
 
     private void OnResetZoomClick(object? sender, RoutedEventArgs e)
     {
         if (_vm is null) return;
+        if (_vm.ViewMode == ViewMode.Webtoon)
+        {
+            ResetWebtoonView();
+            return;
+        }
         _vm.FitMode = FitMode.FitScreen;   // v1.8：复位 = 适应屏幕
+    }
+
+    /// <summary>Webtoon 复位（BUG-H v1.9）：缩放回默认（宽度 50% 视口）+ 画面平移到当前可见页中央（不跳页）。</summary>
+    private void ResetWebtoonView()
+    {
+        if (_vm is null || _webtoonOffsets.Length == 0) return;
+        // 记录当前可见页（滚动位置中央）
+        double baseCenter = (-_ty + Viewport.Bounds.Height / 2) / Math.Max(0.001, _scale);
+        int curPhys = Math.Clamp(PhysicalAt(Math.Max(0, baseCenter)), 0, _vm.PhysicalPageCount - 1);
+        // 默认宽度 = 视口 50%
+        _webtoonWidth = Math.Max(100, Viewport.Bounds.Width * 0.5);
+        BuildWebtoonOffsets();
+        _scale = 1.0;
+        // 平移到该页中央
+        double pageTop = PageOffset(curPhys);
+        double pageH = _webtoonWidth / Math.Max(0.05, _vm.RatioOfPage(curPhys));
+        _ty = -(pageTop + pageH / 2 - Viewport.Bounds.Height / 2);
+        _tx = 0;
+        PageLayer.Width = _webtoonWidth;
+        PageLayer.Height = WebtoonTotalHeight;
+        ClampWebtoonScroll();
+        ApplyTransform();
+        UpdateWebtoonPages();
+        App.SLog($"WEBTOON RESET width={_webtoonWidth:F0} scale={_scale:F3} ty={_ty:F1} page={curPhys}");
     }
 
     
@@ -701,14 +800,19 @@ public partial class ReaderWindow : Window
         if (_vm.ViewMode == ViewMode.Webtoon)
         {
             int phys = Math.Clamp((int)(ratio * _vm.PhysicalPageCount), 0, _vm.PhysicalPageCount - 1);
-            // 拖动中实时预览页号，松手跳转
+            // 拖动中实时预览页号，松手跳转（BUG-F v1.9：跳转同时滚动到该物理页）
             _vm.UpdateWebtoonPageText(phys);
-            if (!_sliderDragging) _vm.JumpToPhysicalCommand.Execute(phys);
+            if (!_sliderDragging)
+            {
+                _vm.JumpToPhysicalCommand.Execute(phys);
+                ScrollWebtoonToPhysical(phys);
+            }
         }
         else
         {
-            int logical = Math.Clamp((int)(ratio * _vm.TotalLogical), 0, _vm.TotalLogical - 1);
-            if (!_sliderDragging) _vm.JumpToPageCommand.Execute(logical);
+            // BUG-A v1.9：进度条按物理页映射（单页逐页、双页落逻辑页）
+            int phys = Math.Clamp((int)(ratio * _vm.PhysicalPageCount), 0, _vm.PhysicalPageCount - 1);
+            if (!_sliderDragging) _vm.JumpToPhysicalCommand.Execute(phys);
         }
     }
 
@@ -766,8 +870,8 @@ public partial class ReaderWindow : Window
     {
         if (_vm is null || JumpSlider is null) return;
         double ratio = _vm.ViewMode == ViewMode.Webtoon
-            ? Math.Clamp((double)(-_ty) / Math.Max(1.0, (_vm.PhysicalPageCount) * BaseH * _scale), 0.0, 1.0)
-            : (double)_vm.CurrentIndex / Math.Max(1, _vm.TotalLogical - 1);
+            ? Math.Clamp((double)(-_ty) / Math.Max(1.0, WebtoonTotalHeight * _scale), 0.0, 1.0)
+            : (double)_vm.CurrentPhysical / Math.Max(1, _vm.PhysicalPageCount - 1);
         _suppressSliderEvent = true;
         JumpSlider.Value = ratio * 100.0;
         _suppressSliderEvent = false;

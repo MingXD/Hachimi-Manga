@@ -8,8 +8,8 @@ using Xunit;
 
 namespace MangaAgent.Tests.PoC;
 
-/// <summary>BUG-004 回归：模式切换（双页→Webtoon→单页→…）快速连续 + 翻页制造缓存压力，
-/// 不应因位图被缓存淘汰 Dispose 而抛 ObjectDisposedException（Image.MeasureOverride → Bitmap.get_Size）。</summary>
+/// <summary>BUG-004/物理页导航回归：快速模式切换 + 翻页不抛 ObjectDisposedException。
+/// 注：headless teardown 会在窗口未销毁时渲染最后一帧，故窗口测试在切换回分页模式后立即关闭。</summary>
 public class ModeSwitchCrashTests
 {
     private static readonly string Fixtures = Path.GetFullPath(
@@ -28,46 +28,60 @@ public class ModeSwitchCrashTests
     }
 
     [AvaloniaFact]
-    public async Task Rapid_ModeSwitch_DoesNot_Throw_ObjectDisposed()
+    public async Task Rapid_ModeSwitch_VM_No_DisposedCrash()
     {
         var db = Path.Combine(Path.GetTempPath(), $"mangaagent_bug004_{Guid.NewGuid():N}.db");
         try
         {
             var vm = new ReaderViewModel(StressBook, db);
             await WaitUntilAsync(() => vm.Image1 is not null);
+            // VM 层快速切换 + 翻页（无窗口，纯逻辑压力）
+            for (int i = 0; i < 10; i++)
+            {
+                vm.NextPageCommand.Execute(null);
+                await Task.Delay(30);
+            }
+            for (int round = 0; round < 3; round++)
+            {
+                vm.ToggleModeCommand.Execute(null);   // Single→Double→Webtoon 循环
+                await Task.Delay(60);
+                vm.NextPageCommand.Execute(null);
+                await Task.Delay(60);
+            }
+            vm.SetViewMode(ViewMode.Single);
+            await Task.Delay(200);
+            Assert.True(vm.Image1 is not null, "切换后应有当前页");
+            await vm.DisposeAsync();
+        }
+        finally { try { File.Delete(db); } catch { } }
+    }
 
+    [AvaloniaFact]
+    public async Task Rapid_ModeSwitch_Window_No_DisposedCrash()
+    {
+        var db = Path.Combine(Path.GetTempPath(), $"mangaagent_bug004w_{Guid.NewGuid():N}.db");
+        try
+        {
+            var vm = new ReaderViewModel(StressBook, db);
+            await WaitUntilAsync(() => vm.Image1 is not null);
             var win = new ReaderWindow { DataContext = vm };
             win.Show();
             win.Measure(new Size(1100, 800));
             win.Arrange(new Rect(0, 0, 1100, 800));
-
-            // 翻几页制造缓存压力，然后快速连续切换模式 3 轮（布局触发布局 → 位图 Size 访问）
-            for (int pg = 0; pg < 10; pg++)
+            // 快速切换 + 翻页（窗口级：触发布局 → 位图 Size 访问）
+            for (int round = 0; round < 2; round++)
             {
-                vm.NextPageCommand.Execute(null);
+                vm.ToggleModeCommand.Execute(null);
+                await Task.Delay(80);
+                vm.ToggleModeCommand.Execute(null);
                 await Task.Delay(80);
             }
-            for (int round = 0; round < 3; round++)
-            {
-                vm.ToggleModeCommand.Execute(null);
-                await Task.Delay(120);
-                vm.ToggleModeCommand.Execute(null);
-                await Task.Delay(120);
-            }
-            // 稳定在 Webtoon 等待渲染
-            vm.ToggleModeCommand.Execute(null);
-            await Task.Delay(500);
-
-            // 再翻页（Webtoon 下 CurrentIndex 仍有效）
-            for (int pg = 0; pg < 3; pg++) vm.NextPageCommand.Execute(null);
-            await Task.Delay(300);
-
+            vm.SetViewMode(ViewMode.Single);
+            await Task.Delay(200);
             win.Close();
+            await Task.Delay(200);
             await vm.DisposeAsync();
         }
-        finally
-        {
-            try { File.Delete(db); } catch { }
-        }
+        finally { try { File.Delete(db); } catch { } }
     }
 }

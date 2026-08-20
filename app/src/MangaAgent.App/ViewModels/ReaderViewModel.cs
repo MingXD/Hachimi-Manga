@@ -37,6 +37,8 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
     [ObservableProperty] private bool _isDoublePageShown;
     [ObservableProperty] private bool _isWebtoon;
     [ObservableProperty] private int _currentIndex;
+    /// <summary>当前物理页（0-based）—— BUG-A v1.9：物理页为导航基准，单页逐物理页。</summary>
+    private int _currentPhysical;
     [ObservableProperty] private int _totalLogical = 1;
     [ObservableProperty] private ViewMode _viewMode = ViewMode.Single;
     [ObservableProperty] private ReadingDirection2 _direction = ReadingDirection2.Rtl;
@@ -98,12 +100,14 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
         RebuildLayout();
 
         var saved = _state.LoadState(book.Path);
-        _currentIndex = saved is null ? 0 : Math.Clamp(saved.Value.LogicalPage, 0, TotalLogical - 1);
+        // BUG-A v1.9：状态存物理页，恢复后定位（单页直接设；双页找逻辑页）
         _viewMode = saved?.Mode switch
         {
             ReadingMode.Double => ViewMode.Double,
             _ => ViewMode.Single,
         };
+        _currentPhysical = Math.Clamp(saved?.LogicalPage ?? 0, 0, Math.Max(0, _source.PageCount - 1));
+        _currentIndex = _logical.Count > 0 ? LogicalIndexOfPhysical(_currentPhysical) : 0;
         _direction = saved?.Direction ?? ReadingDirection2.Rtl;
         LoadBookmarks();
         _ = LoadCurrentAsync();
@@ -186,17 +190,23 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
         if (_logical.Count == 0) return;
         var mySeq = ++_loadSeq;
         var myLayout = _layoutVersion;
-        var lp = _logical[CurrentIndex];
-        var showDouble = ViewMode == ViewMode.Double && lp.IsDouble;
+        // BUG-A v1.9：单页模式显示当前物理页；双页模式显示配对逻辑页
+        var showDouble = ViewMode == ViewMode.Double;
+        int firstPhys = ViewMode == ViewMode.Single ? _currentPhysical : LogicalFirstPhysical(CurrentIndex);
+        int secondPhys = -1;
+        if (showDouble)
+        {
+            var lp = _logical[CurrentIndex];
+            showDouble = lp.IsDouble;
+            secondPhys = lp.SecondIndex;
+        }
 
-        var img1 = await DecodeAsync(lp.FirstIndex);
+        var img1 = await DecodeAsync(firstPhys);
         Bitmap? img2 = null;
-        if (showDouble && lp.SecondIndex >= 0)
-            img2 = await DecodeAsync(lp.SecondIndex);
+        if (showDouble && secondPhys >= 0)
+            img2 = await DecodeAsync(secondPhys);
 
         // 竞态防护：期间用户已翻页/切换模式/重布局，则丢弃本次结果。
-        // 注意：只对比"版本号/序号"，不再对比 FirstIndex —— 配对切换会重建布局
-        // （同 CurrentIndex 的 FirstIndex 变化），对比 FirstIndex 会把新布局误杀（BUG-3）。
         if (mySeq != _loadSeq || myLayout != _layoutVersion || CurrentIndex >= _logical.Count)
         {
             ReleaseUiBitmap(img1);
@@ -206,16 +216,18 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
 
         HasStatus = false;
         IsDoublePageShown = showDouble;
-        // UI 引用计数（BUG-004）：DecodeAsync 返回时已 Acquire；这里只 Release 旧位图（替换瞬间不 Dispose）
         var old1 = Image1;
         var old2 = Image2;
         Image1 = img1;
-        Ratio1 = RatioOf(lp.FirstIndex);
+        Ratio1 = RatioOf(firstPhys);
         Image2 = img2;
-        if (img2 is not null) Ratio2 = RatioOf(lp.SecondIndex);
+        if (img2 is not null) Ratio2 = RatioOf(secondPhys);
         ReleaseUiBitmap(old1);
         ReleaseUiBitmap(old2);
-        PageText = $"{CurrentIndex + 1} / {TotalLogical}";
+        // BUG-A v1.9：单页显示物理页号；双页显示逻辑页号
+        PageText = ViewMode == ViewMode.Single
+            ? $"{_currentPhysical + 1} / {_source.PageCount}"
+            : $"{CurrentIndex + 1} / {TotalLogical}";
         ProgressValue = CurrentIndex + 1;
     }
 
@@ -236,6 +248,7 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
         get
         {
             if (_logical.Count == 0) return 0;
+            if (ViewMode == ViewMode.Single) return _currentPhysical;
             var lp = _logical[Math.Clamp(CurrentIndex, 0, _logical.Count - 1)];
             return Math.Max(0, lp.FirstIndex);
         }
@@ -348,33 +361,109 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
     }
 
     private void SaveState() =>
-        _state.SaveState(Book.Path, CurrentIndex,
+        // BUG-A v1.9：持久化物理页（跨模式稳定）——单页模式存物理页、双页存逻辑页首物理页
+        _state.SaveState(Book.Path, CurrentPhysical,
             ViewMode == ViewMode.Double ? ReadingMode.Double : ReadingMode.Single, Direction);
+
+    /// <summary>当前物理页（0-based）：单页 = 直接物理页；双页/滚动 = 当前逻辑页首物理页。</summary>
+    public int CurrentPhysical
+    {
+        get
+        {
+            if (ViewMode == ViewMode.Single) return _currentPhysical;
+            if (_logical.Count == 0) return 0;
+            return LogicalFirstPhysical(Math.Clamp(CurrentIndex, 0, _logical.Count - 1));
+        }
+        private set => _currentPhysical = Math.Clamp(value, 0, Math.Max(0, _source.PageCount - 1));
+    }
+
+    /// <summary>逻辑页首物理页。</summary>
+    private int LogicalFirstPhysical(int logicalIndex)
+        => _logical.Count > 0 ? _logical[Math.Clamp(logicalIndex, 0, _logical.Count - 1)].FirstIndex : 0;
+
+    /// <summary>定位到物理页：同步 CurrentIndex（单页模式直接设置；双页/滚动找包含它的逻辑页）。</summary>
+    public void SetCurrentPhysical(int physical)
+    {
+        CurrentPhysical = physical;
+        var target = physical;
+        if (_logical.Count > 0)
+        {
+            int best = 0;
+            for (int i = 0; i < _logical.Count; i++)
+            {
+                var p = _logical[i];
+                if (p.FirstIndex <= target)
+                {
+                    best = i;
+                    if (p.SecondIndex >= 0 && target <= p.SecondIndex) { best = i; break; }
+                    if (p.SecondIndex < 0) { if (p.FirstIndex == target) { best = i; break; } }
+                }
+                else break;
+            }
+            CurrentIndex = best;
+        }
+        if (ViewMode == ViewMode.Single) _currentPhysical = target;
+        _ = LoadCurrentAsync();
+    }
+
+    /// <summary>物理页 → 所在逻辑页索引。</summary>
+    private int LogicalIndexOfPhysical(int physical)
+    {
+        if (_logical.Count == 0) return 0;
+        for (int i = 0; i < _logical.Count; i++)
+        {
+            var p = _logical[i];
+            if (p.SecondIndex >= 0) { if (p.FirstIndex <= physical && physical <= p.SecondIndex) return i; }
+            else if (p.FirstIndex == physical) return i;
+            if (p.FirstIndex > physical) break;
+        }
+        return 0;
+    }
 
     [RelayCommand]
     private void NextPage()
     {
-        if (CurrentIndex < TotalLogical - 1) { CurrentIndex++; global::MangaAgent.App.App.SLog($"PAGE -> {CurrentIndex + 1}/{TotalLogical}"); SaveState(); }
+        // BUG-A v1.9：物理页导航 —— 单页模式逐物理页推进（修复跳页）；双页模式跳到下一逻辑页起点
+        if (_logical.Count == 0) return;
+        if (ViewMode == ViewMode.Single)
+        {
+            int phys = Math.Min(CurrentPhysical + 1, _source.PageCount - 1);
+            SetCurrentPhysical(phys);
+        }
+        else if (CurrentIndex < TotalLogical - 1)
+        {
+            SetCurrentPhysical(LogicalFirstPhysical(CurrentIndex + 1));
+        }
+        App.SLog($"PAGE -> phys {CurrentPhysical + 1}/{_source.PageCount} logical {CurrentIndex + 1}/{TotalLogical} mode={ViewMode}");
+        SaveState();
     }
 
     [RelayCommand]
     private void PrevPage()
     {
-        if (CurrentIndex > 0) { CurrentIndex--; global::MangaAgent.App.App.SLog($"PAGE -> {CurrentIndex + 1}/{TotalLogical}"); SaveState(); }
+        if (_logical.Count == 0) return;
+        if (ViewMode == ViewMode.Single)
+        {
+            int phys = Math.Max(CurrentPhysical - 1, 0);
+            SetCurrentPhysical(phys);
+        }
+        else if (CurrentIndex > 0)
+        {
+            SetCurrentPhysical(LogicalFirstPhysical(CurrentIndex - 1));
+        }
+        App.SLog($"PAGE -> phys {CurrentPhysical + 1}/{_source.PageCount} logical {CurrentIndex + 1}/{TotalLogical} mode={ViewMode}");
+        SaveState();
     }
 
-    /// <summary>快速翻页：跳转到指定逻辑页（0-based），越界 clamp（长漫画几百页 → 快速定位）。</summary>
+    /// <summary>快速翻页：跳转到指定逻辑页（0-based），转成物理页定位。</summary>
     [RelayCommand]
     private void JumpToPage(int page)
     {
         if (_logical.Count == 0) return;
         int target = Math.Clamp(page, 0, _logical.Count - 1);
-        if (target != CurrentIndex)
-        {
-            CurrentIndex = target;
-            global::MangaAgent.App.App.SLog($"JUMP -> logical {target + 1}/{TotalLogical}");
-            SaveState();
-        }
+        SetCurrentPhysical(LogicalFirstPhysical(target));
+        App.SLog($"JUMP -> logical {target + 1}/{TotalLogical} phys {CurrentPhysical + 1}");
+        SaveState();
     }
 
     /// <summary>快速翻页：跳转到指定物理页（Webtoon 用），转成逻辑页后跳转。</summary>
@@ -383,21 +472,9 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
     {
         if (_logical.Count == 0) return;
         int target = Math.Clamp(physical, 0, _source.PageCount - 1);
-        int newIndex = CurrentIndex;
-        for (int i = 0; i < _logical.Count; i++)
-        {
-            var p = _logical[i];
-            // 单页 (First,-1)：仅 FirstIndex == target；双页 (First,Second)：First <= target <= Second
-            bool hit = p.SecondIndex < 0 ? p.FirstIndex == target
-                                         : p.FirstIndex <= target && target <= p.SecondIndex;
-            if (hit) { newIndex = i; break; }
-        }
-        if (newIndex != CurrentIndex)
-        {
-            CurrentIndex = newIndex;
-            global::MangaAgent.App.App.SLog($"JUMP_PHYS -> physical {target + 1} logical {newIndex + 1}/{TotalLogical}");
-            SaveState();
-        }
+        SetCurrentPhysical(target);
+        global::MangaAgent.App.App.SLog($"JUMP_PHYS -> physical {target + 1} logical {CurrentIndex + 1}/{TotalLogical}");
+        SaveState();
     }
 
     [RelayCommand]
@@ -442,7 +519,7 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
     [RelayCommand]
     private void ToggleBookmark()
     {
-        var page = CurrentIndex;
+        var page = CurrentPhysical;   // BUG-A v1.9：书签存物理页（跨模式稳定）
         if (Bookmarks.Contains(page)) _state.RemoveBookmark(Book.Path, page);
         else _state.AddBookmark(Book.Path, page);
         LoadBookmarks();
@@ -458,9 +535,9 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
     private void NextBookmark()
     {
         if (Bookmarks.Count == 0) return;
-        var next = Bookmarks.FirstOrDefault(b => b > CurrentIndex);
+        var next = Bookmarks.FirstOrDefault(b => b > CurrentPhysical);
         if (next == 0 && !Bookmarks.Contains(0)) next = Bookmarks[0];
-        CurrentIndex = next;
+        SetCurrentPhysical(next);
         SaveState();
     }
 
@@ -468,9 +545,9 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
     private void PrevBookmark()
     {
         if (Bookmarks.Count == 0) return;
-        var prev = Bookmarks.LastOrDefault(b => b < CurrentIndex);
+        var prev = Bookmarks.LastOrDefault(b => b < CurrentPhysical);
         if (prev == 0 && !Bookmarks.Contains(0)) prev = Bookmarks[^1];
-        CurrentIndex = prev;
+        SetCurrentPhysical(prev);
         SaveState();
     }
 
@@ -480,8 +557,11 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
         if (page >= 0 && page < TotalLogical) { CurrentIndex = page; SaveState(); }
     }
 
+    private bool _disposed;
     public async ValueTask DisposeAsync()
     {
+        if (_disposed) return;
+        _disposed = true;
         SaveState();
         await _source.DisposeAsync();
         _state.Dispose();

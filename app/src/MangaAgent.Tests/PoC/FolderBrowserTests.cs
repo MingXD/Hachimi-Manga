@@ -48,11 +48,13 @@ public class FolderBrowserTests
             Assert.Single(cNode.Books);          // 1 本文件夹型漫画
             Assert.Equal(BookKind.Folder, cNode.Books[0].Kind);
 
-            // 导航：根 → 展示混合条目（3 文件夹 + 0 书）；进入 B → 2 子文件夹
+            // 导航：根 → B=文件夹、C/D=漫画（BUG-D v1.9：纯图片叶子 → 漫画条目）
             var vm = new MainWindowViewModel();
             vm.ShowFolderContents(tree);
             Assert.Equal(3, vm.FolderEntries.Count);
-            Assert.All(vm.FolderEntries, e => Assert.True(e.IsFolder));
+            Assert.True(vm.FolderEntries[0].IsFolder, "B 应显示为文件夹");
+            Assert.False(vm.FolderEntries[1].IsFolder, "C 应显示为漫画（纯图片叶子）");
+            Assert.False(vm.FolderEntries[2].IsFolder, "D 应显示为漫画");
             Assert.Single(vm.Breadcrumbs);   // 根节点自身 = 1 层
 
             vm.EnterFolderCommand.Execute(b);
