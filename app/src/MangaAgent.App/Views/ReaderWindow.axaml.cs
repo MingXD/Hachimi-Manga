@@ -48,43 +48,32 @@ public partial class ReaderWindow : Window
     public void CallReset() => ResetPagedView();
 
     /// <summary>调试面板（F12 开关，诊断"点击无反应"等交互问题）。</summary>
-    private Views.DebugPanel? _debugPanel;
-    private Avalonia.Controls.Panel? _overlayRoot;
+    private Views.DebugWindow? _debugWindow;
+
 
     private void ToggleDebugPanel()
     {
-        if (_debugPanel is null)
+        // 调试面板独立窗口（v1.9.6）：不占阅读器空间、不干扰按钮点击
+        if (_debugWindow is null)
         {
-            // 覆盖层：包一层 Grid（DockPanel + DebugPanel 叠加），DebugPanel 不参与 DockPanel 布局
-            if (Content is DockPanel dock)
-            {
-                var overlay = new Grid();
-                overlay.Children.Add(dock);
-                Content = overlay;
-                _overlayRoot = overlay;
-            }
-            _debugPanel = new Views.DebugPanel
-            {
-                HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
-                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Bottom,
-                Margin = new Thickness(0, 0, 8, 8),
-                Width = 420,
-            };
-            _debugPanel.StatusProvider = () =>
+            _debugWindow = new Views.DebugWindow();
+            _debugWindow.StatusProvider = () =>
             {
                 if (_vm is null) return "vm=null";
                 bool dragStuck = _isDragging;
                 bool timerRunning = _scrollTimer?.IsEnabled == true;
                 return $"模式:{_vm.ViewMode} | 缩放:{_scale:F2} | tx:{_tx:F0} ty:{_ty:F0}\n" +
-                       $"物理页:{_vm.CurrentPhysical + 1}/{_vm.PhysicalPageCount} | 逻辑页:{_vm.CurrentIndex + 1}/{_vm.TotalLogical} | {_vm.PageText}\n" +
+                       $"物理页:{_vm.CurrentPhysical + 1}/{_vm.PhysicalPageCount} | {_vm.PageText}\n" +
                        $"方向:{_vm.DirectionText} | 配对:{_vm.PairText} | Fit:{_vm.FitMode}\n" +
-                       $"拖拽卡死:{dragStuck} | 滚动Timer空转:{timerRunning} | 图片1:{( _vm.Image1 is null ? "无" : "有")} 图片2:{(_vm.Image2 is null ? "无" : "有")}";
+                       $"拖拽卡死:{dragStuck} | 滚动Timer空转:{timerRunning} | 图1:{( _vm.Image1 is null ? "无" : "有")} 图2:{(_vm.Image2 is null ? "无" : "有")}";
             };
-            _debugPanel.Start();
-            (_overlayRoot ?? (Avalonia.Controls.Panel)Content).Children.Add(_debugPanel);
+            _debugWindow.Start(_debugWindow.StatusProvider);
         }
-        _debugPanel.IsVisible = !_debugPanel.IsVisible;
+        if (_debugWindow.IsVisible) _debugWindow.Hide();
+        else _debugWindow.Show();
     }
+
+
     /// <summary>测试用：当前 FitScreen 缩放值。</summary>
     public double CurrentFitScaleValue => CurrentFitScale();
     /// <summary>诊断：PageImage1 可见性与位置。</summary>

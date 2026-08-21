@@ -11,15 +11,22 @@
         KeyDown="OnKeyDown">
   <Window.Styles>
     <!-- 工具栏按钮统一样式（UI-2 v1.9：白天/夜间都清晰 —— 半透明背景 + 边框 + 悬停高亮，前景始终用主题色） -->
+    <!-- 修复按钮"边缘闪烁+点击无效"（v1.9.6）：Fluent 模板中 ContentPresenter 使用 Button.Padding，
+          Padding 过大 → 内容区四周透明空白 → 透明区不命中测试（点击无效）且 hover 高亮不覆盖（闪烁）。
+          缩小 Padding 消除空白区，使整个按钮可点且高亮一致。 -->
     <Style Selector="StackPanel.toolbar Button">
       <Setter Property="Background" Value="{Binding ToolbarButtonBg}"/>
       <Setter Property="BorderBrush" Value="{Binding ToolbarButtonBorder}"/>
       <Setter Property="BorderThickness" Value="1"/>
-      <Setter Property="CornerRadius" Value="4"/>
-      <Setter Property="Padding" Value="8,4"/>
+      <Setter Property="CornerRadius" Value="3"/>
+      <Setter Property="Padding" Value="3,2"/>
       <Setter Property="Foreground" Value="{Binding ForegroundHex}"/>
       <Setter Property="FontSize" Value="12"/>
-      <Setter Property="MinWidth" Value="28"/>
+      <Setter Property="MinWidth" Value="24"/>
+      <Setter Property="MinHeight" Value="22"/>
+    </Style>
+    <Style Selector="StackPanel.toolbar Button:pointerover /template/ Border">
+      <Setter Property="Background" Value="{Binding ToolbarButtonHover}"/>
     </Style>
     <Style Selector="StackPanel.toolbar Button:pointerover /template/ ContentPresenter">
       <Setter Property="Background" Value="{Binding ToolbarButtonHover}"/>
@@ -87,9 +94,9 @@
           </Button.ContextMenu>
         </Button>
         <Button Content="{Binding ThemeText}" Command="{Binding ToggleThemeCommand}" ToolTip.Tip="白天/夜间 (T)" Foreground="{Binding ForegroundHex}"/>
-        <Button Content="−" Click="OnZoomOutClick" ToolTip.Tip="缩小" Foreground="{Binding ForegroundHex}"/>
+        <Button x:Name="ZoomOutButton" Content="−" Click="OnZoomOutClick" ToolTip.Tip="缩小" Foreground="{Binding ForegroundHex}"/>
         <TextBlock Text="{Binding FitText}" VerticalAlignment="Center" Foreground="{Binding ForegroundHex}" Margin="2,0"/>
-        <Button Content="＋" Click="OnZoomInClick" ToolTip.Tip="放大" Foreground="{Binding ForegroundHex}"/>
+        <Button x:Name="ZoomInButton" Content="＋" Click="OnZoomInClick" ToolTip.Tip="放大" Foreground="{Binding ForegroundHex}"/>
         <Button Content="{Binding FitText}" Command="{Binding CycleFitCommand}" ToolTip.Tip="切换适应模式（宽度/高度/屏幕）" Foreground="{Binding ForegroundHex}"/>
         <Button Content="复位" Click="OnResetZoomClick" ToolTip.Tip="适应宽度" Foreground="{Binding ForegroundHex}"/>
         <Button x:Name="SensitivityButton" Content="缩放×1" Click="OnSensitivityClick" ToolTip.Tip="滚轮缩放灵敏度（快/中/慢）" Foreground="{Binding ForegroundHex}"/>

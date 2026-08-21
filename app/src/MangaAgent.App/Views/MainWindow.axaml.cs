@@ -31,40 +31,27 @@ public partial class MainWindow : Window
         }
     }
 
-    private Views.DebugPanel? _mainDebug;
-    private Avalonia.Controls.Panel? _mainOverlay;
+    private Views.DebugWindow? _mainDebugWindow;
 
     private void ToggleMainDebug()
     {
-        if (_mainDebug is null)
+        if (_mainDebugWindow is null)
         {
-            // 覆盖层（同 ReaderWindow）：避免 DebugPanel 进 DockPanel 布局被 LastChildFill 铺满吞点击
-            if (Content is DockPanel mdoc && _mainOverlay is null)
-            {
-                var overlay = new Grid();
-                overlay.Children.Add(mdoc);
-                Content = overlay;
-                _mainOverlay = overlay;
-            }
-            _mainDebug = new Views.DebugPanel
-            {
-                HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
-                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Bottom,
-                Margin = new Thickness(0, 0, 8, 8),
-                Width = 420,
-            };
-            _mainDebug.StatusProvider = () =>
+            _mainDebugWindow = new Views.DebugWindow();
+            _mainDebugWindow.StatusProvider = () =>
             {
                 if (_vm is null) return "vm=null";
                 return $"库:{_vm.Libraries.Count} | 扫描中:{_vm.IsScanning} | 状态:{_vm.StatusText}\n" +
                        $"当前目录:{_vm.CurrentFolder?.Path ?? "无"} | 条目:{_vm.FolderEntries.Count}\n" +
                        $"展示模式:{_vm.GalleryModeText}";
             };
-            _mainDebug.Start();
-            (_mainOverlay ?? (Avalonia.Controls.Panel)Content).Children.Add(_mainDebug);
+            _mainDebugWindow.Start(_mainDebugWindow.StatusProvider);
         }
-        _mainDebug.IsVisible = !_mainDebug.IsVisible;
+        if (_mainDebugWindow.IsVisible) _mainDebugWindow.Hide();
+        else _mainDebugWindow.Show();
     }
+
+
 
     private void OnCoverScrollChanged(object? sender, Avalonia.Controls.ScrollChangedEventArgs e)
         => LoadVisibleThumbnails();
