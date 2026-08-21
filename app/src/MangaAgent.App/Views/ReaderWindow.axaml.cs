@@ -46,6 +46,36 @@ public partial class ReaderWindow : Window
 
     /// <summary>测试用：调用分页复位。</summary>
     public void CallReset() => ResetPagedView();
+
+    /// <summary>调试面板（F12 开关，诊断"点击无反应"等交互问题）。</summary>
+    private Views.DebugPanel? _debugPanel;
+
+    private void ToggleDebugPanel()
+    {
+        if (_debugPanel is null)
+        {
+            _debugPanel = new Views.DebugPanel
+            {
+                HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Bottom,
+                Margin = new Thickness(0, 0, 8, 8),
+                Width = 420,
+            };
+            _debugPanel.StatusProvider = () =>
+            {
+                if (_vm is null) return "vm=null";
+                bool dragStuck = _isDragging;
+                bool timerRunning = _scrollTimer?.IsEnabled == true;
+                return $"模式:{_vm.ViewMode} | 缩放:{_scale:F2} | tx:{_tx:F0} ty:{_ty:F0}\n" +
+                       $"物理页:{_vm.CurrentPhysical + 1}/{_vm.PhysicalPageCount} | 逻辑页:{_vm.CurrentIndex + 1}/{_vm.TotalLogical} | {_vm.PageText}\n" +
+                       $"方向:{_vm.DirectionText} | 配对:{_vm.PairText} | Fit:{_vm.FitMode}\n" +
+                       $"拖拽卡死:{dragStuck} | 滚动Timer空转:{timerRunning} | 图片1:{( _vm.Image1 is null ? "无" : "有")} 图片2:{(_vm.Image2 is null ? "无" : "有")}";
+            };
+            _debugPanel.Start();
+            ((Avalonia.Controls.Panel)Content).Children.Add(_debugPanel);
+        }
+        _debugPanel.IsVisible = !_debugPanel.IsVisible;
+    }
     /// <summary>测试用：当前 FitScreen 缩放值。</summary>
     public double CurrentFitScaleValue => CurrentFitScale();
     /// <summary>诊断：PageImage1 可见性与位置。</summary>
@@ -1132,6 +1162,7 @@ public partial class ReaderWindow : Window
             case Key.T: _vm.ToggleThemeCommand.Execute(null); e.Handled = true; break;
             case Key.B: _vm.ToggleBookmarkCommand.Execute(null); e.Handled = true; break;
             case Key.G: ShowJumpDialog(); e.Handled = true; break;
+            case Key.F12: ToggleDebugPanel(); e.Handled = true; break;
         }
     }
 

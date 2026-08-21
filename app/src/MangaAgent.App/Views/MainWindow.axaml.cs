@@ -1,3 +1,4 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -25,7 +26,35 @@ public partial class MainWindow : Window
             vm.GetOwnerWindow = () => this;
             // 布局完成后加载可见区缩略图（BUG-002）
             Dispatcher.UIThread.Post(LoadVisibleThumbnails);
+            // F12 调试面板
+            KeyDown += (_, ke) => { if (ke.Key == Avalonia.Input.Key.F12) ToggleMainDebug(); };
         }
+    }
+
+    private Views.DebugPanel? _mainDebug;
+
+    private void ToggleMainDebug()
+    {
+        if (_mainDebug is null)
+        {
+            _mainDebug = new Views.DebugPanel
+            {
+                HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Bottom,
+                Margin = new Thickness(0, 0, 8, 8),
+                Width = 420,
+            };
+            _mainDebug.StatusProvider = () =>
+            {
+                if (_vm is null) return "vm=null";
+                return $"库:{_vm.Libraries.Count} | 扫描中:{_vm.IsScanning} | 状态:{_vm.StatusText}\n" +
+                       $"当前目录:{_vm.CurrentFolder?.Path ?? "无"} | 条目:{_vm.FolderEntries.Count}\n" +
+                       $"展示模式:{_vm.GalleryModeText}";
+            };
+            _mainDebug.Start();
+            ((Avalonia.Controls.Panel)Content).Children.Add(_mainDebug);
+        }
+        _mainDebug.IsVisible = !_mainDebug.IsVisible;
     }
 
     private void OnCoverScrollChanged(object? sender, Avalonia.Controls.ScrollChangedEventArgs e)

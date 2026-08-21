@@ -1,0 +1,6 @@
+R0: vm=Single img1=ok img2=null
+R1: vm=Webtoon img1=ok img2=null
+R2: vm=Double img1=ok img2=null
+FINAL: vm=Webtoon img1=ok
+CLICK: 8 clicks in 512ms scale=8.000 (avg 64.0ms/click)
+RESET: scale=0.881 tx=87.9 ty=0.0

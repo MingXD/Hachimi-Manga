@@ -14,6 +14,9 @@ public partial class App : Application
 
     /// <summary>写操作日志：按日期分文件（app-YYYY-MM-DD.log），保留最近 7 天（日志轮转）。
     /// 排查"操作类 bug"时提供完整轨迹（时间戳+线程+事件）。</summary>
+    /// <summary>调试面板：最近事件环形缓冲（实时显示，诊断用）。</summary>
+    public static readonly System.Collections.Concurrent.ConcurrentQueue<(DateTime Time, string Msg)> RecentEvents = new();
+
     internal static void SLog(string msg)
     {
         try
@@ -34,6 +37,9 @@ public partial class App : Application
                     catch { }
                 }
             }
+            // 内存缓冲（最近 100 条，供调试面板实时显示）
+            RecentEvents.Enqueue((DateTime.Now, msg));
+            while (RecentEvents.Count > 100) RecentEvents.TryDequeue(out _);
         }
         catch { }
     }
