@@ -450,6 +450,10 @@ public partial class ReaderWindow : Window
 
     private void ExitWebtoon()
     {
+        // 2A-2 修复：退出 Webtoon 必须停止平滑滚动 timer（防空转卡 UI）
+        _scrolling = false;
+        _scrollVelocity = 0;
+        _scrollTimer?.Stop();
         App.SLog($"EXIT_WEBTOON children={_webtoonCanvas?.Children.Count} images={_webtoonImages.Count}");
         if (_vm is not null && _webtoonCanvas is not null)
         {
@@ -643,7 +647,11 @@ public partial class ReaderWindow : Window
     {
         if (_vm is null || _vm.ViewMode != ViewMode.Webtoon || _windowClosed)
         {
+            // 2A-1 修复：切出 Webtoon/窗口关闭 → 必须停止 timer，否则每 16ms 空转
+            // ClampWebtoonScroll+ApplyTransform+UpdateWebtoonPages（含改 PageText→Relayout 连锁）→ UI 卡死
             _scrolling = false;
+            _scrollVelocity = 0;
+            _scrollTimer?.Stop();
             return;
         }
         double elapsed = _scrollWatch.Elapsed.TotalSeconds;

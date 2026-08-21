@@ -303,8 +303,10 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
             using var ms = new MemoryStream();
             await stream.CopyToAsync(ms);
             ms.Position = 0;
-            // 按显示尺寸降采样解码（BUG-001 根因修复：避免 4K 扫描页全尺寸解码 104MB）
-            decoded = Bitmap.DecodeToWidth(ms, Math.Max(400, DecodeTargetWidth));
+            // 2E 修复：JPEG 解码 + 降采样是同步 CPU 密集操作，移到线程池执行，
+            // 避免在 UI 线程解码大图（4299x6071 → 数百 ms）导致翻页/滚动卡死
+            int want = Math.Max(400, DecodeTargetWidth);
+            decoded = await Task.Run(() => Bitmap.DecodeToWidth(ms, want));
         }
         catch (Exception ex)
         {
@@ -390,26 +392,29 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
     /// <summary>定位到物理页：同步 CurrentIndex（单页模式直接设置；双页/滚动找包含它的逻辑页）。</summary>
     public void SetCurrentPhysical(int physical)
     {
+        // 2C 修复：避免双重 LoadCurrentAsync（CurrentIndex setter 会触发一次；仅当其未变化时手动补一次）
         CurrentPhysical = physical;
         var target = physical;
+        int prevIndex = CurrentIndex;
+        int best = prevIndex;
         if (_logical.Count > 0)
         {
-            int best = 0;
             for (int i = 0; i < _logical.Count; i++)
             {
-                var p = _logical[i];
-                if (p.FirstIndex <= target)
+                var lp = _logical[i];
+                if (lp.FirstIndex <= target)
                 {
                     best = i;
-                    if (p.SecondIndex >= 0 && target <= p.SecondIndex) { best = i; break; }
-                    if (p.SecondIndex < 0) { if (p.FirstIndex == target) { best = i; break; } }
+                    if (lp.SecondIndex >= 0 && target <= lp.SecondIndex) { best = i; break; }
+                    if (lp.SecondIndex < 0 && lp.FirstIndex == target) { best = i; break; }
                 }
                 else break;
             }
-            CurrentIndex = best;
+            CurrentIndex = best;   // 若 best != prevIndex → setter 触发 OnCurrentIndexChanged → LoadCurrentAsync
         }
         if (ViewMode == ViewMode.Single) _currentPhysical = target;
-        _ = LoadCurrentAsync();
+        // 仅当 CurrentIndex 未变化（setter 未触发，如同逻辑页内换物理页）时手动刷新，避免重复解码
+        if (best == prevIndex) _ = LoadCurrentAsync();
     }
 
     /// <summary>物理页 → 所在逻辑页索引。</summary>

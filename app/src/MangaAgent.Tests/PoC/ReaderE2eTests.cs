@@ -34,21 +34,22 @@ public class ReaderE2eTests
         var db = Path.Combine(Path.GetTempPath(), $"mangaagent_e2e_{Guid.NewGuid():N}.db");
         try
         {
-            // 1) 打开：封面单页 + 299 页成对 → 150 逻辑页
+            // 1) 打开：封面单页 + 299 页成对 → 150 逻辑页（2E 异步解码后需等待加载完成）
             var vm = new ReaderViewModel(StressBook, db);
+            await WaitUntilAsync(() => vm.Image1 is not null && vm.PageText == "1 / 300");
             Assert.Equal("1 / 300", vm.PageText); // BUG-A v1.9：单页显示物理页号
             Assert.False(vm.IsDoublePageShown);
 
             // 2) 翻页 + 状态保存（单页逐物理页）
             vm.NextPageCommand.Execute(null);
+            await WaitUntilAsync(() => vm.Image1 is not null && vm.PageText == "2 / 300");
             Assert.Equal("2 / 300", vm.PageText);
-            await WaitUntilAsync(() => vm.Image1 is not null);
 
-            // 3) 双页模式：逻辑页 index1 = 物理页(1,2) 双页
+            // 3) 双页模式：逻辑页 index1 = 物理页(1,2) 双页（2E 异步解码后等待）
             vm.ToggleModeCommand.Execute(null);
             Assert.True(vm.ViewMode == ViewMode.Double);
+            await WaitUntilAsync(() => vm.IsDoublePageShown && vm.Image1 is not null && vm.Image2 is not null);
             Assert.True(vm.IsDoublePageShown);
-            await WaitUntilAsync(() => vm.Image1 is not null && vm.Image2 is not null);
             Assert.NotNull(vm.Image1);
             Assert.NotNull(vm.Image2);
 
