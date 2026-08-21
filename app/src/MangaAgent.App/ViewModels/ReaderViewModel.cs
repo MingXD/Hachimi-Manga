@@ -53,6 +53,9 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
     [ObservableProperty] private FitMode _fitMode = FitMode.FitScreen;
     [ObservableProperty] private double _scale = 1.0;   // Custom 模式的倍率（1.0 = 适应宽度基准）
     [ObservableProperty] private string _pageText = "1 / 1";
+    /// <summary>缩放百分比显示（基准 = 适应屏幕，v1.9.8）。由视图在缩放/复位后更新。</summary>
+    [ObservableProperty] private double _zoomPercent = 100;
+    public string ZoomPercentText => $"{ZoomPercent:F0}%";
     [ObservableProperty] private int _progressValue;
     [ObservableProperty] private ObservableCollection<int> _bookmarks = new();
     [ObservableProperty] private string _statusText = string.Empty;
@@ -173,6 +176,7 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
         // FitMode 由 CycleFit/Reset 或画布缩放（code-behind）管理；此处仅刷新显示
         OnPropertyChanged(nameof(FitText));
     }
+    partial void OnZoomPercentChanged(double value) => OnPropertyChanged(nameof(ZoomPercentText));
 
     partial void OnFitModeChanged(FitMode value)
     {

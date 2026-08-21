@@ -232,7 +232,7 @@ public partial class ReaderWindow : Window
                 // 复位测试
                 OnResetZoomClick(this, new RoutedEventArgs());
                 await Task.Delay(200);
-                sb.AppendLine($"RESET: scale={CanvasScale:F3} tx={CanvasX:F1} ty={CanvasY:F1}");
+                sb.AppendLine($"RESET: scale={CanvasScale:F3} tx={CanvasX:F1} ty={CanvasY:F1} pct={_vm.ZoomPercentText}");
             }
             File.WriteAllText("D:\\MangaAgent\\app\\diag-zoom.txt", sb.ToString());
         }
@@ -253,6 +253,23 @@ public partial class ReaderWindow : Window
     public double ZoomSensitivity { get; set; } = 1.0;
     /// <summary>Webtoon 滚动速度（1.0 默认；0.5/1/2 三档，工具栏按钮）。</summary>
     public double WebtoonSpeed { get; set; } = 1.0;
+
+    /// <summary>适应屏幕的缩放值（百分比基准）。</summary>
+    private double FitScreenScale()
+    {
+        double vpW = Math.Max(100, Viewport.Bounds.Width);
+        double vpH = Math.Max(100, Viewport.Bounds.Height);
+        double baseW = ComputeBaseW();
+        return Math.Min(vpW / baseW, vpH / BaseH);
+    }
+
+    /// <summary>更新缩放百分比显示（基准 = 适应屏幕）。</summary>
+    private void UpdateZoomPercent()
+    {
+        if (_vm is null) return;
+        double fitScreen = Math.Max(0.001, FitScreenScale());
+        _vm.ZoomPercent = _scale / fitScreen * 100.0;
+    }
 
     private double CurrentFitScale()
     {
@@ -333,6 +350,7 @@ public partial class ReaderWindow : Window
             ToolTip.SetTip(NavPrevButton, rtl ? "下一页 (←)" : "上一页 (←)");
             ToolTip.SetTip(NavNextButton, rtl ? "上一页 (→)" : "下一页 (→)");
         }
+        UpdateZoomPercent();
         rsw.Stop();
         if (rsw.ElapsedMilliseconds > 15)
             App.SLog($"RELAYOUT SLOW {rsw.ElapsedMilliseconds}ms mode={_vm?.ViewMode}");
@@ -357,6 +375,7 @@ public partial class ReaderWindow : Window
             double dpr = RenderScaling > 0 ? RenderScaling : 1.0;
             _vm.DecodeTargetWidth = (int)Math.Clamp(ComputeBaseW() * _scale * dpr, 1200, 4096);
         }
+        UpdateZoomPercent();
     }
 
     /// <summary>看图器规则：内容小于视口时自动居中（缩放后）；放大时保持当前位置。</summary>
@@ -432,6 +451,7 @@ public partial class ReaderWindow : Window
             double dpr = RenderScaling > 0 ? RenderScaling : 1.0;
             _vm.DecodeTargetWidth = (int)Math.Clamp(ComputeBaseW() * _scale * dpr, 1200, 4096);
         }
+        UpdateZoomPercent();
     }
 
     // ---------- 输入 ----------
@@ -902,6 +922,7 @@ public partial class ReaderWindow : Window
         _ty = (vpH - BaseH * _scale) / 2;
         ApplyTransform();
         if (Math.Abs(_vm.Scale - 1.0) > 0.001) _vm.ResetScaleInternal();
+        UpdateZoomPercent();
         App.SLog($"RESET paged scale={_scale:F3} tx={_tx:F1} ty={_ty:F1}");
     }
 
@@ -926,6 +947,7 @@ public partial class ReaderWindow : Window
         ClampWebtoonScroll();
         ApplyTransform();
         UpdateWebtoonPages();
+        UpdateZoomPercent();
         App.SLog($"WEBTOON RESET width={_webtoonWidth:F0} scale={_scale:F3} ty={_ty:F1} page={curPhys}");
     }
 

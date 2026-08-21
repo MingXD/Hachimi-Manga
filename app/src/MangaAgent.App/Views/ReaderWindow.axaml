@@ -108,7 +108,7 @@
         </Button>
         <Button Content="{Binding ThemeText}" Command="{Binding ToggleThemeCommand}" ToolTip.Tip="白天/夜间 (T)" Foreground="{Binding ForegroundHex}"/>
         <Button x:Name="ZoomOutButton" Content="−" Click="OnZoomOutClick" ToolTip.Tip="缩小" Foreground="{Binding ForegroundHex}"/>
-        <TextBlock Text="{Binding FitText}" VerticalAlignment="Center" Foreground="{Binding ForegroundHex}" Margin="2,0"/>
+        <TextBlock Text="{Binding ZoomPercentText}" VerticalAlignment="Center" Foreground="{Binding ForegroundHex}" Margin="2,0" ToolTip.Tip="当前缩放（基准=适应屏幕）"/>
         <Button x:Name="ZoomInButton" Content="＋" Click="OnZoomInClick" ToolTip.Tip="放大" Foreground="{Binding ForegroundHex}"/>
         <Button Content="{Binding FitText}" Command="{Binding CycleFitCommand}" ToolTip.Tip="切换适应模式（宽度/高度/屏幕）" Foreground="{Binding ForegroundHex}"/>
         <Button Content="复位" Click="OnResetZoomClick" ToolTip.Tip="适应宽度" Foreground="{Binding ForegroundHex}"/>
