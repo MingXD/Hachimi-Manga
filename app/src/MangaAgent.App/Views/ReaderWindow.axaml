@@ -50,32 +50,7 @@
   </Window.Styles>
 
   <DockPanel>
-    <!-- 缩略图预览栏（UI-3 v1.9：弹出式，前后共 9 张，本页居中） -->
-    <Popup x:Name="ThumbnailPopup" Placement="Bottom" PlacementTarget="{Binding #Viewport}" IsLightDismissEnabled="True"
-           HorizontalOffset="0" VerticalOffset="-10">
-      <Border Background="#E81C1C24" CornerRadius="8" Padding="10" BorderBrush="#444" BorderThickness="1">
-        <StackPanel>
-          <TextBlock Text="附近页面（点击跳转）" Foreground="#AAA" FontSize="11" Margin="0,0,0,6"/>
-          <ItemsControl x:Name="ThumbnailStrip">
-            <ItemsControl.ItemsPanel>
-              <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="6"/></ItemsPanelTemplate>
-            </ItemsControl.ItemsPanel>
-            <ItemsControl.ItemTemplate>
-              <DataTemplate x:DataType="views:ReaderWindow+ThumbEntry">
-                <Button Click="OnThumbnailClick" Tag="{Binding}" Background="Transparent" Padding="0" BorderThickness="0">
-                  <StackPanel>
-                    <Border Background="#2A2A34" CornerRadius="4" ClipToBounds="True" Width="72" Height="96">
-                      <Image Source="{Binding Bitmap}" Stretch="Uniform" Width="72" Height="96"/>
-                    </Border>
-                    <TextBlock Text="{Binding PageLabel}" Foreground="#CCC" FontSize="9" HorizontalAlignment="Center" Margin="0,2,0,0"/>
-                  </StackPanel>
-                </Button>
-              </DataTemplate>
-            </ItemsControl.ItemTemplate>
-          </ItemsControl>
-        </StackPanel>
-      </Border>
-    </Popup>
+
 
 
 
@@ -87,7 +62,7 @@
         <Button x:Name="NavPrevButton" Content="◀" Click="OnNavPrevClick" Foreground="{Binding ForegroundHex}"/>
         <Button x:Name="NavNextButton" Content="▶" Click="OnNavNextClick" Foreground="{Binding ForegroundHex}"/>
         <Button Content="{Binding PageText}" Click="OnPageTextClick" ToolTip.Tip="点击跳转到指定页 (G)" Background="Transparent" Foreground="{Binding ForegroundHex}" Padding="6,2" Margin="8,0"/>
-        <Button Content="🖼 缩略图" Click="OnThumbnailStripClick" ToolTip.Tip="预览附近页面 (缩略图)" Foreground="{Binding ForegroundHex}"/>
+
         <Button x:Name="ModeButton" Content="{Binding ModeText}" Click="OnModeMenuClick" Foreground="{Binding ForegroundHex}">
           <Button.ContextMenu>
             <ContextMenu>
@@ -123,11 +98,44 @@
     <!-- 阅读区：画布模型（视口 + 图片层，Scale/Translate 变换，复刻 Windows 看图器） -->
 
 
-    <!-- 底部快速翻页进度条（拖动跳页） -->
-    <Border DockPanel.Dock="Bottom" Background="#CC1C1C24" Padding="12,3">
+    <!-- 底部热区（悬停唤出预览栏） -->
+    <Border x:Name="BottomHotZone" DockPanel.Dock="Bottom" Height="24" Background="Transparent"
+            PointerMoved="OnBottomHotZonePointerMoved" PointerExited="OnBottomHotZonePointerExited"/>
+    <!-- 底部悬浮预览栏（进度条+缩略图融合 v2） -->
+    <Border x:Name="PreviewStrip" DockPanel.Dock="Bottom" Height="150" Background="#E61C1C24" IsVisible="False"
+            PointerMoved="OnPreviewStripPointerMoved" PointerExited="OnPreviewStripPointerExited"
+            PointerWheelChanged="OnPreviewStripWheel">
       <Grid>
-        <Slider x:Name="JumpSlider" Minimum="0" Maximum="100" ValueChanged="OnJumpSliderValueChanged"
-                Background="Transparent" VerticalAlignment="Center"/>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="Auto"/>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+        <Button Grid.Column="0" Content="◀" Click="OnPreviewStripPrev" Background="Transparent" Foreground="#E8E8E8"
+                FontSize="18" Width="40" VerticalAlignment="Center"/>
+        <ItemsControl x:Name="ThumbStrip" Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="8"/></ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="views:ReaderWindow+ThumbStripItem">
+              <Button Click="OnThumbStripItemClick" Tag="{Binding}" Background="Transparent" Padding="0" BorderThickness="0">
+                <StackPanel>
+                  <Border Background="#2A2A34" CornerRadius="3" ClipToBounds="True" BorderBrush="#333" BorderThickness="1">
+                    <Grid>
+                      <TextBlock Text="{Binding PageLabel}" Foreground="White" FontSize="10"
+                                 HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                      <Image Source="{Binding Bitmap}" Stretch="Uniform"/>
+                    </Grid>
+                  </Border>
+                  <TextBlock Text="{Binding PageLabel}" Foreground="#CCC" FontSize="9" HorizontalAlignment="Center" Margin="0,2,0,0"/>
+                </StackPanel>
+              </Button>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <Button Grid.Column="2" Content="▶" Click="OnPreviewStripNext" Background="Transparent" Foreground="#E8E8E8"
+                FontSize="18" Width="40" VerticalAlignment="Center"/>
       </Grid>
     </Border>
     <Border x:Name="Viewport" ClipToBounds="True" Background="{Binding BackgroundHex}"

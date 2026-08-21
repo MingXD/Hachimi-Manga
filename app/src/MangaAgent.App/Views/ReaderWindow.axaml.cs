@@ -126,16 +126,7 @@ public partial class ReaderWindow : Window
                     Relayout();
                     ArrangeDoublePageOrder();
                 }
-                if (args.PropertyName is nameof(ReaderViewModel.PageText)
-                    or nameof(ReaderViewModel.Image1)
-                    or nameof(ReaderViewModel.Image2)
-                    or nameof(ReaderViewModel.IsDoublePageShown)
-                    or nameof(ReaderViewModel.FitMode)
-                    or nameof(ReaderViewModel.Scale)
-                    or nameof(ReaderViewModel.Direction))
-                {
-                    SyncJumpSlider();
-                }
+                
             };
             Relayout();
         }
@@ -642,6 +633,7 @@ public partial class ReaderWindow : Window
         // 当前可见页号 → 状态显示
         int curPhys = Math.Clamp(PhysicalAt(Math.Max(0, baseTop)), 0, n - 1);
         _vm.UpdateWebtoonPageText(curPhys);
+        SyncPreviewStripToScroll();
     }
 
     private void RemoveWebtoonImage(int physical)
@@ -983,34 +975,150 @@ public partial class ReaderWindow : Window
         e.Handled = true;
     }
 
-    private bool _sliderDragging;
-    private bool _suppressSliderEvent;
 
     /// <summary>进度条拖动/点击 → 跳页（拖动中实时更新，松手才真正跳转避免逐页解码）。</summary>
-    private void OnJumpSliderValueChanged(object? sender, Avalonia.Controls.Primitives.RangeBaseValueChangedEventArgs e)
+    // ---------- 底部悬浮预览栏（v2：进度条+缩略图融合，悬停唤出） ----------
+    /// <summary>预览栏缩略图条目。</summary>
+    public sealed record ThumbStripItem(int Physical, int Logical, string PageLabel, Avalonia.Media.Imaging.Bitmap? Bitmap);
+
+    private Avalonia.Threading.DispatcherTimer? _hoverTimer;
+    private readonly List<ThumbStripItem> _thumbItems = new();
+    private int _thumbCenterPhysical;
+    private Avalonia.Point _lastMousePos;
+
+    private void OnBottomHotZonePointerMoved(object? sender, PointerEventArgs e)
     {
-        if (_vm is null || _suppressSliderEvent || JumpSlider is null) return;
-        double ratio = Math.Clamp(e.NewValue / 100.0, 0.0, 1.0);
-        if (_vm.ViewMode == ViewMode.Webtoon)
+        _lastMousePos = e.GetPosition(this);
+        if (PreviewStrip?.IsVisible == true) return;
+        StartHoverTimer(400, ShowPreviewStrip);
+    }
+
+    private void OnBottomHotZonePointerExited(object? sender, PointerEventArgs e)
+    {
+        StopHoverTimer();
+        if (PreviewStrip?.IsVisible == true && !IsPointerOver(PreviewStrip)) HidePreviewStripDelayed();
+    }
+
+    private void OnPreviewStripPointerMoved(object? sender, PointerEventArgs e)
+    {
+        _lastMousePos = e.GetPosition(this);
+        StopHoverTimer();
+    }
+
+    private void OnPreviewStripPointerExited(object? sender, PointerEventArgs e) => HidePreviewStripDelayed();
+
+    private void StartHoverTimer(int ms, Action action)
+    {
+        _hoverTimer ??= new Avalonia.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(ms) };
+        _hoverTimer.Tick -= (_, _) => action();
+        _hoverTimer.Tick += (_, _) => { _hoverTimer.Stop(); action(); };
+        _hoverTimer.Interval = TimeSpan.FromMilliseconds(ms);
+        _hoverTimer.Stop();
+        _hoverTimer.Start();
+    }
+
+    private void StopHoverTimer() => _hoverTimer?.Stop();
+
+    private void HidePreviewStripDelayed()
+    {
+        StartHoverTimer(300, () => { if (!IsPointerOver(PreviewStrip)) PreviewStrip.IsVisible = false; });
+    }
+
+    private bool IsPointerOver(Avalonia.Controls.Control? ctl)
+    {
+        if (ctl is null || !ctl.IsVisible) return false;
+        var origin = ctl.TranslatePoint(new Avalonia.Point(0, 0), this);
+        var rel = origin is { } o ? _lastMousePos - o : default;
+        return ctl.Bounds.Contains(rel);
+    }
+
+    private void ShowPreviewStrip()
+    {
+        if (_vm is null || PreviewStrip is null) return;
+        _thumbCenterPhysical = _vm.CurrentPhysical;
+        PreviewStrip.IsVisible = true;
+        RefreshThumbStrip();
+    }
+
+    /// <summary>加载 7 张缩略图（当前页居中，加载中显示页码占位）。</summary>
+    private async void RefreshThumbStrip()
+    {
+        if (_vm is null || ThumbStrip is null || !PreviewStrip.IsVisible) return;
+        int total = _vm.PhysicalPageCount;
+        int center = Math.Clamp(_thumbCenterPhysical, 0, total - 1);
+        int start = Math.Max(0, center - 3);
+        int end = Math.Min(total - 1, center + 3);
+        while (end - start + 1 < 7 && start > 0) start--;
+        while (end - start + 1 < 7 && end < total - 1) end++;
+
+        _thumbItems.Clear();
+        for (int i = start; i <= end; i++)
+            _thumbItems.Add(new ThumbStripItem(i, i, $"{i + 1}", null));
+        ThumbStrip.ItemsSource = _thumbItems;
+
+        foreach (var item in _thumbItems.ToList())
         {
-            int phys = Math.Clamp((int)(ratio * _vm.PhysicalPageCount), 0, _vm.PhysicalPageCount - 1);
-            // 拖动中实时预览页号，松手跳转（BUG-F v1.9：跳转同时滚动到该物理页）
-            _vm.UpdateWebtoonPageText(phys);
-            if (!_sliderDragging)
+            int phys = item.Physical;
+            try
             {
-                _vm.JumpToPhysicalCommand.Execute(phys);
-                ScrollWebtoonToPhysical(phys);
+                var bmp = await _vm.GetPageBitmapAsync(phys);
+                if (!PreviewStrip.IsVisible) return;
+                int idx = _thumbItems.FindIndex(t => t.Physical == phys);
+                if (idx >= 0 && ThumbStrip.ItemsSource is System.Collections.IList list)
+                {
+                    _thumbItems[idx] = _thumbItems[idx] with { Bitmap = bmp };
+                    list[idx] = _thumbItems[idx];
+                }
             }
-        }
-        else
-        {
-            // BUG-A v1.9：进度条按物理页映射（单页逐页、双页落逻辑页）
-            int phys = Math.Clamp((int)(ratio * _vm.PhysicalPageCount), 0, _vm.PhysicalPageCount - 1);
-            if (!_sliderDragging) _vm.JumpToPhysicalCommand.Execute(phys);
+            catch { }
         }
     }
 
-    /// <summary>点击页码 → 跳页对话框。</summary>
+    /// <summary>点击缩略图 → 跳转（三模式映射）。</summary>
+    private void OnThumbStripItemClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: ThumbStripItem item } && _vm is not null)
+        {
+            _vm.JumpToPhysicalCommand.Execute(item.Physical);
+            if (_vm.ViewMode == ViewMode.Webtoon) ScrollWebtoonToPhysical(item.Physical);
+            PreviewStrip.IsVisible = false;
+            App.SLog($"PREVIEW_JUMP -> physical {item.Physical + 1}");
+        }
+    }
+
+    private void OnPreviewStripPrev(object? sender, RoutedEventArgs e)
+    {
+        _thumbCenterPhysical = Math.Max(0, _thumbCenterPhysical - 7);
+        RefreshThumbStrip();
+    }
+
+    private void OnPreviewStripNext(object? sender, RoutedEventArgs e)
+    {
+        _thumbCenterPhysical = Math.Min((_vm?.PhysicalPageCount ?? 1) - 1, _thumbCenterPhysical + 7);
+        RefreshThumbStrip();
+    }
+
+    private void OnPreviewStripWheel(object? sender, PointerWheelEventArgs e)
+    {
+        _thumbCenterPhysical = Math.Clamp(_thumbCenterPhysical + (e.Delta.Y > 0 ? -1 : 1), 0, (_vm?.PhysicalPageCount ?? 1) - 1);
+        RefreshThumbStrip();
+        e.Handled = true;
+    }
+
+    /// <summary>滚动模式双向联动：正文滚动时更新预览栏高亮。</summary>
+    private void SyncPreviewStripToScroll()
+    {
+        if (PreviewStrip?.IsVisible == true && _vm?.ViewMode == ViewMode.Webtoon)
+        {
+            int cur = _vm.CurrentPhysical;
+            if (Math.Abs(cur - _thumbCenterPhysical) >= 3)
+            {
+                _thumbCenterPhysical = cur;
+                RefreshThumbStrip();
+            }
+        }
+    }
+
     private void OnPageTextClick(object? sender, RoutedEventArgs e)
         => ShowJumpDialog();
 
@@ -1059,18 +1167,6 @@ public partial class ReaderWindow : Window
         await dialog.ShowDialog(this);
     }
 
-    /// <summary>进度条与当前页同步（翻页/跳页后更新位置，抑制事件回环）。</summary>
-    private void SyncJumpSlider()
-    {
-        if (_vm is null || JumpSlider is null) return;
-        double ratio = _vm.ViewMode == ViewMode.Webtoon
-            ? Math.Clamp((double)(-_ty) / Math.Max(1.0, WebtoonTotalHeight * _scale), 0.0, 1.0)
-            : (double)_vm.CurrentPhysical / Math.Max(1, _vm.PhysicalPageCount - 1);
-        _suppressSliderEvent = true;
-        JumpSlider.Value = ratio * 100.0;
-        _suppressSliderEvent = false;
-    }
-
     /// <summary>方向感知翻页（v1.8）：RTL 时 ◀=下一页、▶=上一页；ToolTip 随方向显示。</summary>
     private void OnNavPrevClick(object? sender, RoutedEventArgs e)
     {
@@ -1117,56 +1213,7 @@ public partial class ReaderWindow : Window
         _vm.SetViewMode(target);
     }
 
-    /// <summary>缩略图条目（UI-3 v1.9）。</summary>
-    public sealed record ThumbEntry(int Physical, string PageLabel, Avalonia.Media.Imaging.Bitmap? Bitmap);
 
-    /// <summary>打开缩略图预览（当前页 ±4，共 9 张，本页居中高亮）。</summary>
-    private async void OnThumbnailStripClick(object? sender, RoutedEventArgs e)
-    {
-        if (_vm is null || ThumbnailStrip is null) return;
-        int total = _vm.PhysicalPageCount;
-        int cur = _vm.CurrentPhysical;
-        var entries = new List<ThumbEntry>();
-        int start = Math.Max(0, cur - 4);
-        int end = Math.Min(total - 1, cur + 4);
-        // 保证 9 张：不够时向另一侧补
-        while (end - start + 1 < 9 && start > 0) start--;
-        while (end - start + 1 < 9 && end < total - 1) end++;
-        var tasks = new List<Task>();
-        for (int i = start; i <= end; i++)
-        {
-            int phys = i;
-            var entry = new ThumbEntry(phys, $"{phys + 1}", null);
-            entries.Add(entry);
-            tasks.Add(Task.Run(async () =>
-            {
-                try
-                {
-                    var bmp = await _vm.GetPageBitmapAsync(phys);
-                    entry = entry with { Bitmap = bmp };
-                }
-                catch { }
-            }));
-        }
-        await Task.WhenAll(tasks);
-        ThumbnailStrip.ItemsSource = entries;
-        ThumbnailPopup?.Open();
-    }
-
-    /// <summary>点击缩略图 → 跳转（缩略图按钮在 Popup 内，用 Tag 传物理页）。</summary>
-    private void OnThumbnailClick(object? sender, RoutedEventArgs e)
-    {
-        if (sender is Button { Tag: ThumbEntry te })
-        {
-            if (_vm?.ViewMode == ViewMode.Webtoon)
-            {
-                _vm.JumpToPhysicalCommand.Execute(te.Physical);
-                ScrollWebtoonToPhysical(te.Physical);
-            }
-            else _vm.JumpToPhysicalCommand.Execute(te.Physical);
-            ThumbnailPopup?.Close();
-        }
-    }
 
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
