@@ -49,11 +49,20 @@ public partial class ReaderWindow : Window
 
     /// <summary>调试面板（F12 开关，诊断"点击无反应"等交互问题）。</summary>
     private Views.DebugPanel? _debugPanel;
+    private Avalonia.Controls.Panel? _overlayRoot;
 
     private void ToggleDebugPanel()
     {
         if (_debugPanel is null)
         {
+            // 覆盖层：包一层 Grid（DockPanel + DebugPanel 叠加），DebugPanel 不参与 DockPanel 布局
+            if (Content is DockPanel dock)
+            {
+                var overlay = new Grid();
+                overlay.Children.Add(dock);
+                Content = overlay;
+                _overlayRoot = overlay;
+            }
             _debugPanel = new Views.DebugPanel
             {
                 HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
@@ -72,7 +81,7 @@ public partial class ReaderWindow : Window
                        $"拖拽卡死:{dragStuck} | 滚动Timer空转:{timerRunning} | 图片1:{( _vm.Image1 is null ? "无" : "有")} 图片2:{(_vm.Image2 is null ? "无" : "有")}";
             };
             _debugPanel.Start();
-            ((Avalonia.Controls.Panel)Content).Children.Add(_debugPanel);
+            (_overlayRoot ?? (Avalonia.Controls.Panel)Content).Children.Add(_debugPanel);
         }
         _debugPanel.IsVisible = !_debugPanel.IsVisible;
     }
@@ -98,6 +107,12 @@ public partial class ReaderWindow : Window
         // 后续每次鼠标移动都被视口处理并 Handled → 按钮 Click 被吞。
         // 窗口级监听 Released 保证任何位置松开都复位拖拽状态。
         this.AddHandler(PointerReleasedEvent, (_, e) => _isDragging = false, Avalonia.Interactivity.RoutingStrategies.Bubble);
+        // 诊断兜底：记录每次鼠标按下的目标控件（排查"点击无反应"——事件是否到达、被谁吞）
+        this.AddHandler(PointerPressedEvent, (_, e) =>
+        {
+            if (e.Source is Control src)
+                App.SLog($"CLICK_DOWN -> {src.GetType().Name} '{src.Name ?? ""}'");
+        }, Avalonia.Interactivity.RoutingStrategies.Bubble);
     }
 
     protected override void OnDataContextChanged(EventArgs e)
@@ -108,16 +123,26 @@ public partial class ReaderWindow : Window
             _vm = vm;
             vm.PropertyChanged += (_, args) =>
             {
+                // 注意：PageText 不在此列表 —— 它只是显示文本，触发 Relayout 会导致
+                // 按钮样式每帧重评估（闪烁）并浪费布局。PageText 仅用于 SyncJumpSlider 进度同步。
                 if (args.PropertyName is nameof(ReaderViewModel.Image1)
                     or nameof(ReaderViewModel.Image2)
                     or nameof(ReaderViewModel.IsDoublePageShown)
                     or nameof(ReaderViewModel.FitMode)
                     or nameof(ReaderViewModel.Scale)
-                    or nameof(ReaderViewModel.Direction)
-                    or nameof(ReaderViewModel.PageText))
+                    or nameof(ReaderViewModel.Direction))
                 {
                     Relayout();
                     ArrangeDoublePageOrder();
+                }
+                if (args.PropertyName is nameof(ReaderViewModel.PageText)
+                    or nameof(ReaderViewModel.Image1)
+                    or nameof(ReaderViewModel.Image2)
+                    or nameof(ReaderViewModel.IsDoublePageShown)
+                    or nameof(ReaderViewModel.FitMode)
+                    or nameof(ReaderViewModel.Scale)
+                    or nameof(ReaderViewModel.Direction))
+                {
                     SyncJumpSlider();
                 }
             };
@@ -819,6 +844,7 @@ public partial class ReaderWindow : Window
 
     private void OnZoomInClick(object? sender, RoutedEventArgs e)
     {
+        App.SLog($"BTN 放大点击");
         if (_vm?.ViewMode == ViewMode.Webtoon)
         {
             var center = new Avalonia.Point(Viewport.Bounds.Width / 2, Viewport.Bounds.Height / 2);
@@ -860,6 +886,7 @@ public partial class ReaderWindow : Window
 
     private void OnResetZoomClick(object? sender, RoutedEventArgs e)
     {
+        App.SLog($"BTN 复位点击");
         if (_vm is null) return;
         if (_vm.ViewMode == ViewMode.Webtoon)
         {
@@ -1041,6 +1068,7 @@ public partial class ReaderWindow : Window
 
     private void OnNavNextClick(object? sender, RoutedEventArgs e)
     {
+        App.SLog($"BTN 下一页点击");
         if (_vm is null) return;
         if (_vm.Direction == ReadingDirection2.Rtl) _vm.PrevPageCommand.Execute(null);
         else _vm.NextPageCommand.Execute(null);

@@ -32,11 +32,20 @@ public partial class MainWindow : Window
     }
 
     private Views.DebugPanel? _mainDebug;
+    private Avalonia.Controls.Panel? _mainOverlay;
 
     private void ToggleMainDebug()
     {
         if (_mainDebug is null)
         {
+            // 覆盖层（同 ReaderWindow）：避免 DebugPanel 进 DockPanel 布局被 LastChildFill 铺满吞点击
+            if (Content is DockPanel mdoc && _mainOverlay is null)
+            {
+                var overlay = new Grid();
+                overlay.Children.Add(mdoc);
+                Content = overlay;
+                _mainOverlay = overlay;
+            }
             _mainDebug = new Views.DebugPanel
             {
                 HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
@@ -52,7 +61,7 @@ public partial class MainWindow : Window
                        $"展示模式:{_vm.GalleryModeText}";
             };
             _mainDebug.Start();
-            ((Avalonia.Controls.Panel)Content).Children.Add(_mainDebug);
+            (_mainOverlay ?? (Avalonia.Controls.Panel)Content).Children.Add(_mainDebug);
         }
         _mainDebug.IsVisible = !_mainDebug.IsVisible;
     }

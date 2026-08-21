@@ -184,7 +184,11 @@ public partial class MainWindowViewModel : ViewModelBase
                 var lib = new LibraryItemViewModel(line, await LibraryScanner.ScanAsync(line));
                 Libraries.Add(lib);
             }
-            catch { /* 跳过不可读的库 */ }
+            catch (Exception ex)
+            {
+                // 启动加载失败不得静默：记日志（用户可从调试面板/日志看到哪个库失败）
+                App.SLog($"LOAD_LIB FAIL {line}: {ex.Message}");
+            }
         }
         if (Libraries.Count > 0)
         {
@@ -212,9 +216,21 @@ public partial class MainWindowViewModel : ViewModelBase
             Title = "选择漫画资料库文件夹",
             AllowMultiple = false,
         });
-        if (folders.Count == 0) return;
+        if (folders.Count == 0) { App.SLog("ADDLIB cancelled (no folder picked)"); return; }
         var path = folders[0].TryGetLocalPath();
-        if (string.IsNullOrEmpty(path) || Libraries.Any(l => l.Path.Equals(path, StringComparison.OrdinalIgnoreCase))) return;
+        if (string.IsNullOrEmpty(path))
+        {
+            // 问题1 静默失败路径：TryGetLocalPath 对特殊字符/网络路径可能返回 null
+            StatusText = "无法解析所选路径（可能含特殊字符或不可访问）";
+            App.SLog($"ADDLIB FAIL: TryGetLocalPath returned null for {folders[0].Path}");
+            return;
+        }
+        if (Libraries.Any(l => l.Path.Equals(path, StringComparison.OrdinalIgnoreCase)))
+        {
+            StatusText = $"该目录已在库中：{path}";
+            App.SLog($"ADDLIB SKIP (already in library): {path}");
+            return;
+        }
 
         IsScanning = true;
         StatusText = "正在扫描…";
