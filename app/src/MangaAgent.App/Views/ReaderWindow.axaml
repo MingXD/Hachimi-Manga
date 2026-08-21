@@ -10,29 +10,42 @@
         Background="{Binding BackgroundHex}"
         KeyDown="OnKeyDown">
   <Window.Styles>
-    <!-- 工具栏按钮统一样式（UI-2 v1.9：白天/夜间都清晰 —— 半透明背景 + 边框 + 悬停高亮，前景始终用主题色） -->
-    <!-- 修复按钮"边缘闪烁+点击无效"（v1.9.6）：Fluent 模板中 ContentPresenter 使用 Button.Padding，
-          Padding 过大 → 内容区四周透明空白 → 透明区不命中测试（点击无效）且 hover 高亮不覆盖（闪烁）。
-          缩小 Padding 消除空白区，使整个按钮可点且高亮一致。 -->
+    <!-- 工具栏按钮：自定义模板（v1.9.6 根治）—— Border 铺满整个按钮，
+         视觉边界 = 命中区域 = hover 高亮完全一致，消除"边缘点击无效/闪烁"。 -->
     <Style Selector="StackPanel.toolbar Button">
       <Setter Property="Background" Value="{Binding ToolbarButtonBg}"/>
       <Setter Property="BorderBrush" Value="{Binding ToolbarButtonBorder}"/>
       <Setter Property="BorderThickness" Value="1"/>
-      <Setter Property="CornerRadius" Value="3"/>
-      <Setter Property="Padding" Value="3,2"/>
+      <Setter Property="CornerRadius" Value="4"/>
+      <Setter Property="Padding" Value="6,3"/>
       <Setter Property="Foreground" Value="{Binding ForegroundHex}"/>
       <Setter Property="FontSize" Value="12"/>
-      <Setter Property="MinWidth" Value="24"/>
-      <Setter Property="MinHeight" Value="22"/>
+      <Setter Property="MinWidth" Value="26"/>
+      <Setter Property="MinHeight" Value="24"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="Template">
+        <ControlTemplate>
+          <Border Background="{TemplateBinding Background}"
+                  BorderBrush="{TemplateBinding BorderBrush}"
+                  BorderThickness="{TemplateBinding BorderThickness}"
+                  CornerRadius="{TemplateBinding CornerRadius}"
+                  Padding="{TemplateBinding Padding}">
+            <ContentPresenter Content="{TemplateBinding Content}"
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Center"
+                              ContentTemplate="{TemplateBinding ContentTemplate}"
+                              RecognizesAccessKey="True"/>
+          </Border>
+        </ControlTemplate>
+      </Setter>
     </Style>
+    <!-- hover：整个 Border 变高亮（不再有边缘空洞） -->
     <Style Selector="StackPanel.toolbar Button:pointerover /template/ Border">
       <Setter Property="Background" Value="{Binding ToolbarButtonHover}"/>
-    </Style>
-    <Style Selector="StackPanel.toolbar Button:pointerover /template/ ContentPresenter">
-      <Setter Property="Background" Value="{Binding ToolbarButtonHover}"/>
-    </Style>
-    <Style Selector="StackPanel.toolbar Button:pointerover">
       <Setter Property="BorderBrush" Value="{Binding ToolbarButtonBorderHover}"/>
+    </Style>
+    <Style Selector="StackPanel.toolbar Button:pressed /template/ Border">
+      <Setter Property="Background" Value="{Binding ToolbarButtonHover}"/>
     </Style>
   </Window.Styles>
 

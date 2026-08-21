@@ -74,6 +74,8 @@ public partial class ReaderWindow : Window
     }
 
 
+
+
     /// <summary>测试用：当前 FitScreen 缩放值。</summary>
     public double CurrentFitScaleValue => CurrentFitScale();
     /// <summary>诊断：PageImage1 可见性与位置。</summary>
@@ -1146,7 +1148,9 @@ public partial class ReaderWindow : Window
 
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
-        if (_vm is null) return;
+                // F12 调试面板必须在任何状态都能打开（不受 _vm null 限制）
+        if (e.Key == Key.F12) { ToggleDebugPanel(); e.Handled = true; return; }
+if (_vm is null) return;
         App.SLog($"KEY {e.Key} ctrl={_ctrlDown}");
         bool webtoon = _vm.ViewMode == ViewMode.Webtoon;
         switch (e.Key)
@@ -1179,7 +1183,6 @@ public partial class ReaderWindow : Window
             case Key.T: _vm.ToggleThemeCommand.Execute(null); e.Handled = true; break;
             case Key.B: _vm.ToggleBookmarkCommand.Execute(null); e.Handled = true; break;
             case Key.G: ShowJumpDialog(); e.Handled = true; break;
-            case Key.F12: ToggleDebugPanel(); e.Handled = true; break;
         }
     }
 

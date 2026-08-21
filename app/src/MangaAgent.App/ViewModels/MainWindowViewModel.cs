@@ -225,10 +225,22 @@ public partial class MainWindowViewModel : ViewModelBase
             App.SLog($"ADDLIB FAIL: TryGetLocalPath returned null for {folders[0].Path}");
             return;
         }
-        if (Libraries.Any(l => l.Path.Equals(path, StringComparison.OrdinalIgnoreCase)))
+        var existingLib = Libraries.FirstOrDefault(l => l.Path.Equals(path, StringComparison.OrdinalIgnoreCase));
+        if (existingLib is not null)
         {
-            StatusText = $"该目录已在库中：{path}";
-            App.SLog($"ADDLIB SKIP (already in library): {path}");
+            // 已在库中：不静默 return —— 切换到该库并显示内容（用户看到效果，不再误以为失败）
+            StatusText = $"该目录已在库中，已切换：{existingLib.Name}";
+            App.SLog($"ADDLIB already-in-library -> select {existingLib.Path}");
+            SelectedLibrary = existingLib;
+            // 确保树已建并选中根
+            try
+            {
+                var tree = await MangaAgent.Core.Library.FolderTreeScanner.ScanAsync(existingLib.Path);
+                FolderTree.Clear();
+                FolderTree.Add(tree);
+                ShowFolderContents(tree);
+            }
+            catch (Exception ex) { App.SLog($"ADDLIB select-tree fail {existingLib.Path}: {ex.Message}"); }
             return;
         }
 
