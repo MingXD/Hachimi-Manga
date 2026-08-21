@@ -43,6 +43,11 @@ public partial class ReaderWindow : Window
     public Point ViewportOrigin => Viewport?.TranslatePoint(new Point(0, 0), this) ?? default;
     /// <summary>诊断：PageLayer 当前子元素（测试确认 Webtoon 已退出）。</summary>
     public string PageLayerChildType => PageLayer?.Children.Count > 0 ? PageLayer.Children[0].GetType().Name : "empty";
+
+    /// <summary>测试用：调用分页复位。</summary>
+    public void CallReset() => ResetPagedView();
+    /// <summary>测试用：当前 FitScreen 缩放值。</summary>
+    public double CurrentFitScaleValue => CurrentFitScale();
     /// <summary>诊断：PageImage1 可见性与位置。</summary>
     public string PageImage1Vis => $"{PageImage1?.IsVisible}@{PageImage1?.Bounds.Position} {PageImage1?.Bounds.Size}";
     private bool _isDragging;
@@ -759,9 +764,9 @@ public partial class ReaderWindow : Window
         if (_vm?.ViewMode == ViewMode.Webtoon)
         {
             var center = new Avalonia.Point(Viewport.Bounds.Width / 2, Viewport.Bounds.Height / 2);
-            ZoomWebtoon(1.25, center);
+            ZoomWebtoon(1.4, center);
         }
-        else ZoomRelative(1.25);
+        else ZoomRelative(1.4);
     }
 
     private static readonly double[] SensLevels = { 0.5, 1.0, 2.0 };
@@ -790,9 +795,9 @@ public partial class ReaderWindow : Window
         {
             // BUG-G v1.9：Webtoon 按钮缩放以视口中心为焦点（不附带上下移动）
             var center = new Avalonia.Point(Viewport.Bounds.Width / 2, Viewport.Bounds.Height / 2);
-            ZoomWebtoon(0.8, center);
+            ZoomWebtoon(0.7, center);
         }
-        else ZoomRelative(0.8);
+        else ZoomRelative(0.7);
     }
 
     private void OnResetZoomClick(object? sender, RoutedEventArgs e)
@@ -803,7 +808,25 @@ public partial class ReaderWindow : Window
             ResetWebtoonView();
             return;
         }
-        _vm.FitMode = FitMode.FitScreen;   // v1.8：复位 = 适应屏幕
+        // 复位 = 强制回到适应屏幕（问题1修复：无论当前 FitMode 是否已是 FitScreen，
+        // 都要重置 scale/tx/ty 居中——之前只设 FitMode，值相同不触发 Relayout → 拖动后不归位）
+        ResetPagedView();
+    }
+
+    /// <summary>分页模式复位：适应屏幕 + 居中（拖动/缩放后一键恢复）。</summary>
+    private void ResetPagedView()
+    {
+        if (_vm is null || Viewport is null) return;
+        _vm.FitMode = FitMode.FitScreen;
+        double vpW = Math.Max(100, Viewport.Bounds.Width);
+        double vpH = Math.Max(100, Viewport.Bounds.Height);
+        double baseW = ComputeBaseW();
+        _scale = CurrentFitScale();
+        _tx = (vpW - baseW * _scale) / 2;
+        _ty = (vpH - BaseH * _scale) / 2;
+        ApplyTransform();
+        if (Math.Abs(_vm.Scale - 1.0) > 0.001) _vm.ResetScaleInternal();
+        App.SLog($"RESET paged scale={_scale:F3} tx={_tx:F1} ty={_ty:F1}");
     }
 
     /// <summary>Webtoon 复位（BUG-H v1.9）：缩放回默认（宽度 50% 视口）+ 画面平移到当前可见页中央（不跳页）。</summary>
@@ -969,6 +992,18 @@ public partial class ReaderWindow : Window
     private void OnModeMenuClick(object? sender, RoutedEventArgs e)
     {
         if (sender is Button b) b.ContextMenu?.Open(b);
+    }
+
+    private void OnDirectionMenuClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button b) b.ContextMenu?.Open(b);
+    }
+
+    private void OnDirectionMenuItemClick(object? sender, RoutedEventArgs e)
+    {
+        if (_vm is null || sender is not MenuItem { Tag: string tag }) return;
+        var target = tag == "Rtl" ? ReadingDirection2.Rtl : ReadingDirection2.Ltr;
+        _vm.SetDirection(target);
     }
 
     private void OnModeMenuItemClick(object? sender, RoutedEventArgs e)

@@ -78,7 +78,14 @@
           </Button.ContextMenu>
         </Button>
         <Button x:Name="PairButton" Content="{Binding PairText}" Command="{Binding TogglePairOffsetCommand}" ToolTip.Tip="双页配对起点（第1张起 / 第2张起）" Foreground="{Binding ForegroundHex}"/>
-        <Button x:Name="DirectionButton" Content="{Binding DirectionText}" Command="{Binding ToggleDirectionCommand}" ToolTip.Tip="阅读方向 (D)" Foreground="{Binding ForegroundHex}"/>
+        <Button x:Name="DirectionButton" Content="{Binding DirectionText}" Click="OnDirectionMenuClick" ToolTip.Tip="阅读方向 (D)" Foreground="{Binding ForegroundHex}">
+          <Button.ContextMenu>
+            <ContextMenu>
+              <MenuItem Header="右→左" Tag="Rtl" Click="OnDirectionMenuItemClick"/>
+              <MenuItem Header="左→右" Tag="Ltr" Click="OnDirectionMenuItemClick"/>
+            </ContextMenu>
+          </Button.ContextMenu>
+        </Button>
         <Button Content="{Binding ThemeText}" Command="{Binding ToggleThemeCommand}" ToolTip.Tip="白天/夜间 (T)" Foreground="{Binding ForegroundHex}"/>
         <Button Content="−" Click="OnZoomOutClick" ToolTip.Tip="缩小" Foreground="{Binding ForegroundHex}"/>
         <TextBlock Text="{Binding FitText}" VerticalAlignment="Center" Foreground="{Binding ForegroundHex}" Margin="2,0"/>

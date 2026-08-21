@@ -42,6 +42,12 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
     [ObservableProperty] private int _totalLogical = 1;
     [ObservableProperty] private ViewMode _viewMode = ViewMode.Single;
     [ObservableProperty] private ReadingDirection2 _direction = ReadingDirection2.Rtl;
+
+    partial void OnDirectionChanged(ReadingDirection2 value)
+    {
+        // 问题2修复：DirectionText 是表达式属性，Direction 变化时必须显式通知刷新
+        OnPropertyChanged(nameof(DirectionText));
+    }
     [ObservableProperty] private bool _isDark = true;
     // 默认适应屏幕（v1.8：打开漫画/切模式默认 FitScreen，看到整页）
     [ObservableProperty] private FitMode _fitMode = FitMode.FitScreen;
@@ -512,6 +518,13 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
         SaveState();
     }
     [RelayCommand] private void ToggleDirection() { Direction = Direction == ReadingDirection2.Rtl ? ReadingDirection2.Ltr : ReadingDirection2.Rtl; SaveState(); }
+    /// <summary>直接设置阅读方向（下拉菜单显式选择）。</summary>
+    public void SetDirection(ReadingDirection2 dir)
+    {
+        if (Direction == dir) return;
+        Direction = dir;
+        SaveState();
+    }
     [RelayCommand] private void ToggleTheme() => IsDark = !IsDark;
     // 缩放由画布视图（ReaderWindow）管理：滚轮/双击/工具栏按钮（Click 事件）
 
