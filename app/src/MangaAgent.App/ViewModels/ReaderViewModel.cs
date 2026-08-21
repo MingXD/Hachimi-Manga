@@ -75,6 +75,12 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
     public string BackgroundHex => IsDark ? "#101014" : "#F3F1EC";
     public string ToolbarHex => IsDark ? "#1C1C24" : "#FFFFFF";
     public string ForegroundHex => IsDark ? "#E8E8E8" : "#1A1A1A";
+
+    // 工具栏按钮配色（UI-2 v1.9：白天/夜间统一清晰 —— 半透明底 + 边框 + 悬停高亮）
+    public string ToolbarButtonBg => IsDark ? "#2A2A34" : "#E8E6E1";
+    public string ToolbarButtonBorder => IsDark ? "#3A3A46" : "#C8C4BC";
+    public string ToolbarButtonHover => IsDark ? "#3A3A48" : "#D8D4CC";
+    public string ToolbarButtonBorderHover => IsDark ? "#5A5A6A" : "#A8A49C";
     public string ModeText => ViewMode switch
     {
         ViewMode.Double => "双页",

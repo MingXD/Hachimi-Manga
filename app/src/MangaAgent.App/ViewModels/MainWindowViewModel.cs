@@ -10,6 +10,8 @@ using MangaAgent.Core.Storage;
 
 namespace MangaAgent.App.ViewModels;
 
+public enum GalleryMode { Large, Medium, Small, Detail }
+
 public partial class MainWindowViewModel : ViewModelBase
 {
     private static readonly string AppData = Path.Combine(
@@ -32,6 +34,45 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty] private string _searchText = string.Empty;
     [ObservableProperty] private string _statusText = "就绪";
     [ObservableProperty] private bool _isScanning;
+    [ObservableProperty] private GalleryMode _galleryMode = GalleryMode.Medium;
+
+    /// <summary>展示模式按钮文案（功能-1 v1.9）。</summary>
+    public string GalleryModeText => GalleryMode switch
+    {
+        GalleryMode.Large => "展示:大图",
+        GalleryMode.Small => "展示:小图",
+        GalleryMode.Detail => "展示:详情",
+        _ => "展示:中图",
+    };
+
+    partial void OnGalleryModeChanged(GalleryMode value)
+    {
+        OnPropertyChanged(nameof(GalleryModeText));
+        OnPropertyChanged(nameof(GalleryItemWidth));
+        OnPropertyChanged(nameof(GalleryItemHeight));
+        // 重建条目以应用新尺寸
+        if (CurrentFolder is not null) ShowFolderContents(CurrentFolder);
+    }
+
+    /// <summary>封面墙卡片尺寸（随展示模式变化）。</summary>
+    public double GalleryItemWidth => GalleryMode switch
+    {
+        GalleryMode.Large => 264,
+        GalleryMode.Small => 132,
+        GalleryMode.Detail => 0,   // 详情用行式列表，不走 WrapPanel
+        _ => 184,
+    };
+    public double GalleryItemHeight => GalleryMode switch
+    {
+        GalleryMode.Large => 366,
+        GalleryMode.Small => 188,
+        GalleryMode.Detail => 0,
+        _ => 262,
+    };
+
+    [RelayCommand]
+    private void CycleGalleryMode()
+        => GalleryMode = (GalleryMode)(((int)GalleryMode + 1) % 4);
 
     /// <summary>由 MainWindow 注入：返回当前窗口（用于文件夹选择器等）。</summary>
     public Func<Window>? GetOwnerWindow { get; set; }
@@ -100,6 +141,14 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private FolderEntryItemViewModel WireEntry(FolderEntryItemViewModel item)
     {
+        // 功能-1：卡片尺寸随展示模式
+        (item.CardWidth, item.CardHeight) = GalleryMode switch
+        {
+            GalleryMode.Large => (248.0, 342.0),
+            GalleryMode.Small => (116.0, 164.0),
+            GalleryMode.Detail => (560.0, 40.0),
+            _ => (168.0, 246.0),
+        };
         item.OpenAction = e =>
         {
             if (e.IsFolder) EnterFolderCommand.Execute(e.Folder);

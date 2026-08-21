@@ -420,17 +420,7 @@ public partial class ReaderWindow : Window
         }
         if (_vm is null) return;
         double newW = Math.Max(100, Viewport.Bounds.Width);
-        bool firstEnter = _webtoonImages.Count == 0 && _webtoonOffsets.Length == 0;
-        if (Math.Abs(newW - _webtoonWidth) > 1)
-        {
-            // 视口宽变化：重建等宽基准（保持当前可见页位置不跳）
-            double oldScale = _scale;
-            double ratio = _webtoonWidth > 0 ? newW / _webtoonWidth : 1.0;
-            _webtoonWidth = newW;
-            BuildWebtoonOffsets();
-            _scale = oldScale * ratio;   // 等比缩放补偿，页面仍全宽
-            _ty *= ratio;
-        }
+        bool firstEnter = _webtoonOffsets.Length == 0;
         if (firstEnter)
         {
             // 首次进入（BUG-G/H + 功能-3 v1.9）：默认宽度 = 视口 50%，定位当前逻辑页对应物理页
@@ -440,6 +430,15 @@ public partial class ReaderWindow : Window
             int firstPhys = _vm.CurrentFirstPhysical;
             _ty = -(PageOffset(firstPhys) * _scale);
             _tx = 0;
+        }
+        else if (Math.Abs(newW - _webtoonWidth * 2) > 20)
+        {
+            // 视口尺寸变化（非首次）：重建基准，等比缩放保持页面显示尺寸，滚动位置按比例跟随
+            double ratio = newW / Math.Max(1, _webtoonWidth * 2);
+            _webtoonWidth = Math.Max(100, newW * 0.5);
+            BuildWebtoonOffsets();
+            _scale *= ratio;
+            _ty *= ratio;
         }
         PageLayer.Width = _webtoonWidth;
         PageLayer.Height = WebtoonTotalHeight;
@@ -604,16 +603,82 @@ public partial class ReaderWindow : Window
         _vm.UpdateWebtoonPageText(target);
     }
 
-    /// <summary>Webtoon：按事件滚动（步长 × 滚动速度，方向按 Delta 符号）。</summary>
+    // 平滑滚动 + 惯性（功能-2 v1.9）：滚轮事件累加目标位移，帧循环平滑过渡，停止后指数衰减惯性
+    private double _scrollTargetTy;          // 滚动目标位置
+    private double _scrollVelocity;          // 当前速度（惯性）
+    private bool _scrolling;
+    private Avalonia.Threading.DispatcherTimer? _scrollTimer;
+    private readonly System.Diagnostics.Stopwatch _scrollWatch = new();
+
+    /// <summary>Webtoon：按事件滚动 —— 平滑 + 惯性（滚轮累加目标，帧循环插值；停止后速度衰减）。</summary>
     private void ScrollWebtoonByEvent(PointerWheelEventArgs e)
     {
         if (_vm is null) return;
-        double step = Math.Max(96.0, Viewport.Bounds.Height * 0.4) * Math.Max(0.1, WebtoonSpeed);
+        double step = Math.Max(48.0, Viewport.Bounds.Height * 0.2) * Math.Max(0.1, WebtoonSpeed);
         double dy = e.Delta.Y > 0 ? step : -step;
-        _ty += dy;
-        ClampWebtoonScroll();
-        ApplyTransform();
-        UpdateWebtoonPages();
+        // 累加到目标位置（平滑滚动）
+        _scrollTargetTy = Math.Clamp(_scrollTargetTy + dy, WebtoonMinTy, 0);
+        _scrollVelocity = dy * 0.6;   // 记录速度供惯性
+        StartSmoothScroll();
+        e.Handled = true;
+    }
+
+    private double WebtoonMinTy => Math.Min(0, -(WebtoonTotalHeight * _scale - Viewport.Bounds.Height));
+
+    /// <summary>启动帧循环平滑滚动（含惯性衰减）。</summary>
+    private void StartSmoothScroll()
+    {
+        if (_scrolling) return;
+        _scrolling = true;
+        _scrollWatch.Restart();
+        if (_scrollTimer is null)
+        {
+            _scrollTimer = new Avalonia.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
+            _scrollTimer.Tick += (_, _) => SmoothScrollTick();
+        }
+        _scrollTimer.Start();
+    }
+
+    private void SmoothScrollTick()
+    {
+        if (_vm is null || _vm.ViewMode != ViewMode.Webtoon || _windowClosed)
+        {
+            _scrolling = false;
+            return;
+        }
+        double elapsed = _scrollWatch.Elapsed.TotalSeconds;
+        double remaining = _scrollTargetTy - _ty;
+        if (Math.Abs(remaining) > 0.5)
+        {
+            // 平滑插值：每次移动剩余距离的 25%（指数趋近 → 丝滑）+ 速度分量（惯性）
+            double move = remaining * 0.25 + _scrollVelocity * elapsed * 10;
+            _ty += move;
+            _scrollVelocity *= Math.Pow(0.90, elapsed * 60);   // 指数衰减（快速停止）
+            _scrollTargetTy = Math.Clamp(_scrollTargetTy, WebtoonMinTy, 0);
+            ClampWebtoonScroll();
+            ApplyTransform();
+            UpdateWebtoonPages();
+        }
+        else if (Math.Abs(_scrollVelocity) > 1.0)
+        {
+            // 惯性滑行：速度衰减直到停止
+            _ty += _scrollVelocity * elapsed * 10;
+            _scrollVelocity *= Math.Pow(0.92, elapsed * 60);
+            ClampWebtoonScroll();
+            ApplyTransform();
+            UpdateWebtoonPages();
+        }
+        else
+        {
+            // 停止：收敛到目标
+            _ty = _scrollTargetTy;
+            ClampWebtoonScroll();
+            ApplyTransform();
+            UpdateWebtoonPages();
+            _scrolling = false;
+            _scrollVelocity = 0;
+            _scrollTimer?.Stop();
+        }
     }
 
     /// <summary>Webtoon：Ctrl+滚轮缩放（锚定鼠标原始位置 —— W-2 修复，不 clamp 到单页）。</summary>
@@ -910,6 +975,57 @@ public partial class ReaderWindow : Window
         _vm.SetViewMode(target);
     }
 
+    /// <summary>缩略图条目（UI-3 v1.9）。</summary>
+    public sealed record ThumbEntry(int Physical, string PageLabel, Avalonia.Media.Imaging.Bitmap? Bitmap);
+
+    /// <summary>打开缩略图预览（当前页 ±4，共 9 张，本页居中高亮）。</summary>
+    private async void OnThumbnailStripClick(object? sender, RoutedEventArgs e)
+    {
+        if (_vm is null || ThumbnailStrip is null) return;
+        int total = _vm.PhysicalPageCount;
+        int cur = _vm.CurrentPhysical;
+        var entries = new List<ThumbEntry>();
+        int start = Math.Max(0, cur - 4);
+        int end = Math.Min(total - 1, cur + 4);
+        // 保证 9 张：不够时向另一侧补
+        while (end - start + 1 < 9 && start > 0) start--;
+        while (end - start + 1 < 9 && end < total - 1) end++;
+        var tasks = new List<Task>();
+        for (int i = start; i <= end; i++)
+        {
+            int phys = i;
+            var entry = new ThumbEntry(phys, $"{phys + 1}", null);
+            entries.Add(entry);
+            tasks.Add(Task.Run(async () =>
+            {
+                try
+                {
+                    var bmp = await _vm.GetPageBitmapAsync(phys);
+                    entry = entry with { Bitmap = bmp };
+                }
+                catch { }
+            }));
+        }
+        await Task.WhenAll(tasks);
+        ThumbnailStrip.ItemsSource = entries;
+        ThumbnailPopup?.Open();
+    }
+
+    /// <summary>点击缩略图 → 跳转（缩略图按钮在 Popup 内，用 Tag 传物理页）。</summary>
+    private void OnThumbnailClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: ThumbEntry te })
+        {
+            if (_vm?.ViewMode == ViewMode.Webtoon)
+            {
+                _vm.JumpToPhysicalCommand.Execute(te.Physical);
+                ScrollWebtoonToPhysical(te.Physical);
+            }
+            else _vm.JumpToPhysicalCommand.Execute(te.Physical);
+            ThumbnailPopup?.Close();
+        }
+    }
+
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
         if (_vm is null) return;
@@ -948,14 +1064,13 @@ public partial class ReaderWindow : Window
         }
     }
 
-    /// <summary>Webtoon：按页滚动（1 页 = 一屏高，-1 向上）。</summary>
+    /// <summary>Webtoon：按页滚动（1 页 = 一屏高，-1 向上）—— 平滑过渡。</summary>
     private void ScrollWebtoonPages(int dir)
     {
         if (_vm is null) return;
         double vpH = Math.Max(1, Viewport.Bounds.Height);
-        _ty += dir * vpH;
-        ClampWebtoonScroll();
-        ApplyTransform();
-        UpdateWebtoonPages();
+        _scrollTargetTy = Math.Clamp(_scrollTargetTy + dir * vpH, WebtoonMinTy, 0);
+        _scrollVelocity = dir * vpH * 0.4;
+        StartSmoothScroll();
     }
 }

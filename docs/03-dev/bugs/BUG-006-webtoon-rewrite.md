@@ -23,3 +23,11 @@
 ## 验证
 - WebtoonVirtualizationTests 更新（等宽语义）
 - 31/31 通过；真实书压力 4/4 零崩溃
+
+## v1.9 追加（2026-08-21）
+- BUG-F：进度条跳页 → ScrollWebtoonToPhysical（视图滚动定位，漫画实际移动）
+- BUG-G：缩放按钮以视口中心为焦点（ZoomWebtoon 统一入口，不再附带上下移动）
+- BUG-H：复位 = 宽度 50% + 画面平移到当前页中央（不跳页）
+- BUG-I：统一缩放入口（按钮/Ctrl 滚轮都走 ZoomWebtoon），修复缩放后黑屏
+- 功能-2：平滑滚动 + 惯性（DispatcherTimer 帧循环 + 指数衰减，速度按钮联动）
+- 功能-3：默认宽度 = 视口 50%

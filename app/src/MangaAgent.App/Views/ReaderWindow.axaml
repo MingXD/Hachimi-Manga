@@ -2,22 +2,72 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:MangaAgent.App.ViewModels"
         xmlns:conv="using:Avalonia.Data.Converters"
+        xmlns:views="using:MangaAgent.App.Views"
         x:Class="MangaAgent.App.Views.ReaderWindow"
         x:DataType="vm:ReaderViewModel"
         Width="1100" Height="800"
         Title="{Binding BookTitle}"
         Background="{Binding BackgroundHex}"
         KeyDown="OnKeyDown">
+  <Window.Styles>
+    <!-- 工具栏按钮统一样式（UI-2 v1.9：白天/夜间都清晰 —— 半透明背景 + 边框 + 悬停高亮，前景始终用主题色） -->
+    <Style Selector="StackPanel.toolbar Button">
+      <Setter Property="Background" Value="{Binding ToolbarButtonBg}"/>
+      <Setter Property="BorderBrush" Value="{Binding ToolbarButtonBorder}"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="CornerRadius" Value="4"/>
+      <Setter Property="Padding" Value="8,4"/>
+      <Setter Property="Foreground" Value="{Binding ForegroundHex}"/>
+      <Setter Property="FontSize" Value="12"/>
+      <Setter Property="MinWidth" Value="28"/>
+    </Style>
+    <Style Selector="StackPanel.toolbar Button:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{Binding ToolbarButtonHover}"/>
+    </Style>
+    <Style Selector="StackPanel.toolbar Button:pointerover">
+      <Setter Property="BorderBrush" Value="{Binding ToolbarButtonBorderHover}"/>
+    </Style>
+  </Window.Styles>
 
   <DockPanel>
+    <!-- 缩略图预览栏（UI-3 v1.9：弹出式，前后共 9 张，本页居中） -->
+    <Popup x:Name="ThumbnailPopup" Placement="Bottom" PlacementTarget="{Binding #Viewport}" IsLightDismissEnabled="True"
+           HorizontalOffset="0" VerticalOffset="-10">
+      <Border Background="#E81C1C24" CornerRadius="8" Padding="10" BorderBrush="#444" BorderThickness="1">
+        <StackPanel>
+          <TextBlock Text="附近页面（点击跳转）" Foreground="#AAA" FontSize="11" Margin="0,0,0,6"/>
+          <ItemsControl x:Name="ThumbnailStrip">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="6"/></ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="views:ReaderWindow+ThumbEntry">
+                <Button Click="OnThumbnailClick" Tag="{Binding}" Background="Transparent" Padding="0" BorderThickness="0">
+                  <StackPanel>
+                    <Border Background="#2A2A34" CornerRadius="4" ClipToBounds="True" Width="72" Height="96">
+                      <Image Source="{Binding Bitmap}" Stretch="Uniform" Width="72" Height="96"/>
+                    </Border>
+                    <TextBlock Text="{Binding PageLabel}" Foreground="#CCC" FontSize="9" HorizontalAlignment="Center" Margin="0,2,0,0"/>
+                  </StackPanel>
+                </Button>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+      </Border>
+    </Popup>
+
+
+
     <!-- 工具栏 -->
     <Border DockPanel.Dock="Top" Padding="10,6" Background="{Binding ToolbarHex}">
-      <StackPanel Orientation="Horizontal" Spacing="6">
+      <StackPanel Orientation="Horizontal" Spacing="6" Classes="toolbar">
         <TextBlock Text="{Binding BookTitle}" FontWeight="Bold" Foreground="{Binding ForegroundHex}"
                    VerticalAlignment="Center" Margin="0,0,18,0" MaxWidth="340" TextTrimming="CharacterEllipsis"/>
         <Button x:Name="NavPrevButton" Content="◀" Click="OnNavPrevClick" Foreground="{Binding ForegroundHex}"/>
         <Button x:Name="NavNextButton" Content="▶" Click="OnNavNextClick" Foreground="{Binding ForegroundHex}"/>
         <Button Content="{Binding PageText}" Click="OnPageTextClick" ToolTip.Tip="点击跳转到指定页 (G)" Background="Transparent" Foreground="{Binding ForegroundHex}" Padding="6,2" Margin="8,0"/>
+        <Button Content="🖼 缩略图" Click="OnThumbnailStripClick" ToolTip.Tip="预览附近页面 (缩略图)" Foreground="{Binding ForegroundHex}"/>
         <Button x:Name="ModeButton" Content="{Binding ModeText}" Click="OnModeMenuClick" Foreground="{Binding ForegroundHex}">
           <Button.ContextMenu>
             <ContextMenu>
@@ -42,10 +92,7 @@
         <Button Content="书签▶" Command="{Binding NextBookmarkCommand}" ToolTip.Tip="下一个书签" Foreground="{Binding ForegroundHex}"/>
       </StackPanel>
     </Border>
-    <!-- 底部进度 -->
-    <Border DockPanel.Dock="Bottom" Background="{Binding ToolbarHex}" Padding="8,6">
-      <ProgressBar Minimum="1" Maximum="{Binding TotalLogical}" Value="{Binding ProgressValue}" Height="6"/>
-    </Border>
+
     <!-- 阅读区：画布模型（视口 + 图片层，Scale/Translate 变换，复刻 Windows 看图器） -->
 
 

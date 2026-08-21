@@ -14,95 +14,96 @@
         <TextBlock DockPanel.Dock="Left" Text="MangaAgent" Foreground="#E8E8E8" FontSize="18" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,20,0"/>
         <Button DockPanel.Dock="Left" Content="＋ 添加资料库" Command="{Binding AddLibraryCommand}" Margin="0,0,8,0"/>
         <Button DockPanel.Dock="Left" Content="重新扫描" Command="{Binding RescanCommand}" IsEnabled="{Binding !IsScanning}" Margin="0,0,8,0"/>
+        <Button DockPanel.Dock="Left" Content="{Binding GalleryModeText}" Command="{Binding CycleGalleryModeCommand}" Margin="0,0,8,0" ToolTip.Tip="切换展示（大图/中图/小图/详情）"/>
         <TextBox DockPanel.Dock="Right" Width="280" PlaceholderText="搜索标题 / 系列…" Text="{Binding SearchText}" VerticalContentAlignment="Center"/>
         <TextBlock DockPanel.Dock="Right" Text="{Binding StatusText}" Foreground="#B0B0B0" VerticalAlignment="Center" Margin="0,0,14,0"/>
       </DockPanel>
     </Border>
-    <!-- 侧边栏：文件夹层级树（库根 → 目录 → 选中显示内容区） -->
-    <Border DockPanel.Dock="Left" Width="240" Background="#16161C">
-      <DockPanel>
-        <TextBlock DockPanel.Dock="Top" Text="文件夹" Foreground="#888888" Margin="12,10,12,6" FontSize="12"/>
-        <TreeView ItemsSource="{Binding FolderTree}" SelectedItem="{Binding SelectedFolder}" Background="Transparent">
-          <TreeView.ItemTemplate>
-            <TreeDataTemplate ItemsSource="{Binding Children}">
-              <TextBlock Text="{Binding Name}" Foreground="#E8E8E8" Margin="4,3"/>
-            </TreeDataTemplate>
-          </TreeView.ItemTemplate>
-        </TreeView>
-      </DockPanel>
-    </Border>
-    <!-- 侧栏可拖动宽度（v1.8 问题12） -->
-    <GridSplitter DockPanel.Dock="Left" Width="4" Background="#2A2A34" HorizontalAlignment="Stretch"/>
-    <!-- 内容区：面包屑 + 目录浏览器（混合：子文件夹 + 漫画封面） -->
-    <DockPanel>
-      <Border DockPanel.Dock="Top" Padding="10,5" Background="#14141A">
+    <!-- 侧边栏 + 可拖动分隔条 + 内容区（Grid 三列：0=侧栏 1=分隔条 2=内容） -->
+    <Grid ColumnDefinitions="240,4,*">
+      <!-- 侧边栏：文件夹层级树 -->
+      <Border Grid.Column="0" Background="#16161C">
         <DockPanel>
-          <Button DockPanel.Dock="Left" Content="⬆ 上级" Command="{Binding GoUpCommand}" Margin="0,0,8,0"/>
-          <ItemsControl ItemsSource="{Binding Breadcrumbs}" Margin="8,0,0,0" VerticalAlignment="Center">
-            <ItemsControl.ItemsPanel>
-              <ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate>
-            </ItemsControl.ItemsPanel>
-            <ItemsControl.ItemTemplate>
-              <DataTemplate x:DataType="core:FolderNode">
-                <StackPanel Orientation="Horizontal">
-                  <Button Content="{Binding Name}" Click="OnBreadcrumbClick" Tag="{Binding}" Background="Transparent" Padding="2,0" FontSize="12"/>
-                  <TextBlock Text="/" Foreground="#666666" Margin="2,0"/>
-                </StackPanel>
-              </DataTemplate>
-            </ItemsControl.ItemTemplate>
-          </ItemsControl>
+          <TextBlock DockPanel.Dock="Top" Text="文件夹" Foreground="#888888" Margin="12,10,12,6" FontSize="12"/>
+          <TreeView ItemsSource="{Binding FolderTree}" SelectedItem="{Binding SelectedFolder}" Background="Transparent">
+            <TreeView.ItemTemplate>
+              <TreeDataTemplate ItemsSource="{Binding Children}">
+                <TextBlock Text="{Binding Name}" Foreground="#E8E8E8" Margin="4,3"/>
+              </TreeDataTemplate>
+            </TreeView.ItemTemplate>
+          </TreeView>
         </DockPanel>
       </Border>
-      <Border Background="#101014">
-        <ScrollViewer x:Name="CoverScroller" Margin="14" ScrollChanged="OnCoverScrollChanged">
-          <ListBox x:Name="BooksList" ItemsSource="{Binding FolderEntries}"
-                   Background="Transparent" HorizontalAlignment="Left"
-                   DoubleTapped="OnBookDoubleTapped">
-            <ListBox.ItemsPanel>
-              <ItemsPanelTemplate>
-                <WrapPanel ItemWidth="184" ItemHeight="262"/>
-              </ItemsPanelTemplate>
-            </ListBox.ItemsPanel>
-            <ListBox.ItemTemplate>
-              <DataTemplate x:DataType="vm:FolderEntryItemViewModel">
-                <Border Width="176" Height="254" Background="#1E1E26" CornerRadius="6" BorderBrush="#333333" BorderThickness="1" Margin="2"
-                        ToolTip.Tip="{Binding DisplayName}">
-                  <Border.ContextMenu>
-                    <ContextMenu>
-                      <MenuItem Header="打开" Command="{Binding OpenCommand}"/>
-                      <Separator/>
-                      <MenuItem Header="复制到…" Command="{Binding CopyToCommand}"/>
-                      <MenuItem Header="移动到…" Command="{Binding MoveToCommand}"/>
-                      <Separator/>
-                      <MenuItem Header="重命名" Command="{Binding RenameCommand}"/>
-                      <MenuItem Header="删除（回收站）" Command="{Binding DeleteCommand}"/>
-                      <Separator/>
-                      <MenuItem Header="在资源管理器中显示" Command="{Binding ShowInExplorerCommand}"/>
-                      <MenuItem Header="属性" Command="{Binding PropertiesCommand}"/>
-                    </ContextMenu>
-                  </Border.ContextMenu>
-                  <Grid>
-                    <!-- 文件夹样式：图标 + 名称 + 子项数 -->
-                    <StackPanel Margin="6" VerticalAlignment="Center" IsVisible="{Binding IsFolder}">
-                      <TextBlock Text="📁" FontSize="64" HorizontalAlignment="Center" Foreground="#D8A24A"/>
-                      <TextBlock Text="{Binding DisplayName}" Foreground="#E8E8E8" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" FontSize="13" HorizontalAlignment="Center" Margin="0,10,0,0"/>
-                      <TextBlock Text="{Binding Subtitle}" Foreground="#888888" FontSize="10" HorizontalAlignment="Center" Margin="0,4,0,0"/>
-                    </StackPanel>
-                    <!-- 漫画样式：封面 + 名称 + 页数 -->
-                    <StackPanel Margin="6" IsVisible="{Binding !IsFolder}">
-                      <Border Background="#2A2A34" CornerRadius="4" Width="164" Height="200" ClipToBounds="True">
-                        <Image Source="{Binding Thumbnail}" Stretch="Uniform" Width="164" Height="200"/>
-                      </Border>
-                      <TextBlock Text="{Binding DisplayName}" Foreground="#E8E8E8" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" FontSize="12" Margin="0,6,0,0"/>
-                      <TextBlock Text="{Binding Subtitle}" Foreground="#888888" FontSize="10"/>
-                    </StackPanel>
-                  </Grid>
-                </Border>
-              </DataTemplate>
-            </ListBox.ItemTemplate>
-          </ListBox>
-        </ScrollViewer>
-      </Border>
-    </DockPanel>
+      <GridSplitter Grid.Column="1" Width="4" Background="#2A2A34" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
+      <!-- 内容区：面包屑 + 目录浏览器 -->
+      <DockPanel Grid.Column="2">
+        <Border DockPanel.Dock="Top" Padding="10,5" Background="#14141A">
+          <DockPanel>
+            <Button DockPanel.Dock="Left" Content="⬆ 上级" Command="{Binding GoUpCommand}" Margin="0,0,8,0"/>
+            <ItemsControl ItemsSource="{Binding Breadcrumbs}" Margin="8,0,0,0" VerticalAlignment="Center">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="core:FolderNode">
+                  <StackPanel Orientation="Horizontal">
+                    <Button Content="{Binding Name}" Click="OnBreadcrumbClick" Tag="{Binding}" Background="Transparent" Padding="2,0" FontSize="12"/>
+                    <TextBlock Text="/" Foreground="#666666" Margin="2,0"/>
+                  </StackPanel>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </DockPanel>
+        </Border>
+        <Border Background="#101014">
+          <ScrollViewer x:Name="CoverScroller" Margin="14" ScrollChanged="OnCoverScrollChanged">
+            <ListBox x:Name="BooksList" ItemsSource="{Binding FolderEntries}"
+                     Background="Transparent" HorizontalAlignment="Left"
+                     DoubleTapped="OnBookDoubleTapped">
+              <ListBox.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <WrapPanel ItemWidth="{Binding GalleryItemWidth}" ItemHeight="{Binding GalleryItemHeight}"/>
+                </ItemsPanelTemplate>
+              </ListBox.ItemsPanel>
+              <ListBox.ItemTemplate>
+                <DataTemplate x:DataType="vm:FolderEntryItemViewModel">
+                  <Border Width="{Binding CardWidth}" Height="{Binding CardHeight}" Background="#1E1E26" CornerRadius="6" BorderBrush="#333333" BorderThickness="1" Margin="2"
+                          ToolTip.Tip="{Binding DisplayName}">
+                    <Border.ContextMenu>
+                      <ContextMenu>
+                        <MenuItem Header="打开" Command="{Binding OpenCommand}"/>
+                        <Separator/>
+                        <MenuItem Header="复制到…" Command="{Binding CopyToCommand}"/>
+                        <MenuItem Header="移动到…" Command="{Binding MoveToCommand}"/>
+                        <Separator/>
+                        <MenuItem Header="重命名" Command="{Binding RenameCommand}"/>
+                        <MenuItem Header="删除（回收站）" Command="{Binding DeleteCommand}"/>
+                        <Separator/>
+                        <MenuItem Header="在资源管理器中显示" Command="{Binding ShowInExplorerCommand}"/>
+                        <MenuItem Header="属性" Command="{Binding PropertiesCommand}"/>
+                      </ContextMenu>
+                    </Border.ContextMenu>
+                    <Grid>
+                      <StackPanel Margin="6" VerticalAlignment="Center" IsVisible="{Binding IsFolder}">
+                        <TextBlock Text="📁" FontSize="64" HorizontalAlignment="Center" Foreground="#D8A24A"/>
+                        <TextBlock Text="{Binding DisplayName}" Foreground="#E8E8E8" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" FontSize="13" HorizontalAlignment="Center" Margin="0,10,0,0"/>
+                        <TextBlock Text="{Binding Subtitle}" Foreground="#888888" FontSize="10" HorizontalAlignment="Center" Margin="0,4,0,0"/>
+                      </StackPanel>
+                      <StackPanel Margin="6" IsVisible="{Binding !IsFolder}">
+                        <Border Background="#2A2A34" CornerRadius="4" Width="164" Height="200" ClipToBounds="True">
+                          <Image Source="{Binding Thumbnail}" Stretch="Uniform" Width="164" Height="200"/>
+                        </Border>
+                        <TextBlock Text="{Binding DisplayName}" Foreground="#E8E8E8" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" FontSize="12" Margin="0,6,0,0"/>
+                        <TextBlock Text="{Binding Subtitle}" Foreground="#888888" FontSize="10"/>
+                      </StackPanel>
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ListBox.ItemTemplate>
+            </ListBox>
+          </ScrollViewer>
+        </Border>
+      </DockPanel>
+    </Grid>
   </DockPanel>
 </Window>

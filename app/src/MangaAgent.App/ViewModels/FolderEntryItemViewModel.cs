@@ -28,6 +28,10 @@ public partial class FolderEntryItemViewModel : ViewModelBase
     /// <summary>源路径（文件夹或书）。</summary>
     public string SourcePath => IsFolder ? (Folder?.Path ?? "") : (Book?.Path ?? "");
 
+    /// <summary>展示尺寸（功能-1 v1.9：由主窗口模式注入）。</summary>
+    public double CardWidth { get; set; } = 168;
+    public double CardHeight { get; set; } = 246;
+
     /// <summary>名称：文件夹名 / 书名。</summary>
     public string DisplayName => IsFolder ? (Folder?.Name ?? "") : (Book?.DisplayName ?? "");
 
