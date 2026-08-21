@@ -103,7 +103,8 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
         FitMode.FitWidth => "适应宽度",
         FitMode.FitHeight => "适应高度",
         FitMode.FitScreen => "适应屏幕",
-        _ => $"{Scale * 100:F0}%",
+        // 自定义缩放：与 −/+ 中间文本一致（基准=适应屏幕）—— 两边对齐
+        _ => ZoomPercentText,
     };
 
     public ReaderViewModel(BookInfo book, string stateDbPath)
@@ -176,7 +177,11 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
         // FitMode 由 CycleFit/Reset 或画布缩放（code-behind）管理；此处仅刷新显示
         OnPropertyChanged(nameof(FitText));
     }
-    partial void OnZoomPercentChanged(double value) => OnPropertyChanged(nameof(ZoomPercentText));
+    partial void OnZoomPercentChanged(double value)
+    {
+        OnPropertyChanged(nameof(ZoomPercentText));
+        OnPropertyChanged(nameof(FitText));   // Custom 模式 FitText 显示 ZoomPercentText
+    }
 
     partial void OnFitModeChanged(FitMode value)
     {
