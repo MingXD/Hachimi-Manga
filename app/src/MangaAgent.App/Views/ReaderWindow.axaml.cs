@@ -63,6 +63,11 @@ public partial class ReaderWindow : Window
         PageLayer.RenderTransformOrigin = Avalonia.RelativePoint.TopLeft;
         KeyDown += (_, e) => { if (e.Key == Key.LeftCtrl || e.Key == Key.RightCtrl) _ctrlDown = true; };
         KeyUp += (_, e) => { if (e.Key == Key.LeftCtrl || e.Key == Key.RightCtrl) _ctrlDown = false; };
+        // 修复"点击无反应"：拖拽状态兜底复位 —— 若拖拽中鼠标在 Viewport 外松开
+        // （移到工具栏/按钮上），Viewport 收不到 Released → _isDragging 卡 true →
+        // 后续每次鼠标移动都被视口处理并 Handled → 按钮 Click 被吞。
+        // 窗口级监听 Released 保证任何位置松开都复位拖拽状态。
+        this.AddHandler(PointerReleasedEvent, (_, e) => _isDragging = false, Avalonia.Interactivity.RoutingStrategies.Bubble);
     }
 
     protected override void OnDataContextChanged(EventArgs e)
@@ -162,6 +167,26 @@ public partial class ReaderWindow : Window
                 _vm.ToggleModeCommand.Execute(null);
                 await Task.Delay(3000);
                 sb.AppendLine($"FINAL: vm={_vm.ViewMode} img1={(_vm.Image1 is null ? "null" : "ok")}");
+
+                // 按钮响应测速（问题：点击无反应）：分页模式连点缩放/翻页，测处理耗时
+                _vm.SetViewMode(ViewMode.Single);
+                await Task.Delay(800);
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+                int clicks = 0;
+                for (int i = 0; i < 8; i++)
+                {
+                    OnZoomInClick(this, new RoutedEventArgs());
+                    await Task.Delay(50);
+                    clicks++;
+                    if (sw.ElapsedMilliseconds > 8000) break;
+                }
+                sw.Stop();
+                sb.AppendLine($"CLICK: {clicks} clicks in {sw.ElapsedMilliseconds}ms scale={CanvasScale:F3} (avg {(double)sw.ElapsedMilliseconds / Math.Max(1, clicks):F1}ms/click)");
+                App.SLog($"DIAG clicks={clicks} scale={CanvasScale:F3}");
+                // 复位测试
+                OnResetZoomClick(this, new RoutedEventArgs());
+                await Task.Delay(200);
+                sb.AppendLine($"RESET: scale={CanvasScale:F3} tx={CanvasX:F1} ty={CanvasY:F1}");
             }
             File.WriteAllText("D:\\MangaAgent\\app\\diag-zoom.txt", sb.ToString());
         }
@@ -203,6 +228,7 @@ public partial class ReaderWindow : Window
 
     private void Relayout()
     {
+        var rsw = System.Diagnostics.Stopwatch.StartNew();
         if (_vm is null || Viewport is null || PageImage1 is null) return;
         double vpW = Math.Max(100, Viewport.Bounds.Width);
         double vpH = Math.Max(100, Viewport.Bounds.Height);
@@ -261,6 +287,9 @@ public partial class ReaderWindow : Window
             ToolTip.SetTip(NavPrevButton, rtl ? "下一页 (←)" : "上一页 (←)");
             ToolTip.SetTip(NavNextButton, rtl ? "上一页 (→)" : "下一页 (→)");
         }
+        rsw.Stop();
+        if (rsw.ElapsedMilliseconds > 15)
+            App.SLog($"RELAYOUT SLOW {rsw.ElapsedMilliseconds}ms mode={_vm?.ViewMode}");
     }
 
     // ---------- 缩放（精细、鼠标焦点锚定） ----------
@@ -724,7 +753,6 @@ public partial class ReaderWindow : Window
         if (_vm is null) return;
         LastPressSource = e.Source?.GetType().Name ?? "null";
         LastPressLeft = e.GetCurrentPoint(this).Properties.IsLeftButtonPressed;
-        App.SLog($"PRESS source={LastPressSource} left={LastPressLeft} pos={e.GetPosition(Viewport)} vp={ViewportSize}");
         // 只在图片上拖动（看图器行为：空白处不拖）
         if (e.Source is Image && LastPressLeft)
         {
