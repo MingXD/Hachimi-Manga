@@ -295,6 +295,30 @@
 
 ---
 
+## 一·二十五、滚动模式修复（2026-08，用户反馈三问题：黑屏/惯性回弹/复位语义）
+
+> 方案与根因分析见 [scroll-mode-fix-plan.md](scroll-mode-fix-plan.md)（用户已决策：默认视图=适应屏幕+居中、复位同语义、纯动量惯性、拖拽甩动、一次做完）。
+
+| # | 修复/改动 | 文件位置 | 可能影响的功能（风险点） |
+|---|---|---|---|
+| 2.4-1 | **黑屏根治①（解码链跳过）**：`LoadCurrentAsync` 在 Webtoon 模式直接返回 —— 分页解码的 Image1/Image2 不显示，反而触发 Relayout→EnterWebtoon→seq++ 作废在途 Webtoon 解码 → 画布空黑屏 | ReaderViewModel.cs：LoadCurrentAsync | 滚动模式页码/续读/跳页状态（PageText 由 UpdateWebtoonPageText 维护，已验证） |
+| 2.4-2 | **黑屏根治②（EnterWebtoon 幂等）**：`_webtoonSeq++` 只在首次进入/视口尺寸变化时执行；重复 Relayout 不再作废在途任务。尺寸变化检测改 `_webtoonBaseViewportW`（原 `_webtoonWidth*2` 在默认宽度非 50% 后恒误判 → 每次 Relayout 重建+作废） | ReaderWindow.axaml.cs：EnterWebtoon | 模式切换、窗口缩放 |
+| 2.4-3 | **黑屏根治③（作废补偿）**：`LoadWebtoonImageAsync` 因 seq 过期丢弃位图后，若该页仍在可见范围 → 让出 loading 标记重新请求，杜绝"请求被丢→画布空" | ReaderWindow.axaml.cs：LoadWebtoonImageAsync | 快速跳页/切模式并发 |
+| 2.4-4 | **跳页修复**：跳页对话框 Webtoon 分支补 `ScrollWebtoonToPhysical`（原只改状态不动画面→"跳转无效"）；"当前页"计算改 `PhysicalAt((-ty)/scale)`（原用分页 BaseH 算错页） | ReaderWindow.axaml.cs：ShowJumpDialog | 输入页码跳转 |
+| 2.4-5 | **工具栏/键盘翻页动画面**：Webtoon 模式 ◀▶ 按钮改按方向滚动一屏（原只改 CurrentIndex 画面不动）；Space/PageDown/PageUp 方向修正（原 PageDown 实际向上滚） | ReaderWindow.axaml.cs：OnNavPrev/NextClick、OnKeyDown(Tunnel) | 滚动模式翻页方向 |
+| 2.4-6 | **惯性重写（纯动量）**：删"目标-位置"双轨（`_scrollTargetTy` 失同步→惯性反冲的根因）→ 滚轮每格施加速度脉冲，帧循环指数摩擦衰减滑行停住（方向恒与滚动一致）；每帧 dt 重置（原 elapsed 自启动累积→速度项放大+衰减加速→过冲后反向回弹） | ReaderWindow.axaml.cs：ScrollWebtoonByEvent/SmoothScrollTick/ScrollWebtoonPages | 滚动手感、速度按钮、键盘翻页 |
+| 2.4-7 | **拖拽防互搏+甩动**：拖拽开始 CancelSmoothScroll（残余惯性不再往回拉）；拖拽中估速，释放超阈值按拖拽方向甩动滑行（fling） | ReaderWindow.axaml.cs：OnViewportPointerPressed/Moved/Released | 拖拽手感 |
+| 2.4-8 | **边界即停**：ClampWebtoonScroll 到边界清速度（不反弹）；内容窄于视口水平居中（与分页规则一致） | ReaderWindow.axaml.cs：ClampWebtoonScroll | 边界滚动、水平居中 |
+| 2.4-9 | **默认视图/复位统一**：新 `FitWebtoonToPage` —— 当前页完全可见（宽=min(视口宽, 页高×ratio)）+ 水平垂直居中 + scale=1；`EnterWebtoon` 首入与 `ResetWebtoonView`（复位=回到进入默认视图）共用；封面页（第 0 页）自动满足 | ReaderWindow.axaml.cs：FitWebtoonToPage/EnterWebtoon/ResetWebtoonView | 滚动模式初始显示、复位按钮、双击进入封面 |
+| 2.4-10 | **DecodeAsync 引用计数下溢修复（连带发现）**：缓存命中且位图仍被 UI 引用时复用**不 Acquire** → 调用方 Release 使计数下溢到 0 → 缓存淘汰 Dispose 掉仍被 UI 引用的位图 → 渲染 `Bitmap.get_Size()` 抛 ObjectDisposedException（快速切模式时复现）；补 Acquire 配平 | ReaderViewModel.cs：DecodeAsync | 分页/滚动所有位图生命周期（**高危**，防崩溃） |
+| 2.4-11 | 新增滚动模式回归测试 6 项：进入即非空（黑屏）/默认视图居中/跳页定位+竞态/惯性单调不回弹/复位居中/快速切模式不崩 | ScrollModeFixesTests.cs | 测试基线 42→48 |
+
+### 设计备忘
+- 纯动量参数：摩擦 6.0、停止阈值 8px/s、速度上限 6000px/s、脉冲换算 7.2（单档滑行 ≈1.2×步长、连滚累积速度）—— 手感接近手机长页面
+- 拖拽甩动阈值 120px/s（低于则松手即停）
+
+---
+
 ## 二、v2.2c + v2.2b（2026-08-22，热区与按钮配色修复）
 
 | # | 修复 | 文件位置 | 可能影响的功能 |

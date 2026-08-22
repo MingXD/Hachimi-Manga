@@ -224,6 +224,10 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
 
     private async Task LoadCurrentAsync()
     {
+        // 滚动模式（Webtoon）：分页解码链完全跳过 —— 页面由视图的 UpdateWebtoonPages 虚拟化渲染，
+        // PageText 由 UpdateWebtoonPageText 维护；此处解码的 Image1/Image2 不显示，
+        // 反而触发 Relayout→EnterWebtoon→seq++ 作废在途 Webtoon 解码任务 → 黑屏（scroll-mode-fix A）。
+        if (ViewMode == ViewMode.Webtoon) return;
         if (_logical.Count == 0) return;
         var mySeq = ++_loadSeq;
         var myLayout = _layoutVersion;
@@ -406,6 +410,10 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
             {
                 _cacheOrder.Remove(physical);
                 _cacheOrder.AddLast(physical);
+                // 复用也必须 Acquire：调用方（LoadCurrentAsync/GetPageBitmapAsync）返回后都会 Release，
+                // 不 Acquire 会使引用计数下溢到 0 → 缓存淘汰时 Dispose 掉仍被 UI 引用的位图 → 渲染崩溃
+                // （scroll-mode-fix：快速切模式/滚动时复现 ObjectDisposedException@Bitmap.get_Size）
+                AcquireUiBitmap(cached);
                 return cached;
             }
             TryDispose(cached);
