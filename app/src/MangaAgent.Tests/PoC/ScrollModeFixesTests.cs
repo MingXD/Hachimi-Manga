@@ -258,7 +258,7 @@ public class ScrollModeFixesTests
         finally { try { File.Delete(db); } catch { } }
     }
 
-    /// <summary>v2/v3 回归：滚轮 Delta 抖动免疫（死区内小值不产生反向滚动）；
+    /// <summary>v2/v3 回归：滚轮抖动免疫（±1 只产生微小脉冲不反弹）；
     /// 弱 Delta（-30）也必须有滚动效果（v3 比例脉冲根治"滚轮无作用"）；一档 -120 正常滚动。</summary>
     [AvaloniaFact]
     public async Task WheelDeltaJitter_DoesNotBounce()
@@ -271,20 +271,20 @@ public class ScrollModeFixesTests
             var win = await OpenWebtoonAsync(vm);
             await WaitUntilAsync(() => win.WebtoonInstancedCount >= 1, 8000);
 
-            // 抖动：±1（死区 <2 完全忽略）→ 不应滚动
+            // 抖动：±1 交替（触摸板惯性尾流）→ 比例脉冲微小且正负相抵，不应有明显移动/反弹
             double y0 = win.CanvasY;
             win.MouseWheel(new Point(550, 400), new Vector(0, -1), RawInputModifiers.None);
             win.MouseWheel(new Point(550, 400), new Vector(0, 1), RawInputModifiers.None);
             win.MouseWheel(new Point(550, 400), new Vector(0, -1), RawInputModifiers.None);
             win.MouseWheel(new Point(550, 400), new Vector(0, 1), RawInputModifiers.None);
-            await Task.Delay(300);
-            Assert.True(Math.Abs(win.CanvasY - y0) < 1.0, $"死区抖动不应滚动（ty {y0} -> {win.CanvasY}）");
+            await Task.Delay(400);
+            Assert.True(Math.Abs(win.CanvasY - y0) < 8.0, $"±1 抖动不应明显移动（ty {y0} -> {win.CanvasY}）");
 
-            // 弱 Delta（-30，弱 Delta 设备/触摸板常见）→ 必须滚动（v3：滚轮无作用根治）
+            // 弱 Delta（-30，弱 Delta 设备常见）→ 必须滚动（v3.1：无死区无下限，比例生效）
             win.MouseWheel(new Point(550, 400), new Vector(0, -30), RawInputModifiers.None);
             await Task.Delay(800);
             double yWeak = win.CanvasY;
-            Assert.True(yWeak < y0 - 10, $"弱 Delta 也应产生滚动（ty {y0} -> {yWeak}）");
+            Assert.True(yWeak < y0 - 20, $"弱 Delta 也应产生滚动（ty {y0} -> {yWeak}）");
 
             // 一档真实向下 → 正常滚动并滑行停住
             win.MouseWheel(new Point(550, 400), new Vector(0, -120), RawInputModifiers.None);
@@ -296,7 +296,7 @@ public class ScrollModeFixesTests
             win.MouseWheel(new Point(550, 400), new Vector(0, 1), RawInputModifiers.None);
             win.MouseWheel(new Point(550, 400), new Vector(0, -1), RawInputModifiers.None);
             await Task.Delay(400);
-            Assert.True(win.CanvasY < yAfterDown + 2.0,
+            Assert.True(win.CanvasY < yAfterDown + 8.0,
                 $"滑行后反向抖动不应把画面拉回（ty {yAfterDown} -> {win.CanvasY}）");
             win.Close();
             await vm.DisposeAsync();
@@ -532,6 +532,34 @@ public class ScrollModeFixesTests
             win.KeyPressQwerty(PhysicalKey.ArrowUp, RawInputModifiers.None);
             await Task.Delay(300);
             Assert.True(vm.CurrentPhysical == p0, "分页 ↑ 应上一页");
+            win.Close();
+            await vm.DisposeAsync();
+        }
+        finally { try { File.Delete(db); } catch { } }
+    }
+
+    /// <summary>v3.1 回归：滚动模式"适应宽度"= 条宽铺满视口（与单页 FitWidth 一致）。</summary>
+    [AvaloniaFact]
+    public async Task FitWidth_FillsViewport()
+    {
+        var db = Path.Combine(Path.GetTempPath(), $"manga_wtf15_{Guid.NewGuid():N}.db");
+        try
+        {
+            var vm = new ReaderViewModel(StressBook, db);
+            await WaitUntilAsync(() => vm.Image1 is not null);
+            var win = await OpenWebtoonAsync(vm);
+            await WaitUntilAsync(() => win.WebtoonInstancedCount >= 1, 8000);
+
+            // 初始为适应屏幕（条宽窄于视口）→ 按一次适应按钮 → FitWidth：条宽 = 视口宽、tx=0、fit=100%
+            Assert.True(win.WebtoonWidthValue < win.ViewportSize.Width - 10, "前置：适应屏幕条宽应窄于视口");
+            vm.CycleFitCommand.Execute(null);   // FitScreen -> FitWidth
+            await Task.Delay(600);
+            Assert.True(Math.Abs(win.WebtoonWidthValue - win.ViewportSize.Width) < 1.0,
+                $"适应宽度后条宽应 = 视口宽（{win.WebtoonWidthValue:F1} vs {win.ViewportSize.Width:F1}）");
+            Assert.True(Math.Abs(win.CanvasX) < 1.0, "铺满宽度 → tx=0");
+            Assert.Equal(100.0, vm.ZoomPercent, 1);
+            // 画面有内容（重建完成）
+            Assert.True(win.WebtoonInstancedCount >= 1 || win.WebtoonPlaceholderCount >= 1, "适应宽度后画面不应全黑");
             win.Close();
             await vm.DisposeAsync();
         }

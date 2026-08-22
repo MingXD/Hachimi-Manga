@@ -151,9 +151,13 @@ public partial class ReaderWindow : Window
                     Relayout();
                     ArrangeDoublePageOrder();
                 }
-                // v3：滚动模式按"适应屏幕"（CycleFit 改 FitMode）→ 当前页适应屏幕+居中（与复位同语义）
+                // v3：滚动模式按"适应屏幕/适应高度"（CycleFit 改 FitMode）→ 当前页适应屏幕+居中（与复位同语义）；
+                // v3.1："适应宽度" → 条宽铺满视口（与单页 FitWidth 一致）
                 if (args.PropertyName == nameof(ReaderViewModel.FitMode) && vm.ViewMode == ViewMode.Webtoon)
-                    ResetWebtoonView();
+                {
+                    if (vm.FitMode == FitMode.FitWidth) FitWebtoonWidth();
+                    else ResetWebtoonView();
+                }
             };
             Relayout();
         }
@@ -497,6 +501,7 @@ public partial class ReaderWindow : Window
         if (_vm is null) return;
         if (IsOverPreviewStrip(e.Source)) return;   // 预览栏滚轮翻页，不缩放
         bool ctrl = e.KeyModifiers.HasFlag(KeyModifiers.Control) || _ctrlDown;
+        App.SLog($"WHEEL_EVT mode={_vm.ViewMode} dy={e.Delta.Y:F1} ctrl={ctrl}");   // F12 诊断：事件是否到达
         if (_vm.ViewMode == ViewMode.Webtoon)
         {
             if (ctrl)
@@ -589,6 +594,34 @@ public partial class ReaderWindow : Window
         ClampWebtoonScroll();
         ApplyTransform();
         UpdateWebtoonPages();
+    }
+
+    /// <summary>滚动模式"适应宽度"（v3.1）：条宽 = 视口宽（铺满，与单页 FitWidth 一致），
+    /// 当前可见页顶对齐视口顶。</summary>
+    private void FitWebtoonWidth()
+    {
+        if (_vm is null || _webtoonOffsets.Length == 0) return;
+        double vpW = Math.Max(100, Viewport.Bounds.Width);
+        double vpH = Math.Max(100, Viewport.Bounds.Height);
+        int curPhys = Math.Clamp(PhysicalAt(Math.Max(0, (-_ty + vpH / 2) / Math.Max(0.001, _scale))),
+            0, _vm.PhysicalPageCount - 1);
+        CancelSmoothScroll();
+        _webtoonSeq++;                       // 结构变化：作废在途解码
+        _webtoonWidth = vpW;                 // 铺满视口宽
+        _webtoonBaseViewportW = vpW;
+        BuildWebtoonOffsets();
+        ClearWebtoonImages();                // 旧宽度图清除重建（防错位）
+        ClearWebtoonPlaceholders();
+        _scale = 1.0;
+        _tx = 0;                             // 铺满 → 无需水平居中
+        _ty = -(PageOffset(curPhys));        // 当前页顶对齐视口顶（单页 FitWidth 语义）
+        PageLayer.Width = _webtoonWidth;
+        PageLayer.Height = WebtoonTotalHeight;
+        ClampWebtoonScroll();
+        ApplyTransform();
+        UpdateWebtoonPages();
+        UpdateZoomPercent();
+        App.SLog($"WEBTOON FITWIDTH page={curPhys} width={_webtoonWidth:F0} ty={_ty:F1}");
     }
 
     /// <summary>滚动模式默认视图：当前页适应屏幕（完全可见）+ 水平垂直居中，与单页 FitScreen 语义一致。
@@ -932,32 +965,31 @@ public partial class ReaderWindow : Window
     }
 
     // 平滑滚动 + 惯性（scroll-mode-fix B：纯动量模型，手机长页面式）
-    // 滚轮输入（scroll-mode-fix v3）：比例脉冲 + 死区 —— 任何 Delta 大小都立即产生滚动
-    // （v2.5 的"累积满 120 才分步"对弱 Delta 设备失效 → 完全无滚动；本模型 Delta 120≈半屏滑行，
-    //  弱 Delta 设备每事件也有最小脉冲兜底；|Delta|<2 抖动死区过滤 → 不反向弹）
-    // 运动侧：每事件对速度施脉冲 → 指数摩擦衰减滑行停住；无"目标-位置"双轨；拖拽释放按速度甩动（fling）。
+    // 滚轮输入（scroll-mode-fix v3.1）：纯比例脉冲 —— v = Delta×16，无死区、无下限。
+    // 任何 Delta 大小都产生成比例滚动（弱 Delta 设备根治）：120≈半屏滑行、40≈107px、1≈2.6px/事件
+    // （多事件累积）；抖动 ±1 只会产生 ±16px/s 微小脉冲、正负相抵 → 不反弹。
+    // 运动侧：每事件对速度施脉冲 → 指数摩擦衰减滑行停住；拖拽释放按速度甩动（fling）。
     private double _scrollVelocity;          // 当前速度（px/s，正=向上/ty 增大）
     private bool _scrolling;
     private Avalonia.Threading.DispatcherTimer? _scrollTimer;
     private readonly System.Diagnostics.Stopwatch _scrollWatch = new();
+    private long _lastTickLog;               // 滚动过程周期性日志（F12 诊断）
     private const double ScrollFriction = 6.0;        // 指数摩擦系数（越大停得越快）
     private const double ScrollStopEps = 8.0;         // 停止速度阈值（px/s）
     private const double MaxScrollVelocity = 6000.0;  // 速度上限（防快速连滚失控）
     private const double WheelVelocityK = 16.0;       // Delta→速度换算（120 ≈ 1920 px/s ≈ 半屏滑行）
-    private const double WheelDeadband = 2.0;         // |Delta| < 2 的抖动完全忽略
-    private const double WheelMinImpulse = 150.0;     // 任一有效档位的最小脉冲（弱 Delta 设备兜底）
     private const double DragFlingThreshold = 150.0;  // 拖拽甩动触发阈值（px/s）
     private const double DragFlingMax = 3000.0;       // 拖拽甩动速度上限
 
-    /// <summary>Webtoon：滚轮事件 —— 比例脉冲 + 死区过滤（任何 Delta 大小都有效）。</summary>
+    /// <summary>Webtoon：滚轮事件 —— 纯比例脉冲（任何 Delta 大小都有效，事件全量进 F12 日志）。</summary>
     private void ScrollWebtoonByEvent(PointerWheelEventArgs e)
     {
         if (_vm is null) return;
         double dy = e.Delta.Y;
-        if (Math.Abs(dy) < WheelDeadband) { e.Handled = true; return; }   // 抖动过滤
-        double v = Math.Max(Math.Abs(dy) * WheelVelocityK, WheelMinImpulse)
-                   * Math.Sign(dy) * Math.Max(0.1, WebtoonSpeed);
+        if (dy == 0) { e.Handled = true; return; }
+        double v = dy * WheelVelocityK * Math.Max(0.1, WebtoonSpeed);
         AddScrollVelocity(Math.Clamp(v, -MaxScrollVelocity, MaxScrollVelocity));
+        App.SLog($"WHEEL dy={dy:F1} v={v:F0} ty={_ty:F0}");
         e.Handled = true;
     }
 
@@ -1014,6 +1046,13 @@ public partial class ReaderWindow : Window
         ClampWebtoonScroll();   // 边界：到边即停（内部清速度，不反弹）
         ApplyTransform();
         UpdateWebtoonPages();
+        // 周期性滚动日志（F12 诊断，~2次/秒）
+        long now = Environment.TickCount64;
+        if (now - _lastTickLog > 500)
+        {
+            _lastTickLog = now;
+            App.SLog($"SCROLL ty={_ty:F0} v={_scrollVelocity:F0}");
+        }
     }
 
     /// <summary>Webtoon：Ctrl+滚轮缩放（锚定鼠标原始位置 —— W-2 修复，不 clamp 到单页）。</summary>
