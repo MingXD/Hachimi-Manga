@@ -165,6 +165,21 @@
 
 ---
 
+## 一·十四、v2.3.10 顶栏层级 + 详情行紧贴（2026-08-22）
+
+> 用户反馈：搜索框仍盖按钮（要求按钮/标题最上、搜索框第二、状态文本最底）；详情行间隔过大。
+
+| # | 修复/改动 | 文件位置 | 可能影响的功能（风险点） |
+|---|---|---|---|
+| 2.3.10-1 | **顶栏显式层级**：ZIndex 附加属性（Avalonia 12 属 Visual 非 Panel）——标题/按钮 ZIndex=10（最上）、搜索框 5（第二）、状态文本 1（最底最先被盖住）；声明顺序不变 → 位置不变 | MainWindow.axaml：顶栏 | 窗口变窄重叠层级 |
+| 2.3.10-2 | **详情行紧贴**：ListBox 加 ItemContainerTheme（Avalonia 12 用 ItemContainerTheme 非 WPF 的 ItemContainerStyle）Padding=0 + Margin=0,1 → 去掉默认 padding，行框与视觉项目高度一致，行间 ~4px | MainWindow.axaml：DetailList | 详情模式行间距 |
+
+### Avalonia 12 API 备忘
+- ZIndex：直接写 ZIndex（Visual 属性），不用 Panel.ZIndex 前缀
+- ItemContainerTheme（ControlTheme TargetType=ListBoxItem）替代 ItemContainerStyle
+
+---
+
 ## 二、v2.2c + v2.2b（2026-08-22，热区与按钮配色修复）
 
 | # | 修复 | 文件位置 | 可能影响的功能 |
