@@ -24,6 +24,23 @@
 
 ---
 
+## 一·五、v2.3.1 预览栏页码右侧 + 当前页高亮（2026-08-22）
+
+> 用户反馈：全屏时预览栏第 7 张被遮挡 8 成、当前页无高亮。
+
+| # | 修复/改动 | 文件位置 | 可能影响的功能（风险点） |
+|---|---|---|---|
+| 2.3.1-1 | **第7张被遮根因**：卡片高度公式只算卡片高，漏算每张下方页码 TextBlock（~15px×7=105px 固定纵向溢出）→ 页码移到卡片右侧（横向 卡片|页码），不占纵向空间，溢出根治 | ReaderWindow.axaml：ThumbStrip DataTemplate 改 Horizontal StackPanel | 预览栏布局、页码显示位置 |
+| 2.3.1-2 | 预览栏宽 120→132（容纳右侧页码 ~22px + 间距） | ReaderWindow.axaml：PreviewStrip Width | 覆盖层遮挡范围（+12px，用户确认可接受） |
+| 2.3.1-3 | **当前页高亮**：ThumbStripItem.IsCurrent + RefreshThumbStrip 标记（== CurrentPhysical）；卡片 2px 主题色边框（夜金 #FFD700 / 昼蓝 #0078D4）+ 页码变色；样式走 Window.Styles（Border.previewCard.current / TextBlock.previewLabel.current，class 绑定） | ReaderWindow.axaml(.cs) + ReaderViewModel.cs：PreviewStripHighlight + OnIsDarkChanged | 高亮绑定、主题切换 |
+| 2.3.1-4 | 新增回归测试：唤出后恰 7 项、恰一项 IsCurrent 且为当前物理页、ScrollViewer 纵向不溢出 | PreviewStripOverlayTests.cs | 测试基线 36→37 |
+
+### 设计权衡备忘
+- 卡片上限 130 **保留**：缩略图按 150px 宽解码（性能），130px 显示接近 1:1 不糊；去掉上限需提高解码分辨率（内存翻倍）
+- 页码在卡片右侧垂直居中、固定宽 22px 右对齐，1–3 位数字均放得下
+
+---
+
 ## 二、v2.2c + v2.2b（2026-08-22，热区与按钮配色修复）
 
 | # | 修复 | 文件位置 | 可能影响的功能 |
