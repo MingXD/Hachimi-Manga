@@ -180,6 +180,18 @@
 
 ---
 
+## 一·十五、v2.3.11 详情行高亮 + 间距 + 右缘留白（2026-08-22）
+
+> 用户反馈：详情行间隔再小、hover 要高亮、右缘贴边被滚动条遮挡。
+
+| # | 修复/改动 | 文件位置 | 可能影响的功能（风险点） |
+|---|---|---|---|
+| 2.3.11-1 | 详情行间距：Border Margin 0,3→0,1（行间 ~2px） | MainWindow.axaml：DetailList 模板 | 详情行间距 |
+| 2.3.11-2 | **hover 高亮**：ListBox.Styles —— Border.detailRow:pointerover（背景 #2E2E38 + 边框 #5A5A6A）；副标题盖层背景同步（TextBlock.subtitleCover）避免色差 | MainWindow.axaml：DetailList | 详情行悬停反馈 |
+| 2.3.11-3 | 右缘留白：DetailList Padding 右 12px，防滚动条遮挡副标题 | MainWindow.axaml：DetailList | 详情行右缘 |
+
+---
+
 ## 二、v2.2c + v2.2b（2026-08-22，热区与按钮配色修复）
 
 | # | 修复 | 文件位置 | 可能影响的功能 |
