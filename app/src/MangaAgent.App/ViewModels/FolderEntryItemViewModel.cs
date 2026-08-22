@@ -32,8 +32,20 @@ public partial class FolderEntryItemViewModel : ViewModelBase
     public double CardWidth { get; set; } = 168;
     public double CardHeight { get; set; } = 246;
 
+    // 展示模式数据化（v2.3.6：封面/字体随模式注入，详情模式行式无图）
+    /// <summary>封面显示尺寸（大/中/小模式；详情模式 0 = 隐藏图片）。</summary>
+    public double CoverWidth { get; set; } = 164;
+    public double CoverHeight { get; set; } = 200;
+    public double TitleFontSize { get; set; } = 12;
+    public double SubtitleFontSize { get; set; } = 10;
+    /// <summary>详情模式：行式布局（图标 + 名称 + 副标题横排，无图片）。</summary>
+    public bool IsDetail { get; set; }
+
     /// <summary>名称：文件夹名 / 书名。</summary>
     public string DisplayName => IsFolder ? (Folder?.Name ?? "") : (Book?.DisplayName ?? "");
+
+    /// <summary>详情模式行式图标（文件夹 / 书本）。</summary>
+    public string IconText => IsFolder ? "📁" : "📖";
 
     /// <summary>副标题：文件夹显示子项数；书显示页数与类型。</summary>
     public string Subtitle => IsFolder

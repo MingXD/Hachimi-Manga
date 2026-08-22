@@ -59,14 +59,14 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         GalleryMode.Large => 264,
         GalleryMode.Small => 132,
-        GalleryMode.Detail => 0,   // 详情用行式列表，不走 WrapPanel
+        GalleryMode.Detail => 560,  // 详情：行式条宽
         _ => 184,
     };
     public double GalleryItemHeight => GalleryMode switch
     {
         GalleryMode.Large => 366,
         GalleryMode.Small => 188,
-        GalleryMode.Detail => 0,
+        GalleryMode.Detail => 40,  // 详情：行式条高
         _ => 262,
     };
 
@@ -106,6 +106,12 @@ public partial class MainWindowViewModel : ViewModelBase
         }
         foreach (var b in folder.Books)
             FolderEntries.Add(WireEntry(new FolderEntryItemViewModel(b)));
+        // 默认排序：文件夹在前 → 再按名称（用户要求）
+        var sorted = FolderEntries.OrderByDescending(e => e.IsFolder)
+                                  .ThenBy(e => e.DisplayName, StringComparer.OrdinalIgnoreCase)
+                                  .ToList();
+        FolderEntries.Clear();
+        foreach (var s in sorted) FolderEntries.Add(s);
         // 懒加载可见封面（前 24 个漫画条目）
         foreach (var item in FolderEntries.Where(e => !e.IsFolder).Take(24)) _ = item.LoadThumbnailAsync();
 
@@ -117,6 +123,8 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
     [ObservableProperty] private MangaAgent.Core.Library.FolderNode? _currentFolder;
+    /// <summary>全库搜索激活中（目录浏览被搜索结果替换；清空搜索或点文件夹条目时退出）。</summary>
+    private bool _searchActive;
 
     /// <summary>进入子文件夹（双击文件夹条目）。</summary>
     [RelayCommand]
@@ -149,9 +157,24 @@ public partial class MainWindowViewModel : ViewModelBase
             GalleryMode.Detail => (560.0, 40.0),
             _ => (168.0, 246.0),
         };
+        // 展示模式数据化：封面/字体随模式；详情模式行式无图
+        (item.CoverWidth, item.CoverHeight) = GalleryMode switch
+        {
+            GalleryMode.Large => (220.0, 300.0),
+            GalleryMode.Small => (100.0, 140.0),
+            GalleryMode.Detail => (0.0, 0.0),
+            _ => (164.0, 200.0),
+        };
+        item.IsDetail = GalleryMode == GalleryMode.Detail;
+        item.TitleFontSize = GalleryMode switch { GalleryMode.Small => 11, GalleryMode.Large => 13, _ => 12 };
+        item.SubtitleFontSize = GalleryMode switch { GalleryMode.Small => 9, _ => 10 };
         item.OpenAction = e =>
         {
-            if (e.IsFolder) EnterFolderCommand.Execute(e.Folder);
+            if (e.IsFolder)
+            {
+                if (_searchActive) SearchText = string.Empty;   // 搜索态点文件夹 → 退出搜索并进入
+                EnterFolderCommand.Execute(e.Folder);
+            }
             else if (e.Book is { } book) OpenBookCommand.Execute(new BookItemViewModel(book));
         };
         item.RefreshAction = () => Avalonia.Threading.Dispatcher.UIThread.Post(() =>
@@ -332,16 +355,47 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private void ApplyFilter()
     {
-        if (SelectedLibrary is null) return;
         var q = SearchText?.Trim() ?? string.Empty;
-        Books.Clear();
-        foreach (var b in SelectedLibrary.Books)
+        if (q.Length == 0)
         {
-            if (q.Length == 0 || b.Title.Contains(q, StringComparison.OrdinalIgnoreCase)
-                || (b.Series?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false))
-                Books.Add(Wire(new BookItemViewModel(b)));
+            // 退出搜索态 → 恢复目录浏览（当前目录；无则库根）
+            _searchActive = false;
+            if (CurrentFolder is not null) ShowFolderContents(CurrentFolder);
+            else if (FolderTree.Count > 0) ShowFolderContents(FolderTree[0]);
+            return;
         }
-        foreach (var item in Books.Take(24)) _ = item.LoadThumbnailAsync();
+        // 全库搜索：遍历当前库整棵树，命中文件夹 + 漫画（含纯图片文件夹漫画）
+        _searchActive = true;
+        var hits = new List<FolderEntryItemViewModel>();
+        if (FolderTree.Count > 0) CollectSearchHits(FolderTree[0], q, hits);
+        // 默认排序：文件夹在前 → 名称
+        FolderEntries.Clear();
+        foreach (var h in hits.OrderByDescending(x => x.IsFolder)
+                              .ThenBy(x => x.DisplayName, StringComparer.OrdinalIgnoreCase))
+            FolderEntries.Add(h);
+        foreach (var item in FolderEntries.Where(e => !e.IsFolder).Take(24)) _ = item.LoadThumbnailAsync();
+    }
+
+    /// <summary>递归收集命中（从库根调用，根自身不作为匹配对象）：
+    /// ①纯图片节点的 FolderBook + 所有 Zip = 漫画（按标题/系列）；
+    /// ②非纯图片子文件夹按名匹配 = 文件夹（其内部图片漫画不单独命中，避免同名重复）。</summary>
+    private void CollectSearchHits(MangaAgent.Core.Library.FolderNode node, string q, List<FolderEntryItemViewModel> hits)
+    {
+        bool nodeIsPure = node.Children.Count == 0 && node.Books.Any(b => b.Kind == BookKind.Folder);
+        foreach (var b in node.Books)
+        {
+            bool include = b.Kind == BookKind.Zip || (b.Kind == BookKind.Folder && nodeIsPure);
+            if (include && (b.Title.Contains(q, StringComparison.OrdinalIgnoreCase)
+                || (b.Series?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false)))
+                hits.Add(WireEntry(new FolderEntryItemViewModel(b)));
+        }
+        foreach (var child in node.Children)
+        {
+            bool childIsPure = child.Children.Count == 0 && child.Books.Any(x => x.Kind == BookKind.Folder);
+            if (!childIsPure && child.Name.Contains(q, StringComparison.OrdinalIgnoreCase))
+                hits.Add(WireEntry(new FolderEntryItemViewModel(child)));
+            CollectSearchHits(child, q, hits);
+        }
     }
 
     [RelayCommand]

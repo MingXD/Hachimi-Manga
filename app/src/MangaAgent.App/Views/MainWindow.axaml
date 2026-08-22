@@ -84,18 +84,27 @@
                       </ContextMenu>
                     </Border.ContextMenu>
                     <Grid>
-                      <StackPanel Margin="6" VerticalAlignment="Center" IsVisible="{Binding IsFolder}">
-                        <TextBlock Text="📁" FontSize="64" HorizontalAlignment="Center" Foreground="#D8A24A"/>
-                        <TextBlock Text="{Binding DisplayName}" Foreground="#E8E8E8" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" FontSize="13" HorizontalAlignment="Center" Margin="0,10,0,0"/>
-                        <TextBlock Text="{Binding Subtitle}" Foreground="#888888" FontSize="10" HorizontalAlignment="Center" Margin="0,4,0,0"/>
+                      <!-- 卡片模式（大/中/小）：文件夹图标 or 封面 + 文本（尺寸/字体随模式注入） -->
+                      <StackPanel Margin="6" VerticalAlignment="Center" IsVisible="{Binding !IsDetail}">
+                        <StackPanel VerticalAlignment="Center" IsVisible="{Binding IsFolder}">
+                          <TextBlock Text="📁" FontSize="64" HorizontalAlignment="Center" Foreground="#D8A24A"/>
+                          <TextBlock Text="{Binding DisplayName}" Foreground="#E8E8E8" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" FontSize="{Binding TitleFontSize}" HorizontalAlignment="Center" Margin="0,10,0,0"/>
+                          <TextBlock Text="{Binding Subtitle}" Foreground="#888888" FontSize="{Binding SubtitleFontSize}" HorizontalAlignment="Center" Margin="0,4,0,0"/>
+                        </StackPanel>
+                        <StackPanel IsVisible="{Binding !IsFolder}">
+                          <Border Background="#2A2A34" CornerRadius="4" Width="{Binding CoverWidth}" Height="{Binding CoverHeight}" ClipToBounds="True" HorizontalAlignment="Center">
+                            <Image Source="{Binding Thumbnail}" Stretch="UniformToFill" Width="{Binding CoverWidth}" Height="{Binding CoverHeight}"/>
+                          </Border>
+                          <TextBlock Text="{Binding DisplayName}" Foreground="#E8E8E8" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" FontSize="{Binding TitleFontSize}" Margin="0,6,0,0"/>
+                          <TextBlock Text="{Binding Subtitle}" Foreground="#888888" FontSize="{Binding SubtitleFontSize}"/>
+                        </StackPanel>
                       </StackPanel>
-                      <StackPanel Margin="6" IsVisible="{Binding !IsFolder}">
-                        <Border Background="#2A2A34" CornerRadius="4" Width="164" Height="200" ClipToBounds="True">
-                          <Image Source="{Binding Thumbnail}" Stretch="Uniform" Width="164" Height="200"/>
-                        </Border>
-                        <TextBlock Text="{Binding DisplayName}" Foreground="#E8E8E8" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" FontSize="12" Margin="0,6,0,0"/>
-                        <TextBlock Text="{Binding Subtitle}" Foreground="#888888" FontSize="10"/>
-                      </StackPanel>
+                      <!-- 详情模式（行式：图标 + 名称 + 副标题，无图片，像文件管理器） -->
+                      <Grid IsVisible="{Binding IsDetail}" Margin="10,0" VerticalAlignment="Center" ColumnDefinitions="34,*,Auto">
+                        <TextBlock Grid.Column="0" Text="{Binding IconText}" FontSize="20" VerticalAlignment="Center"/>
+                        <TextBlock Grid.Column="1" Text="{Binding DisplayName}" Foreground="#E8E8E8" TextTrimming="CharacterEllipsis" FontSize="13" VerticalAlignment="Center" Margin="10,0,0,0"/>
+                        <TextBlock Grid.Column="2" Text="{Binding Subtitle}" Foreground="#888888" FontSize="11" VerticalAlignment="Center" Margin="16,0,0,0"/>
+                      </Grid>
                     </Grid>
                   </Border>
                 </DataTemplate>

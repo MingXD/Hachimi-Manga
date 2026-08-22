@@ -79,4 +79,83 @@ public class FolderBrowserTests
             try { Directory.Delete(root, true); } catch { }
         }
     }
+
+    [AvaloniaFact]
+    public async Task Search_FullLibrary_FoldersAndBooks_Sort_Default()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"manga_search_{Guid.NewGuid():N}");
+        try
+        {
+            // 根/B(有子文件夹,非漫画) 根/C(纯图片 jpg) 根/D(纯图片 gif×2 —— 扩展名修复)
+            Directory.CreateDirectory(Path.Combine(root, "B", "Inner"));   // 名不含 b/c/d，避免搜索误命中
+            var c = Path.Combine(root, "C"); Directory.CreateDirectory(c);
+            File.WriteAllBytes(Path.Combine(c, "p1.jpg"), new byte[8]);
+            var d = Path.Combine(root, "D"); Directory.CreateDirectory(d);
+            File.WriteAllBytes(Path.Combine(d, "p1.gif"), new byte[8]);
+            File.WriteAllBytes(Path.Combine(d, "p2.gif"), new byte[8]);
+
+            var tree = await FolderTreeScanner.ScanAsync(root);
+            var vm = new MainWindowViewModel();
+            vm.FolderTree.Add(tree);
+
+            // 全库搜索：命中 D（纯图片漫画，含 gif）
+            vm.SearchText = "D";
+            Assert.Single(vm.FolderEntries);
+            Assert.False(vm.FolderEntries[0].IsFolder);
+            Assert.Equal("D", vm.FolderEntries[0].DisplayName);
+            Assert.Equal(2, vm.FolderEntries[0].Book!.PageCount);   // gif 识别 + 页数统计
+
+            // 命中 B（文件夹）
+            vm.SearchText = "B";
+            Assert.Single(vm.FolderEntries);
+            Assert.True(vm.FolderEntries[0].IsFolder);
+            Assert.Equal("B", vm.FolderEntries[0].DisplayName);
+
+            // 清空 → 恢复目录浏览 + 默认排序（文件夹在前，漫画按名称）
+            vm.SearchText = "";
+            Assert.Equal(3, vm.FolderEntries.Count);
+            Assert.True(vm.FolderEntries[0].IsFolder, "排序：文件夹在前");
+            Assert.All(vm.FolderEntries.Skip(1), e => Assert.False(e.IsFolder, "漫画在后"));
+            Assert.Equal(new[] { "C", "D" }, vm.FolderEntries.Skip(1).Select(e => e.DisplayName).OrderBy(x => x));
+
+            // 详情模式：行式无图
+            vm.GalleryMode = GalleryMode.Detail;
+            Assert.All(vm.FolderEntries, e => Assert.True(e.IsDetail));
+            Assert.All(vm.FolderEntries, e => Assert.Equal(0.0, e.CoverWidth));
+            Assert.All(vm.FolderEntries, e => Assert.Equal(560.0, e.CardWidth));
+        }
+        finally
+        {
+            try { Directory.Delete(root, true); } catch { }
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task Folder_With_Subfolder_And_Images_Is_Folder_With_Stats()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"manga_mixed_{Guid.NewGuid():N}");
+        try
+        {
+            // 根/B：内有子文件夹 C（非漫画）+ 直接图片 → B 是文件夹，统计 1 个子文件夹 + 1 本漫画（直接图片）
+            Directory.CreateDirectory(Path.Combine(root, "B", "C"));
+            File.WriteAllBytes(Path.Combine(root, "B", "p1.jpg"), new byte[8]);
+            File.WriteAllBytes(Path.Combine(root, "B", "p2.jpg"), new byte[8]);
+
+            var tree = await FolderTreeScanner.ScanAsync(root);
+            var vm = new MainWindowViewModel();
+            vm.FolderTree.Add(tree);
+            vm.ShowFolderContents(tree);
+
+            var bEntry = Assert.Single(vm.FolderEntries);
+            Assert.True(bEntry.IsFolder, "有子文件夹 → 文件夹，不是漫画");
+            Assert.Contains("1 个子文件夹", bEntry.Subtitle);
+            // B 的直接图片漫画页数正确（2 页）
+            var folderBook = bEntry.Folder!.Books.First(b => b.Kind == BookKind.Folder);
+            Assert.Equal(2, folderBook.PageCount);
+        }
+        finally
+        {
+            try { Directory.Delete(root, true); } catch { }
+        }
+    }
 }

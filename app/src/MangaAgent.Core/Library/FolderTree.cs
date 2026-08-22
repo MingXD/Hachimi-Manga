@@ -22,16 +22,19 @@ public static class FolderTreeScanner
             await FillAsync(child, ct);
             node.Children.Add(child);
         }
-        // 本目录的书（CBZ + 文件夹型）
+        // 本目录的书（CBZ + 文件夹型：直接含图片的目录 → 一本漫画）
         foreach (var file in Directory.GetFiles(node.Path).Where(f =>
             Path.GetExtension(f).ToLowerInvariant() is ".cbz" or ".zip"))
         {
             node.Books.Add(await MakeBookAsync(file, ct));
         }
-        if (Directory.GetFiles(node.Path).Any(f => Path.GetExtension(f).ToLowerInvariant() is ".png" or ".jpg" or ".jpeg" or ".webp"))
+        // 扩展名与 FolderComicSource/LibraryScanner 一致（含 gif/bmp）；PageCount = 本目录直接图片数
+        var images = Directory.GetFiles(node.Path).Where(f =>
+            Path.GetExtension(f).ToLowerInvariant() is ".png" or ".jpg" or ".jpeg" or ".webp" or ".gif" or ".bmp").ToList();
+        if (images.Count > 0)
         {
             node.Books.Add(new BookInfo(node.Path, new DirectoryInfo(node.Path).Name, null, null, BookKind.Folder,
-                Directory.GetLastWriteTimeUtc(node.Path), 0));
+                Directory.GetLastWriteTimeUtc(node.Path), images.Count));
         }
         node.Books.Sort((a, b) => ImageInfo.CompareNatural(a.Title, b.Title));
     }
