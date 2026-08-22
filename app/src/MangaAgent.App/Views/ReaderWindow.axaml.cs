@@ -1093,10 +1093,12 @@ public partial class ReaderWindow : Window
         int mySeq = ++_thumbSeq;
         int total = _vm.PhysicalPageCount;
 
-        // 固定卡片 96×130 + 间距6 + 上下按钮58 → 按可用高度动态张数（1..11，奇偶皆可，不强制居中）
-        // 防溢出：总高 = n×130 + (n-1)×6 ≤ 视口高 - 58，任何窗口高度第 n 张都完整可见
+        // 固定卡片宽96 + 间距6 + 上下按钮58 → 按可用高度动态张数（1..11，奇偶皆可，不强制居中）
+        // 防溢出：总高 = n×cardH + (n-1)×6 ≤ 视口高 - 58，任何窗口高度第 n 张都完整可见
         int n = Math.Clamp((int)((Viewport.Bounds.Height - 58) / 136.0), 1, 11);
         _thumbStripCount = n;
+        // 卡片高填满剩余高度（消除张数死区余量），下限80 / 上限150（150px 源图缩小不糊）
+        double cardH = Math.Clamp((Viewport.Bounds.Height - 58 - 6 * (n - 1)) / n, 80, 150);
         int center = Math.Clamp(_thumbCenterPhysical, 0, total - 1);
         int start = Math.Clamp(center - n / 2, 0, Math.Max(0, total - n));
         int end = Math.Min(total - 1, start + n - 1);
@@ -1104,7 +1106,7 @@ public partial class ReaderWindow : Window
         int curPhys = _vm.CurrentPhysical;
         _thumbItems.Clear();
         for (int i = start; i <= end; i++)
-            _thumbItems.Add(new ThumbStripItem(i, 96, 130) { IsCurrent = i == curPhys });
+            _thumbItems.Add(new ThumbStripItem(i, 96, cardH) { IsCurrent = i == curPhys });
         ThumbStrip.ItemsSource = _thumbItems;
 
         // 小图解码（~150px，快），seq 过期则丢弃

@@ -141,7 +141,7 @@
               <RowDefinition Height="*"/>
               <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
-            <Button Grid.Row="0" Content="▲" Click="OnPreviewStripPrev" Background="Transparent" Foreground="{Binding PreviewStripLabel}" Width="124"
+            <Button Grid.Row="0" Content="▲" Click="OnPreviewStripPrev" Background="Transparent" Foreground="{Binding PreviewStripLabel}" Width="124" Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
                     FontSize="16" Height="32" HorizontalAlignment="Center"/>
             <ItemsControl x:Name="ThumbStrip" Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center">
               <ItemsControl.ItemsPanel>
@@ -169,7 +169,7 @@
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
             </ItemsControl>
-            <Button Grid.Row="2" Content="▼" Click="OnPreviewStripNext" Background="Transparent" Foreground="{Binding PreviewStripLabel}" Width="124"
+            <Button Grid.Row="2" Content="▼" Click="OnPreviewStripNext" Background="Transparent" Foreground="{Binding PreviewStripLabel}" Width="124" Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
                     FontSize="16" Height="32" HorizontalAlignment="Center"/>
           </Grid>
         </Border>
