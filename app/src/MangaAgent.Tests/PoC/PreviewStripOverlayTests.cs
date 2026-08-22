@@ -10,7 +10,7 @@ using Xunit;
 
 namespace MangaAgent.Tests.PoC;
 
-/// <summary>预览栏覆盖层回归：①不再占 DockPanel 布局（不推挤图片）②背景绑定主题色（浅/深半透明）。</summary>
+/// <summary>预览栏覆盖层回归：①不再占 DockPanel 布局（不推挤图片）②背景绑定主题色（浅/深半透明）③页码在卡片右侧不溢出 + 当前页高亮。</summary>
 public class PreviewStripOverlayTests
 {
     private static readonly string Fixtures = Path.GetFullPath(
@@ -68,13 +68,62 @@ public class PreviewStripOverlayTests
             var darkBg = vm.PreviewStripBg;
             var darkItem = vm.PreviewStripItemBg;
             var darkLabel = vm.PreviewStripLabel;
+            var darkHighlight = vm.PreviewStripHighlight;
             vm.ToggleThemeCommand.Execute(null);
             Assert.False(vm.IsDark);
             Assert.NotEqual(darkBg, vm.PreviewStripBg);
             Assert.NotEqual(darkItem, vm.PreviewStripItemBg);
             Assert.NotEqual(darkLabel, vm.PreviewStripLabel);
+            Assert.NotEqual(darkHighlight, vm.PreviewStripHighlight);   // 高亮色随主题切换
             // 半透明：ARGB 前两位 alpha != FF
             Assert.NotEqual("FF", vm.PreviewStripBg.Substring(1, 2));
+
+            win.Close();
+            await vm.DisposeAsync();
+        }
+        finally
+        {
+            try { File.Delete(db); } catch { }
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task PreviewStrip_Shows7_CurrentHighlight_NoVerticalOverflow()
+    {
+        var db = Path.Combine(Path.GetTempPath(), $"mangaagent_preview2_{Guid.NewGuid():N}.db");
+        try
+        {
+            var vm = new ReaderViewModel(StressBook, db);
+            await WaitUntilAsync(() => vm.Image1 is not null);
+            var win = new ReaderWindow { DataContext = vm };
+            win.Show();
+            win.Measure(new Size(1100, 800));
+            win.Arrange(new Rect(0, 0, 1100, 800));
+
+            // 唤出预览栏（ShowPreviewStrip 私有，反射调用）
+            var show = typeof(ReaderWindow).GetMethod("ShowPreviewStrip",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            Assert.NotNull(show);
+            show.Invoke(win, null);
+            await Task.Delay(200);   // 等缩略图异步填充
+
+            var thumbStrip = win.FindControl<ItemsControl>("ThumbStrip");
+            Assert.NotNull(thumbStrip);
+            Assert.Equal(7, thumbStrip.Items.Count);
+
+            // 当前页高亮标记：恰一项 IsCurrent，且为当前物理页
+            var items = thumbStrip.Items.OfType<ReaderWindow.ThumbStripItem>().ToList();
+            var curPhys = vm.CurrentPhysical;
+            Assert.Equal(1, items.Count(x => x.IsCurrent));
+            Assert.Contains(items, x => x.Physical == curPhys && x.IsCurrent);
+
+            // 页码移到卡片右侧后，7 项内容总高 ≤ 预览栏高（纵向不溢出 → 第7张完整可见）
+            win.Measure(new Size(1100, 800));
+            win.Arrange(new Rect(0, 0, 1100, 800));
+            var scroller = thumbStrip.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault();
+            if (scroller is not null)
+                Assert.True(scroller.Extent.Height <= scroller.Viewport.Height + 1,
+                    $"预览栏内容纵向溢出: extent={scroller.Extent.Height} viewport={scroller.Viewport.Height}");
 
             win.Close();
             await vm.DisposeAsync();

@@ -95,6 +95,8 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
     public string PreviewStripBg => IsDark ? "#CC1C1C24" : "#CCFFFFFF";
     public string PreviewStripItemBg => IsDark ? "#3A3A44" : "#E8E6E1";
     public string PreviewStripLabel => IsDark ? "#CCC" : "#333";
+    // 预览栏当前页高亮（边框/页码变色）：夜金 / 昼蓝
+    public string PreviewStripHighlight => IsDark ? "#FFD700" : "#0078D4";
     public string ModeText => ViewMode switch
     {
         ViewMode.Double => "双页",
@@ -217,6 +219,7 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
         OnPropertyChanged(nameof(PreviewStripBg));
         OnPropertyChanged(nameof(PreviewStripItemBg));
         OnPropertyChanged(nameof(PreviewStripLabel));
+        OnPropertyChanged(nameof(PreviewStripHighlight));
     }
 
     private async Task LoadCurrentAsync()

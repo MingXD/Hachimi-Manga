@@ -48,6 +48,20 @@
     <Style Selector="StackPanel.toolbar Button:pressed /template/ Border">
       <Setter Property="Background" Value="{Binding ToolbarButtonHover}"/>
     </Style>
+    <!-- 预览栏卡片/页码高亮：当前页 = 2px 主题色边框 + 页码变色 -->
+    <Style Selector="Border.previewCard">
+      <Setter Property="BorderBrush" Value="#555"/>
+    </Style>
+    <Style Selector="Border.previewCard.current">
+      <Setter Property="BorderBrush" Value="{Binding $parent[Window].((vm:ReaderViewModel)DataContext).PreviewStripHighlight}"/>
+      <Setter Property="BorderThickness" Value="2"/>
+    </Style>
+    <Style Selector="TextBlock.previewLabel">
+      <Setter Property="Foreground" Value="{Binding $parent[Window].((vm:ReaderViewModel)DataContext).PreviewStripLabel}"/>
+    </Style>
+    <Style Selector="TextBlock.previewLabel.current">
+      <Setter Property="Foreground" Value="{Binding $parent[Window].((vm:ReaderViewModel)DataContext).PreviewStripHighlight}"/>
+    </Style>
   </Window.Styles>
 
   <DockPanel>
@@ -117,7 +131,7 @@
                  IsVisible="{Binding Image2, Converter={x:Static conv:ObjectConverters.IsNotNull}}"/>
         </StackPanel>
       </Grid>
-        <Border x:Name="PreviewStrip" Width="120" Background="{Binding PreviewStripBg}" IsVisible="False"
+        <Border x:Name="PreviewStrip" Width="132" Background="{Binding PreviewStripBg}" IsVisible="False"
                 HorizontalAlignment="Right" VerticalAlignment="Stretch"
                 PointerMoved="OnPreviewStripPointerMoved" PointerExited="OnPreviewStripPointerExited"
                 PointerWheelChanged="OnPreviewStripWheel">
@@ -136,9 +150,10 @@
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="views:ReaderWindow+ThumbStripItem">
                   <Button Click="OnThumbStripItemClick" Tag="{Binding}" Background="Transparent" Padding="0" BorderThickness="0">
-                    <StackPanel>
-                      <!-- 占位图（方案A）：灰块+居中页码，Image 加载成功后覆盖 -->
-                      <Border Background="{Binding $parent[Window].((vm:ReaderViewModel)DataContext).PreviewStripItemBg}" CornerRadius="3" ClipToBounds="True" BorderBrush="#555" BorderThickness="1"
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                      <!-- 缩略图卡片：占位灰块+居中页码，Image 加载成功后覆盖；当前页高亮边框 -->
+                      <Border Classes="previewCard" Classes.current="{Binding IsCurrent}"
+                              Background="{Binding $parent[Window].((vm:ReaderViewModel)DataContext).PreviewStripItemBg}" CornerRadius="3" ClipToBounds="True" BorderBrush="#555" BorderThickness="1"
                               Width="{Binding CardWidth}" Height="{Binding CardHeight}">
                         <Grid>
                           <TextBlock Text="{Binding PageLabel}" Foreground="{Binding $parent[Window].((vm:ReaderViewModel)DataContext).PreviewStripLabel}" FontSize="16"
@@ -146,8 +161,9 @@
                           <Image Source="{Binding Bitmap}" Stretch="Uniform"/>
                         </Grid>
                       </Border>
-                      <!-- 底部页码（始终显示） -->
-                      <TextBlock Text="{Binding PageLabel}" Foreground="{Binding $parent[Window].((vm:ReaderViewModel)DataContext).PreviewStripLabel}" FontSize="9" HorizontalAlignment="Center" Margin="0,2,0,0"/>
+                      <!-- 页码在卡片右侧（横向 → 不占纵向空间，修复小屏第7张被遮） -->
+                      <TextBlock Classes="previewLabel" Classes.current="{Binding IsCurrent}"
+                                 Text="{Binding PageLabel}" FontSize="9" VerticalAlignment="Center" Width="22" TextAlignment="Center"/>
                     </StackPanel>
                   </Button>
                 </DataTemplate>

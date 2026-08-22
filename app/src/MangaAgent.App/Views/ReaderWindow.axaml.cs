@@ -1014,6 +1014,9 @@ public partial class ReaderWindow : Window
         public double CardHeight { get; }
         private Avalonia.Media.Imaging.Bitmap? _bitmap;
         public Avalonia.Media.Imaging.Bitmap? Bitmap { get => _bitmap; set { _bitmap = value; OnPropertyChanged(); } }
+        private bool _isCurrent;
+        /// <summary>是否为当前阅读页（预览栏高亮：卡片边框 + 页码变色）。</summary>
+        public bool IsCurrent { get => _isCurrent; set { _isCurrent = value; OnPropertyChanged(); } }
         public ThumbStripItem(int physical, double cardW, double cardH)
         {
             Physical = physical;
@@ -1091,9 +1094,10 @@ public partial class ReaderWindow : Window
 
         // 卡片尺寸：宽 96，高 = min(窗口高/7 - 间距, 130)，下限 80
         double cardH = Math.Clamp((Viewport.Bounds.Height - 32 * 2 - 6 * 6) / 7.0, 80, 130);
+        int curPhys = _vm.CurrentPhysical;
         _thumbItems.Clear();
         for (int i = start; i <= end; i++)
-            _thumbItems.Add(new ThumbStripItem(i, 96, cardH));
+            _thumbItems.Add(new ThumbStripItem(i, 96, cardH) { IsCurrent = i == curPhys });
         ThumbStrip.ItemsSource = _thumbItems;
 
         // 小图解码（~150px，快），seq 过期则丢弃
