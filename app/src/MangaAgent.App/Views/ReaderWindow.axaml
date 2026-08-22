@@ -122,7 +122,8 @@
             DoubleTapped="OnViewportDoubleTapped">
       <Grid>
       <Grid x:Name="PageLayer" HorizontalAlignment="Left" VerticalAlignment="Top">
-        <StackPanel x:Name="PagePanel" Orientation="Horizontal" Spacing="0">
+        <!-- 双页无缝拼接：负间距 -1px 让两图重叠 1px，盖住 GPU 采样/亚像素对齐产生的接缝黑线（小红书式无缝） -->
+        <StackPanel x:Name="PagePanel" Orientation="Horizontal" Spacing="-1">
           <Image x:Name="PageImage1" Stretch="Uniform" VerticalAlignment="Top"
                  Source="{Binding Image1}"
                  IsVisible="{Binding Image1, Converter={x:Static conv:ObjectConverters.IsNotNull}}"/>
