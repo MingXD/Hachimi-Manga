@@ -192,6 +192,19 @@
 
 ---
 
+## 一·十六、v2.3.12 详情行 hover 高亮修复（2026-08-22）
+
+> 用户反馈：v2.3.11 的详情行高亮没生效。
+
+| # | 修复/改动 | 文件位置 | 可能影响的功能（风险点） |
+|---|---|---|---|
+| 2.3.12-1 | **hover 高亮根因**：DataTemplate 里 Border/副标题的本地 Background（LocalValue）优先级高于 Style Setter → pointerover 覆盖不了。移除本地 Background，改由样式控制（Border.detailRow 基础 #1E1E26 / :pointerover #2E2E38；TextBlock.subtitleCover 同步） | MainWindow.axaml：DetailList | 详情行悬停高亮 |
+
+### Avalonia 优先级备忘
+- 属性优先级：LocalValue（XAML 直接设）> Style Setter → 需要样式切换的属性不要在模板里直接赋值
+
+---
+
 ## 二、v2.2c + v2.2b（2026-08-22，热区与按钮配色修复）
 
 | # | 修复 | 文件位置 | 可能影响的功能 |
