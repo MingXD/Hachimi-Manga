@@ -158,4 +158,54 @@ public class FolderBrowserTests
             try { Directory.Delete(root, true); } catch { }
         }
     }
+
+    [AvaloniaFact]
+    public async Task Stats_MN_Direct_X_Recursive_And_Format_Branches()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"manga_stats_{Guid.NewGuid():N}");
+        try
+        {
+            // Alpha/：Pure1、Pure2（纯图片漫画）+ SubDir/Pure3（递归 1 本）
+            Directory.CreateDirectory(Path.Combine(root, "Alpha", "Pure1"));
+            File.WriteAllBytes(Path.Combine(root, "Alpha", "Pure1", "a.jpg"), new byte[8]);
+            Directory.CreateDirectory(Path.Combine(root, "Alpha", "Pure2"));
+            File.WriteAllBytes(Path.Combine(root, "Alpha", "Pure2", "a.jpg"), new byte[8]);
+            Directory.CreateDirectory(Path.Combine(root, "Alpha", "SubDir", "Pure3"));
+            File.WriteAllBytes(Path.Combine(root, "Alpha", "SubDir", "Pure3", "a.jpg"), new byte[8]);
+            // Empty/：只有空子文件夹（M=0 分支）
+            Directory.CreateDirectory(Path.Combine(root, "Empty", "SubOnly"));
+
+            var tree = await FolderTreeScanner.ScanAsync(root);
+            var vm = new MainWindowViewModel();
+            vm.FolderTree.Add(tree);
+            vm.ShowFolderContents(tree);
+
+            // Alpha：M=2（Pure1/Pure2）N=1（SubDir）→ 两行统计
+            var alpha = vm.FolderEntries.First(e => e.DisplayName == "Alpha");
+            Assert.True(alpha.IsFolder);
+            Assert.Equal("2 本漫画 · 1 个子文件夹", alpha.Subtitle);
+            Assert.Equal("目录下共 3 本漫画", alpha.StatsLine2);   // X 递归 = 2 + SubDir 内 1
+
+            // Empty：M=0 → 只显示子文件夹数，StatsLine2 为空
+            var empty = vm.FolderEntries.First(e => e.DisplayName == "Empty");
+            Assert.True(empty.IsFolder);
+            Assert.Equal("1 个子文件夹", empty.Subtitle);
+            Assert.Equal("", empty.StatsLine2);
+
+            // 进入 Alpha：Pure1/Pure2 = 纯图片漫画（副标题 N 页，无后缀）；SubDir = 文件夹（M=1 N=0 → 只显示漫画数）
+            vm.EnterFolderCommand.Execute(alpha.Folder);
+            var pure1 = vm.FolderEntries.First(e => e.DisplayName == "Pure1");
+            Assert.False(pure1.IsFolder);
+            Assert.Equal("1 页", pure1.Subtitle);   // 纯图片无 "· 文件夹" 后缀
+            Assert.Equal("", pure1.StatsLine2);
+            var subDir = vm.FolderEntries.First(e => e.DisplayName == "SubDir");
+            Assert.True(subDir.IsFolder);
+            Assert.Equal("1 本漫画", subDir.Subtitle);   // N=0 → 只显示漫画数
+            Assert.Equal("目录下共 1 本漫画", subDir.StatsLine2);
+        }
+        finally
+        {
+            try { Directory.Delete(root, true); } catch { }
+        }
+    }
 }

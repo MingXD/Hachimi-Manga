@@ -152,18 +152,19 @@ public partial class MainWindowViewModel : ViewModelBase
         // 功能-1：卡片尺寸随展示模式
         (item.CardWidth, item.CardHeight) = GalleryMode switch
         {
-            GalleryMode.Large => (248.0, 342.0),
-            GalleryMode.Small => (116.0, 164.0),
+            GalleryMode.Large => (248.0, 366.0),   // 卡片高对齐 WrapPanel 项高
+            GalleryMode.Small => (116.0, 188.0),
             GalleryMode.Detail => (560.0, 40.0),
-            _ => (168.0, 246.0),
+            _ => (168.0, 262.0),
         };
         // 展示模式数据化：封面/字体随模式；详情模式行式无图
+        // 封面高 = 卡片高 - 文本区（标题2行+副标题2行+间距），保证文本不溢出卡片
         (item.CoverWidth, item.CoverHeight) = GalleryMode switch
         {
-            GalleryMode.Large => (220.0, 300.0),
-            GalleryMode.Small => (100.0, 140.0),
+            GalleryMode.Large => (220.0, 280.0),
+            GalleryMode.Small => (100.0, 108.0),
             GalleryMode.Detail => (0.0, 0.0),
-            _ => (164.0, 200.0),
+            _ => (164.0, 178.0),
         };
         item.IsDetail = GalleryMode == GalleryMode.Detail;
         item.TitleFontSize = GalleryMode switch { GalleryMode.Small => 11, GalleryMode.Large => 13, _ => 12 };

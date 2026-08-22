@@ -47,10 +47,56 @@ public partial class FolderEntryItemViewModel : ViewModelBase
     /// <summary>详情模式行式图标（文件夹 / 书本）。</summary>
     public string IconText => IsFolder ? "📁" : "📖";
 
-    /// <summary>副标题：文件夹显示子项数；书显示页数与类型。</summary>
-    public string Subtitle => IsFolder
-        ? $"{(Folder?.Children.Count ?? 0)} 个子文件夹 · {(Folder?.Books.Count ?? 0)} 本漫画"
-        : $"{(Book?.PageCount ?? 0)} 页 · {(Book?.Kind == BookKind.Zip ? "CBZ" : "文件夹")}";
+    /// <summary>副标题第 1 行：文件夹 = 本层 M 本漫画 · N 个子文件夹（M/N 只统计这一层）；书 = 页数（纯图片无后缀，CBZ 带 · CBZ）。</summary>
+    public string Subtitle
+    {
+        get
+        {
+            if (IsFolder)
+            {
+                if (Folder is null) return "";
+                int m = CountDirectBooks(Folder);
+                int n = CountDirectSubfolders(Folder);
+                if (m > 0 && n > 0) return $"{m} 本漫画 · {n} 个子文件夹";
+                if (m > 0) return $"{m} 本漫画";
+                if (n > 0) return $"{n} 个子文件夹";
+                return "";
+            }
+            return Book is null ? "" : $"{Book.PageCount} 页" + (Book.Kind == BookKind.Zip ? " · CBZ" : "");
+        }
+    }
+
+    /// <summary>副标题第 2 行（仅文件夹）：递归统计目录下共 X 本漫画（X=0 不显示）。</summary>
+    public string StatsLine2
+    {
+        get
+        {
+            if (!IsFolder || Folder is null) return "";
+            int x = CountBooksRecursive(Folder);
+            return x > 0 ? $"目录下共 {x} 本漫画" : "";
+        }
+    }
+
+    // ---------- 统计辅助（v2.3.7：M/N 只统计本层，X 递归） ----------
+    /// <summary>纯图片文件夹 = 漫画：无子文件夹且本目录直接含图片。</summary>
+    internal static bool IsPureImageFolder(MangaAgent.Core.Library.FolderNode n)
+        => n.Children.Count == 0 && n.Books.Any(b => b.Kind == BookKind.Folder);
+
+    /// <summary>本层直接漫画数 M：纯图片子文件夹数 + 本目录直接图片(FolderBook)数 + 本目录 Zip/CBZ 数。</summary>
+    internal static int CountDirectBooks(MangaAgent.Core.Library.FolderNode n)
+        => n.Children.Count(IsPureImageFolder) + n.Books.Count(b => b.Kind is BookKind.Folder or BookKind.Zip);
+
+    /// <summary>本层直接子文件夹数 N：非纯图片的直接子节点数。</summary>
+    internal static int CountDirectSubfolders(MangaAgent.Core.Library.FolderNode n)
+        => n.Children.Count(c => !IsPureImageFolder(c));
+
+    /// <summary>递归漫画总数 X：本目录直接（图片 FolderBook + Zip）+ 所有子节点递归。</summary>
+    internal static int CountBooksRecursive(MangaAgent.Core.Library.FolderNode n)
+    {
+        int count = n.Books.Count(b => b.Kind is BookKind.Folder or BookKind.Zip);
+        foreach (var c in n.Children) count += CountBooksRecursive(c);
+        return count;
+    }
 
     /// <summary>漫画封面（文件夹条目无封面）。</summary>
     [ObservableProperty]
