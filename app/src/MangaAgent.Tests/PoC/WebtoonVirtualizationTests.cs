@@ -59,11 +59,12 @@ public class WebtoonVirtualizationTests
             Assert.True(inst >= 1, "至少应有 1 页实例化");
 
             // 滚动：调用滚轮事件推进多页，虚拟化范围应移动且不崩溃
+            // （scroll-mode-fix v2：滚轮走累积器，需真实档位 Delta -120）
             var point = new Point(550, 400);
             double ty0 = win.CanvasY;
             for (int i = 0; i < 12; i++)
             {
-                win.MouseWheel(point, new Vector(0, -1), Avalonia.Input.RawInputModifiers.None);
+                win.MouseWheel(point, new Vector(0, -120), Avalonia.Input.RawInputModifiers.None);
                 await Task.Delay(60);
             }
             await Task.Delay(800);

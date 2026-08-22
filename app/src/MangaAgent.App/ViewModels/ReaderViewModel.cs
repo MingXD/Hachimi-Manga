@@ -333,8 +333,11 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
 
     private double RatioOf(int physical) => _sizes.TryGetValue(physical, out var sz) ? sz.AspectRatio : 0.7;
 
-    /// <summary>Webtoon：获取指定物理页位图（带缓存）。</summary>
-    public Task<Bitmap?> GetPageBitmapAsync(int physical) => DecodeAsync(physical);
+    /// <summary>Webtoon：获取指定物理页位图（带缓存，默认分页解码宽度）。</summary>
+    public Task<Bitmap?> GetPageBitmapAsync(int physical) => DecodeAsync(physical, 0);
+
+    /// <summary>Webtoon：按指定宽度获取位图（scroll-mode-fix v2：滚动模式按显示宽度解码，大图提速数倍）。</summary>
+    public Task<Bitmap?> GetPageBitmapAsync(int physical, int wantWidth) => DecodeAsync(physical, wantWidth);
 
     // 预览栏缩略图：独立小尺寸解码缓存（~150px），与正文大图缓存分离，避免解码风暴
     private readonly Dictionary<int, Bitmap> _thumbCache = new();
@@ -391,13 +394,13 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
 
     private readonly Dictionary<int, int> _pageCacheWidth = new();
 
-    private async Task<Bitmap?> DecodeAsync(int physical)
+    private async Task<Bitmap?> DecodeAsync(int physical, int requestedWidth = 0)
     {
-        int wantWidth = Math.Max(400, DecodeTargetWidth);
+        int want = requestedWidth > 0 ? Math.Max(400, requestedWidth) : Math.Max(400, DecodeTargetWidth);
         if (_pageCache.TryGetValue(physical, out var cached))
         {
             // 按需高清：放大超过当前解码宽度时重新解码更大（C 阶段）
-            if (_pageCacheWidth.TryGetValue(physical, out var w) && w >= wantWidth)
+            if (_pageCacheWidth.TryGetValue(physical, out var w) && w >= want)
             {
                 _cacheOrder.Remove(physical);
                 _cacheOrder.AddLast(physical);
@@ -432,7 +435,6 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
             ms.Position = 0;
             // 2E 修复：JPEG 解码 + 降采样是同步 CPU 密集操作，移到线程池执行，
             // 避免在 UI 线程解码大图（4299x6071 → 数百 ms）导致翻页/滚动卡死
-            int want = Math.Max(400, DecodeTargetWidth);
             decoded = await Task.Run(() => Bitmap.DecodeToWidth(ms, want));
         }
         catch (Exception ex)

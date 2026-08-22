@@ -135,7 +135,7 @@ public class ScrollModeFixesTests
             await WaitUntilAsync(() => win.WebtoonInstancedCount >= 1, 8000);
 
             double y0 = win.CanvasY;
-            win.MouseWheel(new Point(550, 400), new Vector(0, -1), RawInputModifiers.None);   // 向下滚一格
+            win.MouseWheel(new Point(550, 400), new Vector(0, -120), RawInputModifiers.None);   // 向下滚一档
             // 惯性回归：滑动过程单调向下（ty 只减不增，无回弹），最后停住
             double prev = y0;
             double last = y0;
@@ -213,6 +213,141 @@ public class ScrollModeFixesTests
                 vm.ToggleModeCommand.Execute(null);   // Webtoon -> Single
                 await WaitUntilAsync(() => vm.ViewMode == ViewMode.Single);
             }
+            win.Close();
+            await vm.DisposeAsync();
+        }
+        finally { try { File.Delete(db); } catch { } }
+    }
+
+    /// <summary>v2 回归：再次进入滚动模式必须恢复默认视图（适应屏幕+居中+scale=1），
+    /// 不得携带分页残留的缩放/平移（问题1：贴着左边+放大）。</summary>
+    [AvaloniaFact]
+    public async Task ReEnterWebtoon_Refits_DefaultView()
+    {
+        var db = Path.Combine(Path.GetTempPath(), $"manga_wtf7_{Guid.NewGuid():N}.db");
+        try
+        {
+            var vm = new ReaderViewModel(StressBook, db);
+            await WaitUntilAsync(() => vm.Image1 is not null);
+            var win = new ReaderWindow { DataContext = vm };
+            win.Show();
+            win.Measure(new Size(1100, 800));
+            win.Arrange(new Rect(0, 0, 1100, 800));
+            vm.ToggleModeCommand.Execute(null);   // -> Double
+            vm.ToggleModeCommand.Execute(null);   // -> Webtoon
+            await WaitUntilAsync(() => vm.ViewMode == ViewMode.Webtoon);
+            await WaitUntilAsync(() => win.WebtoonInstancedCount >= 1, 8000);
+            // 退出滚动 → 分页放大 → 再进入滚动
+            vm.SetViewMode(ViewMode.Single);
+            await Task.Delay(300);
+            win.ZoomRelative(2.5);
+            Assert.True(win.CanvasScale > 2.0, "分页应已放大（前置条件）");
+            vm.SetViewMode(ViewMode.Webtoon);
+            await WaitUntilAsync(() => vm.ViewMode == ViewMode.Webtoon);
+            // 再进入必须重设：scale=1、水平居中、页 0 铺满视口高
+            var vp = win.ViewportSize;
+            double expectedW = Math.Min(vp.Width, vp.Height * PageRatio);
+            Assert.Equal(1.0, win.CanvasScale, 3);
+            Assert.Equal((vp.Width - expectedW) / 2, win.CanvasX, 2);
+            Assert.True(Math.Abs(win.CanvasY) < 2, $"再次进入后页 0 应铺满视口（ty={win.CanvasY}）");
+            win.Close();
+            await vm.DisposeAsync();
+        }
+        finally { try { File.Delete(db); } catch { } }
+    }
+
+    /// <summary>v2 回归：滚轮 Delta 抖动免疫（±小值达不到阈值，不产生反向滚动），
+    /// 一档 -120 正常触发滚动（问题3：滚轮回弹根治）。</summary>
+    [AvaloniaFact]
+    public async Task WheelDeltaJitter_DoesNotBounce()
+    {
+        var db = Path.Combine(Path.GetTempPath(), $"manga_wtf8_{Guid.NewGuid():N}.db");
+        try
+        {
+            var vm = new ReaderViewModel(StressBook, db);
+            await WaitUntilAsync(() => vm.Image1 is not null);
+            var win = await OpenWebtoonAsync(vm);
+            await WaitUntilAsync(() => win.WebtoonInstancedCount >= 1, 8000);
+
+            // 抖动：多个 ±小 Delta（触摸板惯性尾流/间歇性错误），总和 < 120 → 不应滚动
+            double y0 = win.CanvasY;
+            win.MouseWheel(new Point(550, 400), new Vector(0, -5), RawInputModifiers.None);
+            win.MouseWheel(new Point(550, 400), new Vector(0, 3), RawInputModifiers.None);
+            win.MouseWheel(new Point(550, 400), new Vector(0, -4), RawInputModifiers.None);
+            win.MouseWheel(new Point(550, 400), new Vector(0, 2), RawInputModifiers.None);
+            await Task.Delay(300);
+            Assert.True(Math.Abs(win.CanvasY - y0) < 1.0, $"Delta 抖动不应滚动（ty {y0} -> {win.CanvasY}）");
+
+            // 一档真实向下 → 正常滚动并滑行停住
+            win.MouseWheel(new Point(550, 400), new Vector(0, -120), RawInputModifiers.None);
+            await Task.Delay(1000);
+            double yAfterDown = win.CanvasY;
+            Assert.True(yAfterDown < y0 - 50, $"一档向下应滚动（ty {y0} -> {yAfterDown}）");
+
+            // 滑行结束后的小幅反向抖动（惯性尾流）→ 不应把画面往回拉
+            win.MouseWheel(new Point(550, 400), new Vector(0, 5), RawInputModifiers.None);
+            win.MouseWheel(new Point(550, 400), new Vector(0, -3), RawInputModifiers.None);
+            win.MouseWheel(new Point(550, 400), new Vector(0, 4), RawInputModifiers.None);
+            await Task.Delay(400);
+            Assert.True(win.CanvasY < yAfterDown + 2.0,
+                $"滑行后反向抖动不应把画面拉回（ty {yAfterDown} -> {win.CanvasY}）");
+            win.Close();
+            await vm.DisposeAsync();
+        }
+        finally { try { File.Delete(db); } catch { } }
+    }
+
+    /// <summary>v2 回归：预览栏/输入页码跳页即时定位，且画面立即有图或占位（不黑屏）。</summary>
+    [AvaloniaFact]
+    public async Task PreviewJump_Instant_NoBlack()
+    {
+        var db = Path.Combine(Path.GetTempPath(), $"manga_wtf9_{Guid.NewGuid():N}.db");
+        try
+        {
+            var vm = new ReaderViewModel(StressBook, db);
+            await WaitUntilAsync(() => vm.Image1 is not null);
+            var win = await OpenWebtoonAsync(vm);
+            // 不等初始解码完成立即跳页（最坏竞态：初始解码仍在途）
+            vm.JumpToPhysicalCommand.Execute(150);
+            win.CallScrollWebtoonToPhysical(150);
+            // 立即定位（同步）
+            var vp = win.ViewportSize;
+            double pageH = Math.Min(vp.Width, vp.Height * PageRatio) / PageRatio;
+            Assert.True(Math.Abs(win.CanvasY - (-150 * pageH)) < 15, "跳页应立即定位到目标页");
+            // 画面不黑：有实例化图 或 有占位块
+            Assert.True(win.WebtoonInstancedCount >= 1 || win.WebtoonPlaceholderCount >= 1,
+                $"跳页后画面不应全黑（inst={win.WebtoonInstancedCount} placeholder={win.WebtoonPlaceholderCount}）");
+            await Task.Delay(1500);
+            Assert.True(win.WebtoonInstancedCount >= 1, "解码完成后应有实例化图");
+            win.Close();
+            await vm.DisposeAsync();
+        }
+        finally { try { File.Delete(db); } catch { } }
+    }
+
+    /// <summary>v2 回归：滚动模式视口任意处（含两侧空白）可拖拽（消除拖拽死区）。</summary>
+    [AvaloniaFact]
+    public async Task DragOnMargin_Moves()
+    {
+        var db = Path.Combine(Path.GetTempPath(), $"manga_wtf10_{Guid.NewGuid():N}.db");
+        try
+        {
+            var vm = new ReaderViewModel(StressBook, db);
+            await WaitUntilAsync(() => vm.Image1 is not null);
+            var win = await OpenWebtoonAsync(vm);
+            await WaitUntilAsync(() => win.WebtoonInstancedCount >= 1, 8000);
+
+            // 左侧空白（条居中于 280..820，x=100 是视口背景空白区）
+            double y0 = win.CanvasY;
+            win.MouseDown(new Point(100, 400), MouseButton.Left, RawInputModifiers.None);
+            for (int i = 1; i <= 8; i++)
+            {
+                win.MouseMove(new Point(100, 400 - i * 40), RawInputModifiers.None);
+                await Task.Delay(16);
+            }
+            win.MouseUp(new Point(100, 80), MouseButton.Left, RawInputModifiers.None);
+            await Task.Delay(100);
+            Assert.True(win.CanvasY < y0 - 100, $"空白区拖拽应生效（ty {y0} -> {win.CanvasY}）");
             win.Close();
             await vm.DisposeAsync();
         }

@@ -319,6 +319,29 @@
 
 ---
 
+## 一·二十六、滚动模式 v2 修复（2026-08，用户实测三问题：默认视图贴左放大/滚轮回弹/预览跳页黑屏）
+
+> 诊断：用用户真实书（38 页 4299×6071 JPEG）headless 逐帧实测定位根因（详见 [scroll-mode-fix-plan.md](scroll-mode-fix-plan.md) 〇章）。v2 已获用户决策后实施。
+
+| # | 修复/改动 | 文件位置 | 可能影响的功能（风险点） |
+|---|---|---|---|
+| 2.5-1 | **滚轮输入改"累积器+阈值分步"**（回弹根治）：删"每事件按符号打满档脉冲"→ `_wheelAccum += Delta.Y`，每满 120 触发一步（方向取累积符号，余数保留）。鼠标/触摸板 Delta 抖动（Avalonia #9858 间歇性错误、触摸板惯性尾流 ±小值）永远达不到阈值 → 不再反向整档滚动（实测：±1 交替事件画面纹丝不动）；一档 120=一步；触控板连续小 Delta=平滑滚动 | ReaderWindow.axaml.cs：ScrollWebtoonByEvent + _wheelAccum/WheelStepThreshold | **滚动手感（核心）**、速度按钮 |
+| 2.5-2 | **步长调优**：step = max(60, 视口高×0.35)（一档≈半屏，实测 764 视口→267px/步→滑行 ~320px 停住） | ReaderWindow.axaml.cs：ScrollWebtoonByEvent | 滚动手感 |
+| 2.5-3 | **进入/复位必重设默认视图**（贴左放大根治）：新增 `_webtoonActive` 标志——`EnterWebtoon` 在"非活动→活动"（任何进入，含再次进入/切回）一律 `FitWebtoonToPage(当前页)`（适应屏幕+水平垂直居中+scale=1）；会话中仅响应尺寸变化；`ExitWebtoon` 复位标志并清累积器（实测：分页放大 250% 后重进 → scale=1、tx=280.2 居中） | ReaderWindow.axaml.cs：EnterWebtoon/ExitWebtoon | 模式切换、窗口缩放 |
+| 2.5-4 | **拖拽整视口可拖**（死区消除）：滚动模式 `PointerPressed` 不再要求 `e.Source is Image`——视口任意处可拖（两侧空白有效，预览栏覆盖层除外）；分页模式保持"仅图片可拖"；提取 `StartDrag` 共用 | ReaderWindow.axaml.cs：OnViewportPointerPressed/StartDrag | 拖拽手感、预览栏点击 |
+| 2.5-5 | **甩动限幅收敛**：触发阈值 120→150 px/s、速度限幅 ±3000（原 ±6000）；慢拖=松手即停，快甩=自然滑行 | ReaderWindow.axaml.cs：OnViewportPointerReleased + DragFlingThreshold/Max | 拖拽释放手感 |
+| 2.5-6 | **跳页即时化**（预览跳页黑屏根治）：`ScrollWebtoonToPhysical` 补 `_webtoonSeq++`（作废旧范围在途解码，新范围立即解码不排队） | ReaderWindow.axaml.cs：ScrollWebtoonToPhysical | 预览栏/输入页码跳页 |
+| 2.5-7 | **占位块渲染**（任何时刻不黑屏）：`UpdateWebtoonPages` 为"可见范围内未解码"的页放置灰底 `#2A2A34`+居中页码 Border（位置=前缀和），解码完成即撤换；范围移出/结构重建（进入/复位/尺寸变化）时清理 | ReaderWindow.axaml.cs：EnsureWebtoonPlaceholder/RemoveWebtoonPlaceholder/ClearWebtoonPlaceholders + UpdateWebtoonPages/LoadWebtoonImageAsync/RemoveWebtoonImage/ExitWebtoon/OnClosed | 虚拟化渲染、画布子元素 |
+| 2.5-8 | **解码按显示宽度**：`GetPageBitmapAsync(physical, wantWidth)` 重载 + `DecodeAsync(physical, requestedWidth)` —— Webtoon 解码目标 = `_webtoonWidth×scale×dpr`（clamp 400..2048），不再用分页 2048+；真实书 4299px 页 fit 状态只解 ~540px → 解码提速 4-8 倍、内存同比例下降；放大按需重解码（复用既有机制） | ReaderViewModel.cs：DecodeAsync/GetPageBitmapAsync；ReaderWindow.axaml.cs：LoadWebtoonImageAsync | 解码缓存宽度语义、翻页/滚动性能 |
+| 2.5-9 | 新增 v2 回归测试 4 项：重进必重设（防贴左放大）/Delta 抖动免疫（±小值不动、一档正常滚）/跳页即时定位且画面有图或占位（防黑屏）/空白区可拖 | ScrollModeFixesTests.cs | 测试基线 48→52 |
+
+### 设计备忘（v2）
+- 滚轮一档（120 delta）≈ 半屏滑动 + 缓慢停住（用户确认）；触摸板连续小 Delta 自然累积为平滑滚动
+- 拖拽保持"内容跟随光标"（直接操纵，与移动端/看图器一致，用户确认）；甩动方向随拖拽
+- 真实书诊断验证：重进 scale=1 居中、Delta 抖动画面不动、拖拽+甩动单调无回弹、跳页立即定位且有实例/占位
+
+---
+
 ## 二、v2.2c + v2.2b（2026-08-22，热区与按钮配色修复）
 
 | # | 修复 | 文件位置 | 可能影响的功能 |
