@@ -12,12 +12,12 @@
     <Border DockPanel.Dock="Top" Padding="10,8" Background="#1C1C24">
       <DockPanel>
         <!-- 搜索框最先声明：Dock=Right 仍最右（位置不变），渲染在最底层 → 窗口变窄时按钮盖住搜索框 -->
-        <TextBox DockPanel.Dock="Right" Width="280" PlaceholderText="搜索标题 / 系列…" Text="{Binding SearchText}" VerticalContentAlignment="Center"/>
-        <TextBlock DockPanel.Dock="Left" Text="Hachimi Manga" Foreground="#E8E8E8" FontSize="18" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,20,0"/>
-        <Button DockPanel.Dock="Left" Content="＋ 添加资料库" Command="{Binding AddLibraryCommand}" Margin="0,0,8,0"/>
-        <Button DockPanel.Dock="Left" Content="重新扫描" Command="{Binding RescanCommand}" IsEnabled="{Binding !IsScanning}" Margin="0,0,8,0"/>
-        <Button DockPanel.Dock="Left" Content="{Binding GalleryModeText}" Command="{Binding CycleGalleryModeCommand}" Margin="0,0,8,0" ToolTip.Tip="切换展示（大图/中图/小图/详情）"/>
-        <TextBlock DockPanel.Dock="Right" Text="{Binding StatusText}" Foreground="#B0B0B0" VerticalAlignment="Center" Margin="0,0,14,0"/>
+        <TextBox DockPanel.Dock="Right" Width="280" PlaceholderText="搜索标题 / 系列…" Text="{Binding SearchText}" VerticalContentAlignment="Center" ZIndex="5"/>
+        <TextBlock DockPanel.Dock="Left" Text="Hachimi Manga" Foreground="#E8E8E8" FontSize="18" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,20,0" ZIndex="10"/>
+        <Button DockPanel.Dock="Left" Content="＋ 添加资料库" Command="{Binding AddLibraryCommand}" Margin="0,0,8,0" ZIndex="10"/>
+        <Button DockPanel.Dock="Left" Content="重新扫描" Command="{Binding RescanCommand}" IsEnabled="{Binding !IsScanning}" Margin="0,0,8,0" ZIndex="10"/>
+        <Button DockPanel.Dock="Left" Content="{Binding GalleryModeText}" Command="{Binding CycleGalleryModeCommand}" Margin="0,0,8,0" ToolTip.Tip="切换展示（大图/中图/小图/详情）" ZIndex="10"/>
+        <TextBlock DockPanel.Dock="Right" Text="{Binding StatusText}" Foreground="#B0B0B0" VerticalAlignment="Center" Margin="0,0,14,0" ZIndex="1"/>
       </DockPanel>
     </Border>
     <!-- 侧边栏 + 可拖动分隔条 + 内容区（Grid 三列：0=侧栏 1=分隔条 2=内容） -->
@@ -119,6 +119,12 @@
           </ScrollViewer>
             <ListBox x:Name="DetailList" IsVisible="{Binding IsDetailView}" ItemsSource="{Binding FolderEntries}" Margin="14"
                      Background="Transparent" DoubleTapped="OnBookDoubleTapped">
+              <ListBox.ItemContainerTheme>
+                <ControlTheme TargetType="ListBoxItem">
+                  <Setter Property="Padding" Value="0"/>
+                  <Setter Property="Margin" Value="0,1"/>
+                </ControlTheme>
+              </ListBox.ItemContainerTheme>
               <ListBox.ItemTemplate>
                 <DataTemplate x:DataType="vm:FolderEntryItemViewModel">
                   <Border Height="32" MinWidth="440" Margin="0,3" Background="#1E1E26" CornerRadius="4"
