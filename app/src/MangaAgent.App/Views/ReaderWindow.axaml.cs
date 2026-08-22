@@ -1098,7 +1098,8 @@ public partial class ReaderWindow : Window
         int n = Math.Clamp((int)((Viewport.Bounds.Height - 58) / 136.0), 1, 11);
         _thumbStripCount = n;
         // 卡片高填满剩余高度（消除张数死区余量），下限80 / 上限150（150px 源图缩小不糊）
-        double cardH = Math.Clamp((Viewport.Bounds.Height - 58 - 6 * (n - 1)) / n, 80, 150);
+        // 64 = 按钮26×2 + RowSpacing6×2（按钮与卡片间距 = 卡片间距 6，视觉一致）
+        double cardH = Math.Clamp((Viewport.Bounds.Height - 64 - 6 * (n - 1)) / n, 80, 150);
         int center = Math.Clamp(_thumbCenterPhysical, 0, total - 1);
         int start = Math.Clamp(center - n / 2, 0, Math.Max(0, total - n));
         int end = Math.Min(total - 1, start + n - 1);

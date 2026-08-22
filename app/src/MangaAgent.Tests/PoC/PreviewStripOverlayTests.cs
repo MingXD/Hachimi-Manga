@@ -50,8 +50,8 @@ public class PreviewStripOverlayTests
         Assert.Equal(expected, thumbStrip.Items.Count);
 
         var items = thumbStrip.Items.OfType<ReaderWindow.ThumbStripItem>().ToList();
-        // 卡片高填满剩余高度：cardH = clamp((H-58-6(n-1))/n, 80, 150)
-        double expectedCardH = Math.Clamp((viewport.Bounds.Height - 58 - 6 * (expected - 1)) / expected, 80, 150);
+        // 卡片高填满剩余高度：cardH = clamp((H-64-6(n-1))/n, 80, 150)（64 = 按钮26×2 + RowSpacing6×2）
+        double expectedCardH = Math.Clamp((viewport.Bounds.Height - 64 - 6 * (expected - 1)) / expected, 80, 150);
         Assert.True(Math.Abs(items[0].CardHeight - expectedCardH) < 0.5,
             $"卡片高不符: 实际={items[0].CardHeight} 期望={expectedCardH}");
         Assert.All(items, x => Assert.InRange(x.CardHeight, 80, 150));

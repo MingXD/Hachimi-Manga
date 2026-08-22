@@ -135,7 +135,7 @@
                 HorizontalAlignment="Right" VerticalAlignment="Stretch"
                 PointerMoved="OnPreviewStripPointerMoved" PointerExited="OnPreviewStripPointerExited"
                 PointerWheelChanged="OnPreviewStripWheel">
-          <Grid>
+          <Grid RowSpacing="6">
             <Grid.RowDefinitions>
               <RowDefinition Height="Auto"/>
               <RowDefinition Height="*"/>
