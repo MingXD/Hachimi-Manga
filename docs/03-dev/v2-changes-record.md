@@ -152,6 +152,19 @@
 
 ---
 
+## 一·十三、v2.3.9 主界面交互细化（2026-08-22）
+
+> 用户反馈：卡片间隔要小；详情模式要仿 Windows 文件管理器（单行占满、副标题盖标题、过窄裁剪）；搜索框层级（按钮盖搜索框）。
+
+| # | 修复/改动 | 文件位置 | 可能影响的功能（风险点） |
+|---|---|---|---|
+| 2.3.9-1 | **搜索框层级**：TextBox 移到顶栏 DockPanel 最前声明（Dock=Right 仍最右，渲染最底层）→ 窗口变窄重叠时按钮盖住搜索框 | MainWindow.axaml：顶栏 | 搜索框位置不变、层级修正 |
+| 2.3.9-2 | **卡片间距减小**：Margin 8→4（卡片间 8px）；WrapPanel 单元格 -8（大 248×388 / 中 176×280 / 小 128×204） | MainWindow.axaml + MainWindowViewModel.cs | 封面墙间距 |
+| 2.3.9-3 | **详情模式重构（仿文件管理器"详细信息"）**：取消卡片——ScrollViewer(卡片 ListBox) + DetailList 平级 Grid 按 IsDetailView 切换；详情行高 32、行间 6px、行占满内容区宽随窗口伸缩；**层级：标题先声明(NoWrap 延伸, 下层) → 副标题后声明(贴右带背景色盖住标题)**；行 MinWidth=440，窗口过窄不再变短由应用窗口右缘裁剪 | MainWindow.axaml：内容区双 ListBox + DetailList 模板；MainWindowViewModel.cs：IsDetailView | 详情模式、卡片模式互斥显示 |
+| 2.3.9-4 | 测试：IsDetailView 切换断言 | FolderBrowserTests.cs | 测试基线 41 |
+
+---
+
 ## 二、v2.2c + v2.2b（2026-08-22，热区与按钮配色修复）
 
 | # | 修复 | 文件位置 | 可能影响的功能 |
