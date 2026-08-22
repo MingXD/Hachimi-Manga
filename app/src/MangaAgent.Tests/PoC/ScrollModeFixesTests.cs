@@ -565,4 +565,33 @@ public class ScrollModeFixesTests
         }
         finally { try { File.Delete(db); } catch { } }
     }
+
+    /// <summary>v3.2 回归：滚动模式"适应高度"= 当前页高铺满视口（与单页 FitHeight 一致）。</summary>
+    [AvaloniaFact]
+    public async Task FitHeight_FillsViewportHeight()
+    {
+        var db = Path.Combine(Path.GetTempPath(), $"manga_wtf16_{Guid.NewGuid():N}.db");
+        try
+        {
+            var vm = new ReaderViewModel(StressBook, db);
+            await WaitUntilAsync(() => vm.Image1 is not null);
+            var win = await OpenWebtoonAsync(vm);
+            await WaitUntilAsync(() => win.WebtoonInstancedCount >= 1, 8000);
+
+            vm.CycleFitCommand.Execute(null);   // FitScreen -> FitWidth
+            await Task.Delay(300);
+            vm.CycleFitCommand.Execute(null);   // FitWidth -> FitHeight
+            await Task.Delay(600);
+
+            // 条宽 = 视口高 × 当前页比例（页高 = 视口高，单页 FitHeight 语义）
+            double expectedW = win.ViewportSize.Height * PageRatio;
+            Assert.True(Math.Abs(win.WebtoonWidthValue - expectedW) < 2.0,
+                $"适应高度后条宽应 = 视口高×比例（{win.WebtoonWidthValue:F1} vs {expectedW:F1}）");
+            Assert.Equal(100.0, vm.ZoomPercent, 1);
+            Assert.True(win.WebtoonInstancedCount >= 1 || win.WebtoonPlaceholderCount >= 1, "适应高度后画面不应全黑");
+            win.Close();
+            await vm.DisposeAsync();
+        }
+        finally { try { File.Delete(db); } catch { } }
+    }
 }
