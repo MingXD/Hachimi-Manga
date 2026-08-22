@@ -44,15 +44,17 @@
 ## 常用命令（Windows）
 ```powershell
 # 构建（Debug）
-& "$env:LOCALAPPDATAMicrosoftdotnetdotnet.exe" build appsrcMangaAgent.App -m:1 -p:UseSharedCompilation=false
+& "$env:LOCALAPPDATA\Microsoft\dotnet\dotnet.exe" build app\src\MangaAgent.App -m:1 -p:UseSharedCompilation=false
 
 # 测试
-& "$env:LOCALAPPDATAMicrosoftdotnetdotnet.exe" test appsrcMangaAgent.Tests -m:1 -p:UseSharedCompilation=false
+& "$env:LOCALAPPDATA\Microsoft\dotnet\dotnet.exe" test app\src\MangaAgent.Tests -m:1 -p:UseSharedCompilation=false
 
 # 发布（Release，输出到 app\publish）
-& "$env:LOCALAPPDATAMicrosoftdotnetdotnet.exe" publish appsrcMangaAgent.App -c Release -r win-x64 --self-contained -p:PublishSingleFile=false -m:1 -p:UseSharedCompilation=false
+& "$env:LOCALAPPDATA\Microsoft\dotnet\dotnet.exe" publish app\src\MangaAgent.App -c Release -r win-x64 --self-contained -p:PublishSingleFile=false -m:1 -p:UseSharedCompilation=false
 # 然后 robocopy ...\bin\Release\net9.0\win-x64\publish app\publish /MIR
 ```
+
+> 完整发布流程（含参数原理/环境坑位/验证清单）：[docs/03-dev/release.md](docs/03-dev/release.md)
 
 ## 版本历史（最近）
 | 版本 | 内容 |

@@ -44,6 +44,7 @@
 | [CODE-MAP.md](03-dev/CODE-MAP.md) | 代码地图（模块/文件定位） |
 | [conventions.md](03-dev/conventions.md) | 代码规范与约定 |
 | [setup.md](03-dev/setup.md) | 环境搭建 |
+| [release.md](03-dev/release.md) | **发布流程（Release 打包，新会话必读）** |
 | [m1-acceptance.md](03-dev/m1-acceptance.md) | M1 验收 |
 | [poc-report.md](03-dev/poc-report.md) | PoC 报告 |
 | [v2-changes-record.md](03-dev/v2-changes-record.md) | **v2.0–v2.3 变更全记录（最新）** |

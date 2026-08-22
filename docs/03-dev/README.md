@@ -14,6 +14,7 @@
 | [v1.8-plan.md](v1.8-plan.md) / [v1.8-final-plan.md](v1.8-final-plan.md) | v1.8 计划与定稿 |
 | [v1.9-plan.md](v1.9-plan.md) / [v1.9-changes-record.md](v1.9-changes-record.md) | v1.9 计划 / 修复全记录 |
 | [v2-changes-record.md](v2-changes-record.md) | **v2.0–v2.3 预览栏系列变更全记录（最新）** |
+| [release.md](release.md) | **发布流程（Release 打包/原理/环境坑位，发布前必读）** |
 | [preview-strip-design.md](preview-strip-design.md) / [preview-strip-final.md](preview-strip-final.md) | 预览栏方案设计 / 最终方案（含实施后现状） |
 
 ## Bug 跟踪
