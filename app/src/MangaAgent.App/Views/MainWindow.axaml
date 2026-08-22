@@ -49,7 +49,7 @@
           <TreeView ItemsSource="{Binding FolderTree}" SelectedItem="{Binding SelectedFolder}" Background="Transparent" ScrollViewer.VerticalScrollBarVisibility="Visible" ScrollViewer.HorizontalScrollBarVisibility="Hidden">
             <TreeView.ItemTemplate>
               <TreeDataTemplate ItemsSource="{Binding Children}">
-                <TextBlock Text="{Binding Name}" Foreground="#E8E8E8" Margin="4,3" MaxWidth="196" TextTrimming="CharacterEllipsis"/>
+                <TextBlock Text="{Binding Name}" Foreground="#E8E8E8" Margin="4,3" MaxWidth="180" TextTrimming="CharacterEllipsis" HorizontalAlignment="Left" TextAlignment="Left"/>
               </TreeDataTemplate>
             </TreeView.ItemTemplate>
           </TreeView>
