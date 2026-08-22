@@ -46,10 +46,10 @@
             </ComboBox>
           </DockPanel>
           <TextBlock DockPanel.Dock="Top" Text="文件夹" Foreground="#888888" Margin="12,10,12,6" FontSize="12"/>
-          <TreeView ItemsSource="{Binding FolderTree}" SelectedItem="{Binding SelectedFolder}" Background="Transparent" ScrollViewer.VerticalScrollBarVisibility="Visible" ScrollViewer.HorizontalScrollBarVisibility="Hidden">
+          <TreeView ItemsSource="{Binding FolderTree}" SelectedItem="{Binding SelectedFolder}" Background="Transparent" ScrollViewer.VerticalScrollBarVisibility="Visible" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
             <TreeView.ItemTemplate>
               <TreeDataTemplate ItemsSource="{Binding Children}">
-                <TextBlock Text="{Binding Name}" Foreground="#E8E8E8" Margin="4,3" MaxWidth="180" TextTrimming="CharacterEllipsis" HorizontalAlignment="Left" TextAlignment="Left"/>
+                <TextBlock Text="{Binding Name}" Foreground="#E8E8E8" Margin="4,3" HorizontalAlignment="Left" TextAlignment="Left"/>
               </TreeDataTemplate>
             </TreeView.ItemTemplate>
           </TreeView>
