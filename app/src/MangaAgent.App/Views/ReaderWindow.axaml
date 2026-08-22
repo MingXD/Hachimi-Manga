@@ -141,7 +141,7 @@
               <RowDefinition Height="*"/>
               <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
-            <Button Grid.Row="0" Content="▲" Click="OnPreviewStripPrev" Background="Transparent" Foreground="{Binding PreviewStripLabel}"
+            <Button Grid.Row="0" Content="▲" Click="OnPreviewStripPrev" Background="Transparent" Foreground="{Binding PreviewStripLabel}" Width="124"
                     FontSize="16" Height="32" HorizontalAlignment="Center"/>
             <ItemsControl x:Name="ThumbStrip" Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center">
               <ItemsControl.ItemsPanel>
@@ -158,7 +158,7 @@
                         <Grid>
                           <TextBlock Text="{Binding PageLabel}" Foreground="{Binding $parent[Window].((vm:ReaderViewModel)DataContext).PreviewStripLabel}" FontSize="16"
                                      HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                          <Image Source="{Binding Bitmap}" Stretch="Uniform"/>
+                          <Image Source="{Binding Bitmap}" Stretch="UniformToFill"/>
                         </Grid>
                       </Border>
                       <!-- 页码在卡片右侧（横向 → 不占纵向空间，修复小屏第7张被遮） -->
@@ -169,7 +169,7 @@
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
             </ItemsControl>
-            <Button Grid.Row="2" Content="▼" Click="OnPreviewStripNext" Background="Transparent" Foreground="{Binding PreviewStripLabel}"
+            <Button Grid.Row="2" Content="▼" Click="OnPreviewStripNext" Background="Transparent" Foreground="{Binding PreviewStripLabel}" Width="124"
                     FontSize="16" Height="32" HorizontalAlignment="Center"/>
           </Grid>
         </Border>

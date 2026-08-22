@@ -447,7 +447,12 @@ public partial class ReaderWindow : Window
     }
 
     // ---------- 输入 ----------
-    private void OnViewportSizeChanged(object? sender, SizeChangedEventArgs e) => Relayout();
+    private void OnViewportSizeChanged(object? sender, SizeChangedEventArgs e)
+    {
+        Relayout();
+        // 预览栏可见时尺寸变化 → 重新计算张数（全屏/拖窗切换后立即正确）
+        if (PreviewStrip?.IsVisible == true) RefreshThumbStrip();
+    }
 
     private void OnPointerWheelChanged(object? sender, PointerWheelEventArgs e)
     {
@@ -1029,6 +1034,7 @@ public partial class ReaderWindow : Window
     private Avalonia.Threading.DispatcherTimer? _hoverTimer;
     private readonly System.Collections.ObjectModel.ObservableCollection<ThumbStripItem> _thumbItems = new();
     private int _thumbCenterPhysical;
+    private int _thumbStripCount = 7;   // 当前张数（随视口高度动态，▲▼ 步长）
     private int _thumbSeq;   // 刷新序列号：只认最新一次，防并发叠加
     private Avalonia.Point _lastMousePos;
 
@@ -1086,18 +1092,19 @@ public partial class ReaderWindow : Window
         if (_vm is null || ThumbStrip is null || !PreviewStrip.IsVisible) return;
         int mySeq = ++_thumbSeq;
         int total = _vm.PhysicalPageCount;
-        int center = Math.Clamp(_thumbCenterPhysical, 0, total - 1);
-        int start = Math.Max(0, center - 3);
-        int end = Math.Min(total - 1, center + 3);
-        while (end - start + 1 < 7 && start > 0) start--;
-        while (end - start + 1 < 7 && end < total - 1) end++;
 
-        // 卡片尺寸：宽 96，高 = min(窗口高/7 - 间距, 130)，下限 80
-        double cardH = Math.Clamp((Viewport.Bounds.Height - 32 * 2 - 6 * 6) / 7.0, 80, 130);
+        // 固定卡片 96×130 + 间距6 + 上下按钮58 → 按可用高度动态张数（1..11，奇偶皆可，不强制居中）
+        // 防溢出：总高 = n×130 + (n-1)×6 ≤ 视口高 - 58，任何窗口高度第 n 张都完整可见
+        int n = Math.Clamp((int)((Viewport.Bounds.Height - 58) / 136.0), 1, 11);
+        _thumbStripCount = n;
+        int center = Math.Clamp(_thumbCenterPhysical, 0, total - 1);
+        int start = Math.Clamp(center - n / 2, 0, Math.Max(0, total - n));
+        int end = Math.Min(total - 1, start + n - 1);
+
         int curPhys = _vm.CurrentPhysical;
         _thumbItems.Clear();
         for (int i = start; i <= end; i++)
-            _thumbItems.Add(new ThumbStripItem(i, 96, cardH) { IsCurrent = i == curPhys });
+            _thumbItems.Add(new ThumbStripItem(i, 96, 130) { IsCurrent = i == curPhys });
         ThumbStrip.ItemsSource = _thumbItems;
 
         // 小图解码（~150px，快），seq 过期则丢弃
@@ -1125,13 +1132,13 @@ public partial class ReaderWindow : Window
 
     private void OnPreviewStripPrev(object? sender, RoutedEventArgs e)
     {
-        _thumbCenterPhysical = Math.Max(0, _thumbCenterPhysical - 7);
+        _thumbCenterPhysical = Math.Max(0, _thumbCenterPhysical - _thumbStripCount);
         RefreshThumbStrip();
     }
 
     private void OnPreviewStripNext(object? sender, RoutedEventArgs e)
     {
-        _thumbCenterPhysical = Math.Min((_vm?.PhysicalPageCount ?? 1) - 1, _thumbCenterPhysical + 7);
+        _thumbCenterPhysical = Math.Min((_vm?.PhysicalPageCount ?? 1) - 1, _thumbCenterPhysical + _thumbStripCount);
         RefreshThumbStrip();
     }
 

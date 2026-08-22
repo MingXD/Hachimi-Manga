@@ -10,7 +10,7 @@ using Xunit;
 
 namespace MangaAgent.Tests.PoC;
 
-/// <summary>预览栏覆盖层回归：①不再占 DockPanel 布局（不推挤图片）②背景绑定主题色（浅/深半透明）③页码在卡片右侧不溢出 + 当前页高亮。</summary>
+/// <summary>预览栏覆盖层回归：①不再占 DockPanel 布局（不推挤图片）②背景绑定主题色（浅/深半透明）③页码在卡片右侧不溢出 + 当前页高亮 ④动态张数（固定卡片96×130，随视口高度增减，极小窗口缩到1张）。</summary>
 public class PreviewStripOverlayTests
 {
     private static readonly string Fixtures = Path.GetFullPath(
@@ -26,6 +26,38 @@ public class PreviewStripOverlayTests
         while (!cond() && sw.ElapsedMilliseconds < timeoutMs)
             await Task.Delay(50);
         Assert.True(cond(), "条件超时未满足");
+    }
+
+    /// <summary>唤出预览栏并返回 ThumbStrip（ShowPreviewStrip 私有，反射调用）。</summary>
+    private static ItemsControl ShowStrip(ReaderWindow win)
+    {
+        var show = typeof(ReaderWindow).GetMethod("ShowPreviewStrip",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        Assert.NotNull(show);
+        show.Invoke(win, null);
+        var strip = win.FindControl<ItemsControl>("ThumbStrip");
+        Assert.NotNull(strip);
+        return strip;
+    }
+
+    /// <summary>断言：张数与公式一致、当前页恰一项 IsCurrent、内容纵向不溢出。布局后调用。</summary>
+    private static void AssertStripConsistent(ReaderWindow win, ItemsControl thumbStrip, ReaderViewModel vm)
+    {
+        var viewport = win.FindControl<Border>("Viewport");
+        Assert.NotNull(viewport);
+        int expected = Math.Clamp((int)((viewport.Bounds.Height - 58) / 136.0), 1, 11);
+        Assert.InRange(expected, 1, 11);
+        Assert.Equal(expected, thumbStrip.Items.Count);
+
+        var items = thumbStrip.Items.OfType<ReaderWindow.ThumbStripItem>().ToList();
+        var curPhys = vm.CurrentPhysical;
+        Assert.Equal(1, items.Count(x => x.IsCurrent));
+        Assert.Contains(items, x => x.Physical == curPhys && x.IsCurrent);
+
+        var scroller = thumbStrip.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault();
+        if (scroller is not null)
+            Assert.True(scroller.Extent.Height <= scroller.Viewport.Height + 1,
+                $"预览栏内容纵向溢出: extent={scroller.Extent.Height} viewport={scroller.Viewport.Height}");
     }
 
     [AvaloniaFact]
@@ -88,7 +120,7 @@ public class PreviewStripOverlayTests
     }
 
     [AvaloniaFact]
-    public async Task PreviewStrip_Shows7_CurrentHighlight_NoVerticalOverflow()
+    public async Task PreviewStrip_DynamicCount_CurrentHighlight_NoVerticalOverflow()
     {
         var db = Path.Combine(Path.GetTempPath(), $"mangaagent_preview2_{Guid.NewGuid():N}.db");
         try
@@ -99,31 +131,42 @@ public class PreviewStripOverlayTests
             win.Show();
             win.Measure(new Size(1100, 800));
             win.Arrange(new Rect(0, 0, 1100, 800));
-
-            // 唤出预览栏（ShowPreviewStrip 私有，反射调用）
-            var show = typeof(ReaderWindow).GetMethod("ShowPreviewStrip",
-                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            Assert.NotNull(show);
-            show.Invoke(win, null);
+            await Task.Delay(200);
+            var thumbStrip = ShowStrip(win);
             await Task.Delay(200);   // 等缩略图异步填充
 
-            var thumbStrip = win.FindControl<ItemsControl>("ThumbStrip");
-            Assert.NotNull(thumbStrip);
-            Assert.Equal(7, thumbStrip.Items.Count);
-
-            // 当前页高亮标记：恰一项 IsCurrent，且为当前物理页
-            var items = thumbStrip.Items.OfType<ReaderWindow.ThumbStripItem>().ToList();
-            var curPhys = vm.CurrentPhysical;
-            Assert.Equal(1, items.Count(x => x.IsCurrent));
-            Assert.Contains(items, x => x.Physical == curPhys && x.IsCurrent);
-
-            // 页码移到卡片右侧后，7 项内容总高 ≤ 预览栏高（纵向不溢出 → 第7张完整可见）
             win.Measure(new Size(1100, 800));
             win.Arrange(new Rect(0, 0, 1100, 800));
-            var scroller = thumbStrip.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault();
-            if (scroller is not null)
-                Assert.True(scroller.Extent.Height <= scroller.Viewport.Height + 1,
-                    $"预览栏内容纵向溢出: extent={scroller.Extent.Height} viewport={scroller.Viewport.Height}");
+            AssertStripConsistent(win, thumbStrip, vm);
+
+            win.Close();
+            await vm.DisposeAsync();
+        }
+        finally
+        {
+            try { File.Delete(db); } catch { }
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task PreviewStrip_TinyWindow_ShrinksToOne()
+    {
+        var db = Path.Combine(Path.GetTempPath(), $"mangaagent_preview3_{Guid.NewGuid():N}.db");
+        try
+        {
+            var vm = new ReaderViewModel(StressBook, db);
+            await WaitUntilAsync(() => vm.Image1 is not null);
+            var win = new ReaderWindow { DataContext = vm };
+            win.Show();
+            win.Measure(new Size(1100, 340));
+            win.Arrange(new Rect(0, 0, 1100, 340));
+            await Task.Delay(200);
+            var thumbStrip = ShowStrip(win);
+            await Task.Delay(200);
+
+            win.Measure(new Size(1100, 340));
+            win.Arrange(new Rect(0, 0, 1100, 340));
+            AssertStripConsistent(win, thumbStrip, vm);   // 期望 n=1（视口高 ~290 → (290-58)/136=1.7 → 1）
 
             win.Close();
             await vm.DisposeAsync();
