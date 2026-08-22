@@ -11,11 +11,12 @@
     <!-- 顶栏 -->
     <Border DockPanel.Dock="Top" Padding="10,8" Background="#1C1C24">
       <DockPanel>
+        <!-- 搜索框最先声明：Dock=Right 仍最右（位置不变），渲染在最底层 → 窗口变窄时按钮盖住搜索框 -->
+        <TextBox DockPanel.Dock="Right" Width="280" PlaceholderText="搜索标题 / 系列…" Text="{Binding SearchText}" VerticalContentAlignment="Center"/>
         <TextBlock DockPanel.Dock="Left" Text="Hachimi Manga" Foreground="#E8E8E8" FontSize="18" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,20,0"/>
         <Button DockPanel.Dock="Left" Content="＋ 添加资料库" Command="{Binding AddLibraryCommand}" Margin="0,0,8,0"/>
         <Button DockPanel.Dock="Left" Content="重新扫描" Command="{Binding RescanCommand}" IsEnabled="{Binding !IsScanning}" Margin="0,0,8,0"/>
         <Button DockPanel.Dock="Left" Content="{Binding GalleryModeText}" Command="{Binding CycleGalleryModeCommand}" Margin="0,0,8,0" ToolTip.Tip="切换展示（大图/中图/小图/详情）"/>
-        <TextBox DockPanel.Dock="Right" Width="280" PlaceholderText="搜索标题 / 系列…" Text="{Binding SearchText}" VerticalContentAlignment="Center"/>
         <TextBlock DockPanel.Dock="Right" Text="{Binding StatusText}" Foreground="#B0B0B0" VerticalAlignment="Center" Margin="0,0,14,0"/>
       </DockPanel>
     </Border>
@@ -56,8 +57,9 @@
           </DockPanel>
         </Border>
         <Border Background="#101014">
-          <ScrollViewer x:Name="CoverScroller" Margin="14" ScrollChanged="OnCoverScrollChanged">
-            <ListBox x:Name="BooksList" ItemsSource="{Binding FolderEntries}"
+          <Grid>
+          <ScrollViewer x:Name="CoverScroller" Margin="14" ScrollChanged="OnCoverScrollChanged" IsVisible="{Binding !IsDetailView}">
+            <ListBox x:Name="BooksList" ItemsSource="{Binding FolderEntries}" IsVisible="{Binding !IsDetailView}"
                      Background="Transparent" HorizontalAlignment="Left"
                      DoubleTapped="OnBookDoubleTapped">
               <ListBox.ItemsPanel>
@@ -67,7 +69,7 @@
               </ListBox.ItemsPanel>
               <ListBox.ItemTemplate>
                 <DataTemplate x:DataType="vm:FolderEntryItemViewModel">
-                  <Border Width="{Binding CardWidth}" Height="{Binding CardHeight}" Background="#1E1E26" CornerRadius="6" BorderBrush="#333333" BorderThickness="1" ClipToBounds="True" Margin="8"
+                  <Border Width="{Binding CardWidth}" Height="{Binding CardHeight}" Background="#1E1E26" CornerRadius="6" BorderBrush="#333333" BorderThickness="1" ClipToBounds="True" Margin="4"
                           ToolTip.Tip="{Binding DisplayName}">
                     <Border.ContextMenu>
                       <ContextMenu>
@@ -111,7 +113,43 @@
                 </DataTemplate>
               </ListBox.ItemTemplate>
             </ListBox>
+            <!-- 详情模式：Windows 文件管理器"详细信息"视图 —— 行占满内容区宽，随窗口伸缩 -->
+            <!-- 层级：标题先声明(下层, NoWrap 延伸) → 副标题后声明(上层, 贴右带背景盖住标题) -->
+            <!-- 窗口过窄：行 MinWidth=440 不再变短，应用窗口右缘裁剪（ScrollViewer 水平不滚动） -->
           </ScrollViewer>
+            <ListBox x:Name="DetailList" IsVisible="{Binding IsDetailView}" ItemsSource="{Binding FolderEntries}" Margin="14"
+                     Background="Transparent" DoubleTapped="OnBookDoubleTapped">
+              <ListBox.ItemTemplate>
+                <DataTemplate x:DataType="vm:FolderEntryItemViewModel">
+                  <Border Height="32" MinWidth="440" Margin="0,3" Background="#1E1E26" CornerRadius="4"
+                          BorderBrush="#333333" BorderThickness="1" ClipToBounds="True" ToolTip.Tip="{Binding DisplayName}">
+                    <Border.ContextMenu>
+                      <ContextMenu>
+                        <MenuItem Header="打开" Command="{Binding OpenCommand}"/>
+                        <Separator/>
+                        <MenuItem Header="复制到…" Command="{Binding CopyToCommand}"/>
+                        <MenuItem Header="移动到…" Command="{Binding MoveToCommand}"/>
+                        <Separator/>
+                        <MenuItem Header="重命名" Command="{Binding RenameCommand}"/>
+                        <MenuItem Header="删除（回收站）" Command="{Binding DeleteCommand}"/>
+                        <Separator/>
+                        <MenuItem Header="在资源管理器中显示" Command="{Binding ShowInExplorerCommand}"/>
+                        <MenuItem Header="属性" Command="{Binding PropertiesCommand}"/>
+                      </ContextMenu>
+                    </Border.ContextMenu>
+                    <Grid ColumnDefinitions="34,*">
+                      <TextBlock Grid.Column="0" Text="{Binding IconText}" FontSize="20" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                      <Grid Grid.Column="1">
+                        <TextBlock Text="{Binding DisplayName}" FontSize="13" Foreground="#E8E8E8" VerticalAlignment="Center" TextWrapping="NoWrap"/>
+                        <TextBlock Text="{Binding SubtitleOneLine}" FontSize="10" Foreground="#888888" VerticalAlignment="Center"
+                                   HorizontalAlignment="Right" Background="#1E1E26" Padding="10,0,6,0"/>
+                      </Grid>
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ListBox.ItemTemplate>
+            </ListBox>
+          </Grid>
         </Border>
       </DockPanel>
     </Grid>

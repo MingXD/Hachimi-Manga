@@ -120,6 +120,7 @@ public class FolderBrowserTests
 
             // 详情模式：行式无图
             vm.GalleryMode = GalleryMode.Detail;
+            Assert.True(vm.IsDetailView);   // 详情模式切换内容区（详情 ListBox vs 卡片 ListBox）
             Assert.All(vm.FolderEntries, e => Assert.True(e.IsDetail));
             Assert.All(vm.FolderEntries, e => Assert.Equal(0.0, e.CoverWidth));
             Assert.All(vm.FolderEntries, e => Assert.Equal(560.0, e.CardWidth));

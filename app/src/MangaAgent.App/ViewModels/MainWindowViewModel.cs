@@ -37,6 +37,9 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty] private GalleryMode _galleryMode = GalleryMode.Medium;
 
     /// <summary>展示模式按钮文案（功能-1 v1.9）。</summary>
+    /// <summary>详情模式标识（内容区切换：详情 ListBox vs 卡片 ListBox）。</summary>
+    public bool IsDetailView => GalleryMode == GalleryMode.Detail;
+
     public string GalleryModeText => GalleryMode switch
     {
         GalleryMode.Large => "展示:大图",
@@ -50,6 +53,7 @@ public partial class MainWindowViewModel : ViewModelBase
         OnPropertyChanged(nameof(GalleryModeText));
         OnPropertyChanged(nameof(GalleryItemWidth));
         OnPropertyChanged(nameof(GalleryItemHeight));
+        OnPropertyChanged(nameof(IsDetailView));
         // 重建条目以应用新尺寸
         if (CurrentFolder is not null) ShowFolderContents(CurrentFolder);
     }
@@ -57,17 +61,17 @@ public partial class MainWindowViewModel : ViewModelBase
     /// <summary>封面墙卡片尺寸（随展示模式变化）。</summary>
     public double GalleryItemWidth => GalleryMode switch
     {
-        GalleryMode.Large => 256,   // = 卡片宽240 + Margin8×2
-        GalleryMode.Small => 136,
+        GalleryMode.Large => 248,   // = 卡片宽240 + Margin4×2
+        GalleryMode.Small => 128,
         GalleryMode.Detail => 560,  // 详情：行式条宽
-        _ => 184,
+        _ => 176,
     };
     public double GalleryItemHeight => GalleryMode switch
     {
-        GalleryMode.Large => 396,   // = 卡片高380 + Margin8×2
-        GalleryMode.Small => 212,
+        GalleryMode.Large => 388,   // = 卡片高380 + Margin4×2
+        GalleryMode.Small => 204,
         GalleryMode.Detail => 40,  // 详情：行式条高
-        _ => 288,
+        _ => 280,
     };
 
     [RelayCommand]
