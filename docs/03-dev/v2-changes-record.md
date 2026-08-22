@@ -342,6 +342,34 @@
 
 ---
 
+## 一·二十七、滚动模式 v3 修复（2026-08，发布版实测 6 问题）
+
+> v2.5 发布后用户实测：滚轮无作用 / 键盘左右非上下 / 复位错位 / 适应按钮+百分比 / 黑页不恢复 / 放大模糊。
+> 诊断关键实证：`Bitmap.DecodeToWidth` 对垃圾数据从不抛异常（返回占位图）→ 真正的解码失败只来自**流读取**（损坏 ZIP 条目）；
+> 黑页根因为"解码失败创建空 Image 登记 → 永不重请求"；模糊根因为缓存宽度记录缺失 + 重解码被 uiRefs 守卫拒绝。
+
+| # | 修复/改动 | 文件位置 | 可能影响的功能（风险点） |
+|---|---|---|---|
+| 2.6-1 | **滚轮改比例脉冲+死区**（滚轮无作用根治）：删"累积满 120 分步"→ `v += clamp(Delta×16, ±6000)`，`\|Delta\|<2` 死区，最小脉冲 150 兜底 —— 任何 Delta 大小立即滚动（弱 Delta 设备不再无效）、±1 抖动过滤不反弹、一档 120≈半屏滑行 | ReaderWindow.axaml.cs：ScrollWebtoonByEvent + WheelVelocityK/Deadband/MinImpulse | **滚动手感（核心）**、速度按钮 |
+| 2.6-2 | **键盘 ↑↓**（问题 2）：滚动模式 ↑=上滚一屏/↓=下滚一屏；分页模式 ↑=上一页/↓=下一页（←→ 保留，看图器惯例） | ReaderWindow.axaml.cs：OnKeyDownTunnel/OnKeyDown | 键盘翻页 |
+| 2.6-3 | **复位/适应屏幕统一 + 宽度变化清空重载**（问题 3 根治）：`FitWebtoonToPage` 重算条宽后先 `ClearWebtoonImages()`（含重置范围守卫）再重建 —— 旧尺寸图不再残留错位；`CycleFit`（适应屏幕按钮）在滚动模式 → 当前页适应+居中 | ReaderWindow.axaml.cs：FitWebtoonToPage/ClearWebtoonImages/PropertyChanged 处理器 | 复位/适应按钮、模式切换 |
+| 2.6-4 | **百分比 fit=100%**（问题 4）：滚动模式 `ZoomPercent = scale×100`；`ZoomWebtoon`/`FitWebtoonToPage`/复位后均更新 | ReaderWindow.axaml.cs：UpdateZoomPercent/ZoomWebtoon | 缩放显示 |
+| 2.6-5 | **解码失败不建空图+占位+限次重试**（问题 5 根治，实证）：`bmp==null`（流读取失败）→ 不创建空 Image（防登记后永不重请求 → 永久黑），保留占位块 + 限次重试（≤3 次、800ms 间隔，翻远重来重置计数）；`LoadSizes` 单页失败容错（损坏 CBZ 不再打不开） | ReaderWindow.axaml.cs：LoadWebtoonImageAsync/RetryWebtoonImageAsync；ReaderViewModel.cs：LoadSizes | 损坏书/坏条目健壮性 |
+| 2.6-6 | **放大按需重解码（移除重建）**（问题 6 根治）：删 `DecodeAsync` 的"uiRefs 则拒绝重解码"守卫；`UpdateWebtoonPages` 对可见页检查"缓存宽度 < 显示需求×0.85"→ 移除旧图+占位+按新宽度重请求（移除重建而非原位替换 Source —— 原位替换会因渲染管线持旧引用崩溃）；分页模式缩放后当前页不足 → `RefreshCurrentPage` 重解码 | ReaderWindow.axaml.cs：TryRefreshWebtoonImage；ReaderViewModel.cs：DecodeAsync/HasCachedWidth/CurrentPageNeedsRedecode/RefreshCurrentPage | 位图生命周期、翻页/缩放性能 |
+| 2.6-7 | **DecodeAsync 缓存宽度记录补齐**（连带发现）：原只在 Prefetch 记录宽度 → 放大清晰度/重解码判定失效，补齐 `_pageCacheWidth[physical]=want` | ReaderViewModel.cs：DecodeAsync | 缓存宽度语义 |
+| 2.6-8 | **缓存淘汰保护显示中条目**（连带发现，崩溃级）：`EvictCache` 跳过仍被 UI 引用的条目（移到队尾，整轮显示中则停止）—— 否则显示中页的缓存条目被淘汰 → 放大刷新风暴 → "先淘汰后 Acquire"Dispose 刚解码位图 → 渲染崩溃；淘汰同步清理宽度记录 | ReaderViewModel.cs：EvictCache | **内存/崩溃安全** |
+| 2.6-9 | **DecodeAsync 先 Acquire 再淘汰**（连带发现）：防"刚解码未引用即被淘汰 Dispose" | ReaderViewModel.cs：DecodeAsync | 位图生命周期 |
+| 2.6-10 | **RemoveWebtoonImage 先移出画布再释放**（连带发现）：缓存条目已被淘汰时，先 Release 会 Dispose 仍被渲染树引用的位图 → 下一布局崩溃；改为先 `Children.Remove` 再 Release | ReaderWindow.axaml.cs：RemoveWebtoonImage | 位图生命周期 |
+| 2.6-11 | **优化**：`UpdateWebtoonPages` 范围未变跳过重活（滚动 16ms/帧减负）；`_ctrlDown` 窗口失活复位（防滚轮误判缩放）；占位块提亮（`#3A3A44`+`#CCC` 更易辨识为加载中） | ReaderWindow.axaml.cs | 性能/健壮性/观感 |
+| 2.6-12 | 新增 v3 回归测试 5 项：弱 Delta 滚轮有效+死区免疫 / 坏条目页占位不黑（真实 CRC 损坏 CBZ）/ 复位无旧宽度残留 / 放大后缓存宽度提升+百分比对应 / 键盘 ↑↓；更新滚轮测试为真实档位 Delta | ScrollModeFixesTests.cs | 测试基线 52→57 |
+
+### 设计备忘（v3）
+- 滚轮比例脉冲：任何 Delta 大小都有效（弱 Delta 设备根治）；死区 2 过滤 ±1 抖动；最小脉冲保证任一档位有可见滚动
+- 放大清晰度用"移除重建"：复用既有加载/占位/作废机制，避免原位替换的渲染管线风险
+- 黑页/模糊/崩溃全部溯源到位图生命周期：解码失败登记空图、缓存宽度缺失、淘汰风暴、释放顺序 —— 本批一并修复
+
+---
+
 ## 二、v2.2c + v2.2b（2026-08-22，热区与按钮配色修复）
 
 | # | 修复 | 文件位置 | 可能影响的功能 |
@@ -407,11 +435,12 @@
 
 ## 七、验证状态
 
+- **v3（2.6）：57/57 自动化测试通过**（v3 新增 5 项：弱 Delta 滚轮/坏条目占位/复位无残留/放大刷新+百分比/键盘↑↓）；真实书诊断复验
 - **v2.5：52/52 自动化测试通过**（v2 新增 4 项滚动回归：重进重设/Delta 抖动免疫/跳页即时不黑屏/空白区可拖）；真实书（38 页 4299×6071）headless 诊断复验：重进 scale=1 居中、Delta 抖动画面不动、拖拽+甩动单调无回弹、跳页立即定位且有实例/占位
 - **v2.3：36/36 自动化测试通过**（新增 PreviewStripOverlayTests 覆盖层回归）
 - v2.2/v2.2b/v2.2c：35/35 测试通过；真实书压力 4/4 零崩溃，内存稳定 ~300–420MB
 - v2.1：35/35 测试通过；压力 4/4 零崩溃，内存稳定 ~400MB
 - v2.0：35/35 测试通过；压力 3/3 零崩溃
-- **发布版已更新：app/publish/MangaAgent.App.exe（v2.5，self-contained，冒烟启动验证通过）**
+- **发布版已更新：app/publish/MangaAgent.App.exe（v3，self-contained，冒烟启动验证通过）**
 
-> 请用户真实应用验证预览栏交互（鼠标悬停/滚轮/点击/主题切换）与滚动模式手感（滚轮一档≈半屏/拖拽/跳页），反馈问题现象，我会对照上表定位并修复。
+> 请用户真实应用验证预览栏交互（鼠标悬停/滚轮/点击/主题切换）与滚动模式手感（滚轮/拖拽/跳页/复位/放大清晰度），反馈问题现象，我会对照上表定位并修复。

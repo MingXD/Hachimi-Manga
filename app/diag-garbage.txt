@@ -1,0 +1,3 @@
+garbage-string: bmp=True size=200, 200 err=-
+truncated-png: bmp=True size=200, 200 err=-
+valid-png: bmp=True size=200, 200 err=-

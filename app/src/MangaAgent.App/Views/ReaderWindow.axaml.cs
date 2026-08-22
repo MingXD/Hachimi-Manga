@@ -64,6 +64,8 @@ public partial class ReaderWindow : Window
     public string WebtoonVisibleRange => $"{_webtoonVisibleFirst}..{_webtoonVisibleLast}";
     /// <summary>测试用：占位块数量（防黑屏断言）。</summary>
     public int WebtoonPlaceholderCount => _webtoonPlaceholders.Count;
+    /// <summary>测试用：滚动模式基准宽（画布无旧宽度残留断言）。</summary>
+    public double WebtoonWidthValue => _webtoonWidth;
 
     /// <summary>调试面板（F12 开关，诊断"点击无反应"等交互问题）。</summary>
     private Views.DebugWindow? _debugWindow;
@@ -114,6 +116,8 @@ public partial class ReaderWindow : Window
         PageLayer.RenderTransformOrigin = Avalonia.RelativePoint.TopLeft;
         KeyDown += (_, e) => { if (e.Key == Key.LeftCtrl || e.Key == Key.RightCtrl) _ctrlDown = true; };
         KeyUp += (_, e) => { if (e.Key == Key.LeftCtrl || e.Key == Key.RightCtrl) _ctrlDown = false; };
+        // v3 健壮性：窗口失活时复位 Ctrl 状态（Ctrl 在窗外松开会漏 KeyUp → 滚轮被误判为缩放）
+        Deactivated += (_, _) => _ctrlDown = false;
         // 修复"点击无反应"：拖拽状态兜底复位 —— 若拖拽中鼠标在 Viewport 外松开
         // （移到工具栏/按钮上），Viewport 收不到 Released → _isDragging 卡 true →
         // 后续每次鼠标移动都被视口处理并 Handled → 按钮 Click 被吞。
@@ -147,7 +151,9 @@ public partial class ReaderWindow : Window
                     Relayout();
                     ArrangeDoublePageOrder();
                 }
-                
+                // v3：滚动模式按"适应屏幕"（CycleFit 改 FitMode）→ 当前页适应屏幕+居中（与复位同语义）
+                if (args.PropertyName == nameof(ReaderViewModel.FitMode) && vm.ViewMode == ViewMode.Webtoon)
+                    ResetWebtoonView();
             };
             Relayout();
         }
@@ -278,10 +284,15 @@ public partial class ReaderWindow : Window
         return Math.Min(vpW / baseW, vpH / BaseH);
     }
 
-    /// <summary>更新缩放百分比显示（基准 = 适应屏幕）。</summary>
+    /// <summary>更新缩放百分比显示。分页基准 = 适应屏幕；滚动模式 fit=100%（与单页一致，v3）。</summary>
     private void UpdateZoomPercent()
     {
         if (_vm is null) return;
+        if (_vm.ViewMode == ViewMode.Webtoon)
+        {
+            _vm.ZoomPercent = _scale * 100.0;
+            return;
+        }
         double fitScreen = Math.Max(0.001, FitScreenScale());
         _vm.ZoomPercent = _scale / fitScreen * 100.0;
     }
@@ -389,6 +400,8 @@ public partial class ReaderWindow : Window
             // 按需高清：解码目标宽度随显示尺寸增长（上限 4096）
             double dpr = RenderScaling > 0 ? RenderScaling : 1.0;
             _vm.DecodeTargetWidth = (int)Math.Clamp(ComputeBaseW() * _scale * dpr, 1200, 4096);
+            // v3 防放大模糊：当前页缓存宽度不足 → 立即重解码（分页模式）
+            if (_vm.CurrentPageNeedsRedecode(_vm.DecodeTargetWidth)) _vm.RefreshCurrentPage();
         }
         UpdateZoomPercent();
     }
@@ -465,6 +478,8 @@ public partial class ReaderWindow : Window
             _vm.SyncScaleFromView(_scale / CurrentFitScale());
             double dpr = RenderScaling > 0 ? RenderScaling : 1.0;
             _vm.DecodeTargetWidth = (int)Math.Clamp(ComputeBaseW() * _scale * dpr, 1200, 4096);
+            // v3 防放大模糊：当前页缓存宽度不足 → 立即重解码（分页模式）
+            if (_vm.CurrentPageNeedsRedecode(_vm.DecodeTargetWidth)) _vm.RefreshCurrentPage();
         }
         UpdateZoomPercent();
     }
@@ -549,7 +564,6 @@ public partial class ReaderWindow : Window
             // 任何进入（含首次/再次/切回）：恢复默认视图 = 当前页适应屏幕 + 水平垂直居中 + scale=1
             // （scroll-mode-fix v2：根治"再次进入携带分页残留缩放/平移 → 放大+贴左"）
             _webtoonActive = true;
-            _wheelAccum = 0;
             _webtoonSeq++;   // 结构变化：作废可能在途的任务
             FitWebtoonToPage(_vm.CurrentFirstPhysical);
             return;
@@ -578,7 +592,8 @@ public partial class ReaderWindow : Window
     }
 
     /// <summary>滚动模式默认视图：当前页适应屏幕（完全可见）+ 水平垂直居中，与单页 FitScreen 语义一致。
-    /// 进入滚动模式与复位共用（scroll-mode-fix C）。</summary>
+    /// 进入滚动模式与复位/适应屏幕共用（scroll-mode-fix C / v3）。
+    /// v3：宽度重算后先清空旧尺寸 Image 与占位再重建（否则旧图原位残留 → 错位"两页之间"）。</summary>
     private void FitWebtoonToPage(int physical)
     {
         if (_vm is null) return;
@@ -590,7 +605,8 @@ public partial class ReaderWindow : Window
         _webtoonWidth = Math.Min(vpW, vpH * ratio);
         _webtoonBaseViewportW = vpW;
         BuildWebtoonOffsets();
-        ClearWebtoonPlaceholders();   // 宽度变化 → 旧占位尺寸失效，随 UpdateWebtoonPages 重建
+        ClearWebtoonImages();          // 旧宽度图全部释放移除（防几何错位）
+        ClearWebtoonPlaceholders();    // 旧尺寸占位清理，随 UpdateWebtoonPages 重建
         _scale = 1.0;
         double pageTop = PageOffset(physical);
         double pageH = _webtoonWidth / ratio;
@@ -601,6 +617,26 @@ public partial class ReaderWindow : Window
         ClampWebtoonScroll();
         ApplyTransform();
         UpdateWebtoonPages();
+        UpdateZoomPercent();
+    }
+
+    /// <summary>清空滚动模式全部实例化图（宽度/几何结构变化时调用，占位保证不黑屏）。
+    /// v3：同时重置范围守卫（否则重进滚动模式时范围未变 → 加载循环被跳过 → 画布空）。</summary>
+    private void ClearWebtoonImages()
+    {
+        if (_vm is not null && _webtoonCanvas is not null)
+        {
+            foreach (var ch in _webtoonCanvas.Children.OfType<Image>())
+            {
+                var bmp = ch.Source as Avalonia.Media.Imaging.Bitmap;
+                ch.Source = null;
+                _vm.ReleaseUiBitmap(bmp);
+            }
+            _webtoonCanvas.Children.Clear();
+        }
+        _webtoonImages.Clear();
+        _webtoonLastFirst = -1;
+        _webtoonLastLast = -1;
     }
 
     private void ExitWebtoon()
@@ -624,7 +660,6 @@ public partial class ReaderWindow : Window
         _webtoonImages.Clear();
         ClearWebtoonPlaceholders();
         _webtoonActive = false;
-        _wheelAccum = 0;
         _webtoonSeq++;
         if (PageLayer.Children.Count == 0 || PageLayer.Children[0] != PagePanel)
         {
@@ -644,7 +679,8 @@ public partial class ReaderWindow : Window
         _webtoonPlaceholders.Clear();
     }
 
-    /// <summary>占位块：已入可见范围但未解码的页显示灰底+页码（scroll-mode-fix v2：任何时刻不黑屏）。</summary>
+    /// <summary>占位块：已入可见范围但未解码的页显示灰底+页码（scroll-mode-fix v2：任何时刻不黑屏）。
+    /// v3：底色/文字提亮（#3A3A44+#CCC）更易辨识为"加载中"而非坏图。</summary>
     private void EnsureWebtoonPlaceholder(int physical)
     {
         if (_webtoonPlaceholders.ContainsKey(physical) || _webtoonCanvas is null || _vm is null) return;
@@ -653,11 +689,11 @@ public partial class ReaderWindow : Window
         {
             Width = _webtoonWidth,
             Height = h,
-            Background = new SolidColorBrush(Avalonia.Media.Color.Parse("#2A2A34")),
+            Background = new SolidColorBrush(Avalonia.Media.Color.Parse("#3A3A44")),
             Child = new TextBlock
             {
                 Text = $"{physical + 1}",
-                Foreground = new SolidColorBrush(Avalonia.Media.Color.Parse("#888888")),
+                Foreground = new SolidColorBrush(Avalonia.Media.Color.Parse("#CCCCCC")),
                 FontSize = 20,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center,
@@ -712,7 +748,12 @@ public partial class ReaderWindow : Window
         return lo;
     }
 
-    /// <summary>Webtoon：按滚动位置增量渲染可见页 ± 缓冲（先加后删，防黑屏）。</summary>
+    private int _webtoonLastFirst = -1, _webtoonLastLast = -1;   // 范围变化守卫（v3 优化）
+    private readonly Dictionary<int, int> _webtoonFailCounts = new();   // 解码失败计数（有限重试）
+    private const int MaxDecodeRetries = 3;                             // 失败重试上限
+
+    /// <summary>Webtoon：按滚动位置增量渲染可见页 ± 缓冲（先加后删，防黑屏）。
+    /// v3：范围未变跳过重活；可见页放大清晰度检查（重解码原位替换）始终执行。</summary>
     private void UpdateWebtoonPages()
     {
         if (_vm is null || _webtoonCanvas is null || _webtoonOffsets.Length == 0) return;
@@ -726,37 +767,65 @@ public partial class ReaderWindow : Window
         _webtoonVisibleFirst = first;
         _webtoonVisibleLast = last;
 
-        // 先添加缺失（异步解码；旧页保留作回退显示）
-        for (int i = first; i <= last; i++)
+        bool rangeChanged = first != _webtoonLastFirst || last != _webtoonLastLast;
+        if (rangeChanged)
         {
-            if (!_webtoonImages.ContainsKey(i)) _ = LoadWebtoonImageAsync(i);
+            _webtoonLastFirst = first;
+            _webtoonLastLast = last;
+            // 先添加缺失（异步解码；旧页保留作回退显示）
+            for (int i = first; i <= last; i++)
+            {
+                if (!_webtoonImages.ContainsKey(i)) _ = LoadWebtoonImageAsync(i);
+            }
+            // 占位块：可见范围内未解码的页立即显示灰底+页码（任何时刻不黑屏，scroll-mode-fix v2）
+            for (int i = first; i <= last; i++)
+                if (!_webtoonImages.ContainsKey(i)) EnsureWebtoonPlaceholder(i);
+            // 移除已离开可见范围的占位 + 重置失败计数（翻远重来可重新重试）
+            foreach (var k in _webtoonPlaceholders.Keys.ToList())
+                if (k < first || k > last) RemoveWebtoonPlaceholder(k);
+            foreach (var k in _webtoonFailCounts.Keys.ToList())
+                if (k < first || k > last) _webtoonFailCounts.Remove(k);
+            // 再移除"远离可见范围"的旧页（距离 > 缓冲×2 → 已无回退价值）
+            foreach (var k in _webtoonImages.Keys.ToList())
+            {
+                if (k < first - WebtoonBufferPages * 2 || k > last + WebtoonBufferPages * 2)
+                    RemoveWebtoonImage(k);
+            }
         }
-        // 占位块：可见范围内未解码的页立即显示灰底+页码（任何时刻不黑屏，scroll-mode-fix v2）
+        // 放大清晰度（v3）：可见页缓存宽度不足显示需求 → 移除旧图并按新宽度重请求（防放大模糊）
         for (int i = first; i <= last; i++)
-            if (!_webtoonImages.ContainsKey(i)) EnsureWebtoonPlaceholder(i);
-        // 移除已离开可见范围的占位
-        foreach (var k in _webtoonPlaceholders.Keys.ToList())
-            if (k < first || k > last) RemoveWebtoonPlaceholder(k);
-        // 再移除"远离可见范围"的旧页（距离 > 缓冲×2 → 已无回退价值）
-        foreach (var k in _webtoonImages.Keys.ToList())
-        {
-            if (k < first - WebtoonBufferPages * 2 || k > last + WebtoonBufferPages * 2)
-                RemoveWebtoonImage(k);
-        }
+            if (_webtoonImages.ContainsKey(i)) TryRefreshWebtoonImage(i);
         // 当前可见页号 → 状态显示
         int curPhys = Math.Clamp(PhysicalAt(Math.Max(0, baseTop)), 0, n - 1);
         _vm.UpdateWebtoonPageText(curPhys);
         SyncPreviewStripToScroll();
     }
 
+    /// <summary>放大清晰度检查：可见页缓存宽度 < 显示需求×0.85 → 移除旧图 + 占位 + 立即按新宽度重请求。
+    /// v3 采用"移除重建"而非原位替换 Source（原位替换会因渲染管线仍持旧位图引用而崩溃）；
+    /// RemoveWebtoonImage 已保证"先移出画布再释放"（防淘汰后直接 Dispose 被渲染位图）。</summary>
+    private void TryRefreshWebtoonImage(int physical)
+    {
+        if (_vm is null) return;
+        double dpr = RenderScaling > 0 ? RenderScaling : 1.0;
+        int want = (int)Math.Clamp(Math.Ceiling(_webtoonWidth * _scale * dpr), 400, 2048);
+        if (_vm.HasCachedWidth(physical, want)) return;   // 已够清晰
+        RemoveWebtoonImage(physical);            // 先移出画布再释放旧位图
+        EnsureWebtoonPlaceholder(physical);      // 占位防黑
+        _ = LoadWebtoonImageAsync(physical);     // 按当前 want 重解码
+    }
+
     private void RemoveWebtoonImage(int physical)
     {
         if (_webtoonImages.Remove(physical, out var img))
         {
-            _vm?.ReleaseUiBitmap(img.Source as Avalonia.Media.Imaging.Bitmap);
+            // v3 顺序修复：先移出画布（脱离渲染树）再释放位图 —— 缓存淘汰可能已移除该页缓存条目，
+            // 若先 Release 会直接 Dispose 仍被渲染树引用的位图 → 下一布局 Image.MeasureOverride 崩溃
             _webtoonCanvas?.Children.Remove(img);
+            _vm?.ReleaseUiBitmap(img.Source as Avalonia.Media.Imaging.Bitmap);
         }
         RemoveWebtoonPlaceholder(physical);
+        _webtoonFailCounts.Remove(physical);
     }
 
     private async Task LoadWebtoonImageAsync(int physical)
@@ -775,6 +844,23 @@ public partial class ReaderWindow : Window
                 double dpr = RenderScaling > 0 ? RenderScaling : 1.0;
                 int want = (int)Math.Clamp(Math.Ceiling(_webtoonWidth * _scale * dpr), 400, 2048);
                 var bmp = await _vm.GetPageBitmapAsync(physical, want);
+                if (bmp is null)
+                {
+                    // v3 黑页根治：解码失败 → 不创建空 Image（否则登记后永不重请求 → 永久黑块），
+                    // 保留占位块 + 有限重试（≤3 次，800ms 间隔；翻远重来重置计数）
+                    if (mySeq == _webtoonSeq && !_windowClosed && _vm.ViewMode == ViewMode.Webtoon
+                        && physical >= _webtoonVisibleFirst && physical <= _webtoonVisibleLast
+                        && !_webtoonImages.ContainsKey(physical))
+                    {
+                        int fails = _webtoonFailCounts.TryGetValue(physical, out var f) ? f : 0;
+                        if (fails < MaxDecodeRetries)
+                        {
+                            _webtoonFailCounts[physical] = fails + 1;
+                            _ = RetryWebtoonImageAsync(physical);
+                        }
+                    }
+                    return;
+                }
                 if (_windowClosed || _vm.ViewMode != ViewMode.Webtoon || _webtoonCanvas is null)
                 {
                     _vm.ReleaseUiBitmap(bmp);
@@ -807,16 +893,27 @@ public partial class ReaderWindow : Window
                     Width = _webtoonWidth,
                     Height = h,
                 };
-                if (bmp is not null) img.Source = bmp;
+                img.Source = bmp;
                 Canvas.SetLeft(img, 0);
                 Canvas.SetTop(img, PageOffset(physical));
                 _webtoonCanvas.Children.Add(img);
                 _webtoonImages[physical] = img;
+                _webtoonFailCounts.Remove(physical);
                 RemoveWebtoonPlaceholder(physical);   // 图到位，撤占位
             }
             finally { _webtoonDecodeGate.Release(); }
         }
         finally { if (!rescheduled) _webtoonLoading.Remove(physical); }
+    }
+
+    /// <summary>解码失败有限重试（800ms 后重请求；状态已变则放弃）。</summary>
+    private async Task RetryWebtoonImageAsync(int physical)
+    {
+        try { await Task.Delay(800); } catch { return; }
+        if (_windowClosed || _vm is null || _vm.ViewMode != ViewMode.Webtoon || _webtoonCanvas is null) return;
+        if (physical < _webtoonVisibleFirst || physical > _webtoonVisibleLast) return;
+        if (_webtoonImages.ContainsKey(physical)) return;
+        _ = LoadWebtoonImageAsync(physical);
     }
 
     /// <summary>Webtoon：滚动到指定物理页（页顶对齐视口顶，BUG-F v1.9）。
@@ -835,35 +932,32 @@ public partial class ReaderWindow : Window
     }
 
     // 平滑滚动 + 惯性（scroll-mode-fix B：纯动量模型，手机长页面式）
-    // 滚轮输入走"累积器+阈值分步"（scroll-mode-fix v2）：累积 Delta，每满 120 触发一步、方向取累积符号
-    // —— 鼠标/触摸板的 Delta 抖动（Avalonia #9858 间歇性错误、触摸板惯性尾流 ±小值）永远达不到阈值，
-    //    不会产生反向整档脉冲（根治"滚轮回弹"）；触控板连续小 Delta = 平滑连续滚动。
-    // 运动侧：每步对速度施脉冲 → 指数摩擦衰减滑行停住；无"目标-位置"双轨；拖拽释放按速度甩动（fling）。
+    // 滚轮输入（scroll-mode-fix v3）：比例脉冲 + 死区 —— 任何 Delta 大小都立即产生滚动
+    // （v2.5 的"累积满 120 才分步"对弱 Delta 设备失效 → 完全无滚动；本模型 Delta 120≈半屏滑行，
+    //  弱 Delta 设备每事件也有最小脉冲兜底；|Delta|<2 抖动死区过滤 → 不反向弹）
+    // 运动侧：每事件对速度施脉冲 → 指数摩擦衰减滑行停住；无"目标-位置"双轨；拖拽释放按速度甩动（fling）。
     private double _scrollVelocity;          // 当前速度（px/s，正=向上/ty 增大）
-    private double _wheelAccum;              // 滚轮 Delta 累积器（余数跨事件保留）
     private bool _scrolling;
     private Avalonia.Threading.DispatcherTimer? _scrollTimer;
     private readonly System.Diagnostics.Stopwatch _scrollWatch = new();
     private const double ScrollFriction = 6.0;        // 指数摩擦系数（越大停得越快）
     private const double ScrollStopEps = 8.0;         // 停止速度阈值（px/s）
     private const double MaxScrollVelocity = 6000.0;  // 速度上限（防快速连滚失控）
-    private const double ScrollImpulseK = 7.2;        // 滚轮步→速度换算（一步滑行 ≈ 1.2×步长）
-    private const double WheelStepThreshold = 120.0;  // 滚轮 Delta 分步阈值（一档 ≈ 一步）
+    private const double WheelVelocityK = 16.0;       // Delta→速度换算（120 ≈ 1920 px/s ≈ 半屏滑行）
+    private const double WheelDeadband = 2.0;         // |Delta| < 2 的抖动完全忽略
+    private const double WheelMinImpulse = 150.0;     // 任一有效档位的最小脉冲（弱 Delta 设备兜底）
     private const double DragFlingThreshold = 150.0;  // 拖拽甩动触发阈值（px/s）
     private const double DragFlingMax = 3000.0;       // 拖拽甩动速度上限
 
-    /// <summary>Webtoon：滚轮事件 —— 累积 Delta，满阈值触发一步（防抖动反向弹）。</summary>
+    /// <summary>Webtoon：滚轮事件 —— 比例脉冲 + 死区过滤（任何 Delta 大小都有效）。</summary>
     private void ScrollWebtoonByEvent(PointerWheelEventArgs e)
     {
         if (_vm is null) return;
-        _wheelAccum += e.Delta.Y;
-        double step = Math.Max(60.0, Viewport.Bounds.Height * 0.35) * Math.Max(0.1, WebtoonSpeed);
-        while (Math.Abs(_wheelAccum) >= WheelStepThreshold)
-        {
-            double dir = Math.Sign(_wheelAccum);
-            _wheelAccum -= dir * WheelStepThreshold;
-            ApplyScrollImpulse(dir * step);
-        }
+        double dy = e.Delta.Y;
+        if (Math.Abs(dy) < WheelDeadband) { e.Handled = true; return; }   // 抖动过滤
+        double v = Math.Max(Math.Abs(dy) * WheelVelocityK, WheelMinImpulse)
+                   * Math.Sign(dy) * Math.Max(0.1, WebtoonSpeed);
+        AddScrollVelocity(Math.Clamp(v, -MaxScrollVelocity, MaxScrollVelocity));
         e.Handled = true;
     }
 
@@ -873,9 +967,6 @@ public partial class ReaderWindow : Window
         _scrollVelocity = Math.Clamp(_scrollVelocity + v, -MaxScrollVelocity, MaxScrollVelocity);
         StartSmoothScroll();
     }
-
-    /// <summary>滚轮/键盘：位移脉冲 → 速度（换算系数使单档滑行 ≈ 1.2×步长；连滚累积速度）。</summary>
-    private void ApplyScrollImpulse(double delta) => AddScrollVelocity(delta * ScrollImpulseK);
 
     /// <summary>取消残余滚动（拖拽开始/跳页/切出时调用，防惯性互搏"往回拉"）。</summary>
     private void CancelSmoothScroll()
@@ -940,6 +1031,7 @@ public partial class ReaderWindow : Window
         ClampWebtoonScroll();
         ApplyTransform();
         UpdateWebtoonPages();
+        UpdateZoomPercent();   // v3：缩放后百分比 = scale×100（fit=100%）
     }
 
     private void ClampWebtoonScroll()
@@ -1485,6 +1577,17 @@ public partial class ReaderWindow : Window
                 _vm.PrevPageCommand.Execute(null);
                 e.Handled = true;
                 return;
+            case Key.Down:
+                // v3：↑↓ 翻页/滚动（看图器惯例：分页=翻页，滚动=滚动）
+                if (webtoon) { ScrollWebtoonPages(-1); e.Handled = true; return; }
+                _vm.NextPageCommand.Execute(null);
+                e.Handled = true;
+                return;
+            case Key.Up:
+                if (webtoon) { ScrollWebtoonPages(1); e.Handled = true; return; }
+                _vm.PrevPageCommand.Execute(null);
+                e.Handled = true;
+                return;
         }
     }
 
@@ -1521,6 +1624,16 @@ if (_vm is null) return;
                 _vm.PrevPageCommand.Execute(null);
                 e.Handled = true;
                 break;
+            case Key.Down:
+                if (webtoon) { ScrollWebtoonPages(-1); e.Handled = true; break; }
+                _vm.NextPageCommand.Execute(null);
+                e.Handled = true;
+                break;
+            case Key.Up:
+                if (webtoon) { ScrollWebtoonPages(1); e.Handled = true; break; }
+                _vm.PrevPageCommand.Execute(null);
+                e.Handled = true;
+                break;
             case Key.M: _vm.ToggleModeCommand.Execute(null); e.Handled = true; break;
             case Key.D: _vm.ToggleDirectionCommand.Execute(null); e.Handled = true; break;
             case Key.T: _vm.ToggleThemeCommand.Execute(null); e.Handled = true; break;
@@ -1534,6 +1647,6 @@ if (_vm is null) return;
     private void ScrollWebtoonPages(int dir)
     {
         if (_vm is null) return;
-        ApplyScrollImpulse(dir * Math.Max(1, Viewport.Bounds.Height));
+        AddScrollVelocity(Math.Clamp(dir * Math.Max(1, Viewport.Bounds.Height) * 6.0, -MaxScrollVelocity, MaxScrollVelocity));
     }
 }

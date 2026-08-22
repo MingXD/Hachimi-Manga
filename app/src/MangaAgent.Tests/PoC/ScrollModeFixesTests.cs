@@ -1,3 +1,5 @@
+using System.IO.Compression;
+using System.Text;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
@@ -256,8 +258,8 @@ public class ScrollModeFixesTests
         finally { try { File.Delete(db); } catch { } }
     }
 
-    /// <summary>v2 回归：滚轮 Delta 抖动免疫（±小值达不到阈值，不产生反向滚动），
-    /// 一档 -120 正常触发滚动（问题3：滚轮回弹根治）。</summary>
+    /// <summary>v2/v3 回归：滚轮 Delta 抖动免疫（死区内小值不产生反向滚动）；
+    /// 弱 Delta（-30）也必须有滚动效果（v3 比例脉冲根治"滚轮无作用"）；一档 -120 正常滚动。</summary>
     [AvaloniaFact]
     public async Task WheelDeltaJitter_DoesNotBounce()
     {
@@ -269,25 +271,30 @@ public class ScrollModeFixesTests
             var win = await OpenWebtoonAsync(vm);
             await WaitUntilAsync(() => win.WebtoonInstancedCount >= 1, 8000);
 
-            // 抖动：多个 ±小 Delta（触摸板惯性尾流/间歇性错误），总和 < 120 → 不应滚动
+            // 抖动：±1（死区 <2 完全忽略）→ 不应滚动
             double y0 = win.CanvasY;
-            win.MouseWheel(new Point(550, 400), new Vector(0, -5), RawInputModifiers.None);
-            win.MouseWheel(new Point(550, 400), new Vector(0, 3), RawInputModifiers.None);
-            win.MouseWheel(new Point(550, 400), new Vector(0, -4), RawInputModifiers.None);
-            win.MouseWheel(new Point(550, 400), new Vector(0, 2), RawInputModifiers.None);
+            win.MouseWheel(new Point(550, 400), new Vector(0, -1), RawInputModifiers.None);
+            win.MouseWheel(new Point(550, 400), new Vector(0, 1), RawInputModifiers.None);
+            win.MouseWheel(new Point(550, 400), new Vector(0, -1), RawInputModifiers.None);
+            win.MouseWheel(new Point(550, 400), new Vector(0, 1), RawInputModifiers.None);
             await Task.Delay(300);
-            Assert.True(Math.Abs(win.CanvasY - y0) < 1.0, $"Delta 抖动不应滚动（ty {y0} -> {win.CanvasY}）");
+            Assert.True(Math.Abs(win.CanvasY - y0) < 1.0, $"死区抖动不应滚动（ty {y0} -> {win.CanvasY}）");
+
+            // 弱 Delta（-30，弱 Delta 设备/触摸板常见）→ 必须滚动（v3：滚轮无作用根治）
+            win.MouseWheel(new Point(550, 400), new Vector(0, -30), RawInputModifiers.None);
+            await Task.Delay(800);
+            double yWeak = win.CanvasY;
+            Assert.True(yWeak < y0 - 10, $"弱 Delta 也应产生滚动（ty {y0} -> {yWeak}）");
 
             // 一档真实向下 → 正常滚动并滑行停住
             win.MouseWheel(new Point(550, 400), new Vector(0, -120), RawInputModifiers.None);
             await Task.Delay(1000);
             double yAfterDown = win.CanvasY;
-            Assert.True(yAfterDown < y0 - 50, $"一档向下应滚动（ty {y0} -> {yAfterDown}）");
+            Assert.True(yAfterDown < yWeak - 50, $"一档向下应滚动（ty {yWeak} -> {yAfterDown}）");
 
             // 滑行结束后的小幅反向抖动（惯性尾流）→ 不应把画面往回拉
-            win.MouseWheel(new Point(550, 400), new Vector(0, 5), RawInputModifiers.None);
-            win.MouseWheel(new Point(550, 400), new Vector(0, -3), RawInputModifiers.None);
-            win.MouseWheel(new Point(550, 400), new Vector(0, 4), RawInputModifiers.None);
+            win.MouseWheel(new Point(550, 400), new Vector(0, 1), RawInputModifiers.None);
+            win.MouseWheel(new Point(550, 400), new Vector(0, -1), RawInputModifiers.None);
             await Task.Delay(400);
             Assert.True(win.CanvasY < yAfterDown + 2.0,
                 $"滑行后反向抖动不应把画面拉回（ty {yAfterDown} -> {win.CanvasY}）");
@@ -348,6 +355,183 @@ public class ScrollModeFixesTests
             win.MouseUp(new Point(100, 80), MouseButton.Left, RawInputModifiers.None);
             await Task.Delay(100);
             Assert.True(win.CanvasY < y0 - 100, $"空白区拖拽应生效（ty {y0} -> {win.CanvasY}）");
+            win.Close();
+            await vm.DisposeAsync();
+        }
+        finally { try { File.Delete(db); } catch { } }
+    }
+
+    // ---------- v3 回归 ----------
+
+    /// <summary>构造含 1 个损坏条目的 CBZ：页 2 的 deflate 压缩数据被破坏 →
+    /// ZipArchive 读取该条目时抛 InvalidDataException → 真实"解码失败"路径。
+    /// 注：DecodeToWidth 对垃圾字节从不抛异常（返回占位图），必须破坏流读取才能触发失败。</summary>
+    private static string CreateCorruptCbz()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"manga_corrupt_{Guid.NewGuid():N}.cbz");
+        var png1 = Convert.FromBase64String(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==");
+        using (var zip = ZipFile.Open(path, ZipArchiveMode.Create))
+        {
+            var e1 = zip.CreateEntry("0001.png", CompressionLevel.Optimal); using (var s = e1.Open()) s.Write(png1);
+            var e2 = zip.CreateEntry("0002.png", CompressionLevel.Optimal); using (var s = e2.Open()) s.Write(png1);
+            var e3 = zip.CreateEntry("0003.png", CompressionLevel.Optimal); using (var s = e3.Open()) s.Write(png1);
+        }
+        // 解析本地头，定位条目 2 的 deflate 数据并破坏（→ 解压抛异常）
+        var bytes = File.ReadAllBytes(path);
+        int off = 0;
+        for (int entry = 1; entry <= 3; entry++)
+        {
+            int compSize = BitConverter.ToInt32(bytes, off + 18);          // 压缩大小
+            int nameLen = BitConverter.ToUInt16(bytes, off + 26);          // 文件名长
+            int extraLen = BitConverter.ToUInt16(bytes, off + 28);         // 扩展长
+            int dataStart = off + 30 + nameLen + extraLen;
+            if (entry == 2)
+                for (int i = dataStart; i < dataStart + Math.Min(compSize, 8); i++) bytes[i] = 0x00;
+            off = dataStart + compSize;
+        }
+        File.WriteAllBytes(path, bytes);
+        return path;
+    }
+
+    /// <summary>v3 实证：解码失败页必须显示占位块（而非黑块空图），且不崩溃、重试有界。</summary>
+    [AvaloniaFact]
+    public async Task CorruptPage_ShowsPlaceholder_NotBlack()
+    {
+        var cbz = CreateCorruptCbz();
+        var db = Path.Combine(Path.GetTempPath(), $"manga_wtf11_{Guid.NewGuid():N}.db");
+        try
+        {
+            var book = new BookInfo(cbz, "corrupt", "corrupt", null, BookKind.Zip, DateTime.UtcNow, 3);
+            var vm = new ReaderViewModel(book, db);
+            await WaitUntilAsync(() => vm.Image1 is not null);
+            var win = new ReaderWindow { DataContext = vm };
+            win.Show();
+            win.Measure(new Size(1100, 800));
+            win.Arrange(new Rect(0, 0, 1100, 800));
+            vm.ToggleModeCommand.Execute(null);   // -> Double
+            vm.ToggleModeCommand.Execute(null);   // -> Webtoon
+            await WaitUntilAsync(() => vm.ViewMode == ViewMode.Webtoon);
+            await Task.Delay(1500);
+            // 坏页（物理 2）应显示占位（不黑）；好页应有实例
+            Assert.True(win.WebtoonPlaceholderCount >= 1, $"坏页应保留占位块（placeholder={win.WebtoonPlaceholderCount}）");
+            Assert.True(win.WebtoonInstancedCount >= 1, "好页应有实例化图");
+            // 重试周期结束（3×800ms）后：仍无崩溃、坏页仍占位
+            await Task.Delay(3500);
+            Assert.True(win.WebtoonPlaceholderCount >= 1, "重试结束后坏页仍应显示占位");
+            Assert.True(win.WebtoonInstancedCount >= 1);
+            win.Close();
+            await vm.DisposeAsync();
+        }
+        finally
+        {
+            try { File.Delete(cbz); } catch { }
+            try { File.Delete(db); } catch { }
+        }
+    }
+
+    /// <summary>v3 回归：复位（宽度重算）后画布不得残留旧宽度图片（防"两页之间"错位）。</summary>
+    [AvaloniaFact]
+    public async Task ResetWebtoon_NoStaleWidthImages()
+    {
+        var db = Path.Combine(Path.GetTempPath(), $"manga_wtf12_{Guid.NewGuid():N}.db");
+        try
+        {
+            var vm = new ReaderViewModel(StressBook, db);
+            await WaitUntilAsync(() => vm.Image1 is not null);
+            var win = await OpenWebtoonAsync(vm);
+            await WaitUntilAsync(() => win.WebtoonInstancedCount >= 1, 8000);
+
+            // 先缩放到非默认宽度（模拟用户缩放后的复位），再复位
+            win.MouseWheel(new Point(550, 400), new Vector(0, 1), RawInputModifiers.Control);   // Ctrl+滚轮放大
+            await Task.Delay(300);
+            win.CallResetWebtoonView();
+            await Task.Delay(800);
+            // 复位后所有画布 Image 宽度必须 == 当前基准宽（无旧宽度残留）
+            foreach (var ch in win.WebtoonCanvas!.Children.OfType<Image>())
+            {
+                Assert.True(Math.Abs(ch.Width - win.WebtoonWidthValue) < 0.5,
+                    $"复位后画布 Image 宽度应等于当前基准宽 {win.WebtoonWidthValue:F1}（实际 {ch.Width:F1}）");
+            }
+            win.Close();
+            await vm.DisposeAsync();
+        }
+        finally { try { File.Delete(db); } catch { } }
+    }
+
+    /// <summary>v3 回归：放大后可见页自动按更高宽度重解码（防模糊）；百分比 = scale×100（fit=100%）。</summary>
+    [AvaloniaFact]
+    public async Task ZoomIn_RefreshesSharpness_AndPercent()
+    {
+        var db = Path.Combine(Path.GetTempPath(), $"manga_wtf13_{Guid.NewGuid():N}.db");
+        try
+        {
+            var vm = new ReaderViewModel(StressBook, db);
+            await WaitUntilAsync(() => vm.Image1 is not null);
+            var win = await OpenWebtoonAsync(vm);
+            await WaitUntilAsync(() => win.WebtoonInstancedCount >= 1, 8000);
+
+            // fit = 100%（与单页一致）
+            Assert.Equal(100.0, vm.ZoomPercent, 1);
+
+            // 跳到未被预解码的页（100，滚动模式无分页预解码 → 仅按显示宽度 540 解码）
+            vm.JumpToPhysicalCommand.Execute(100);
+            win.CallScrollWebtoonToPhysical(100);
+            await WaitUntilAsync(() => vm.CachedDecodeWidth(100) >= 400, 8000);
+            int w0 = vm.CachedDecodeWidth(100);
+            Assert.True(w0 < 1000, $"前置：页 100 应按显示宽度解码（实际 {w0}）");
+
+            // Ctrl+滚轮放大 2 次 → 可见页自动按更高宽度重解码（防模糊）
+            win.MouseWheel(new Point(550, 400), new Vector(0, 1), RawInputModifiers.Control);
+            await Task.Delay(200);
+            win.MouseWheel(new Point(550, 400), new Vector(0, 1), RawInputModifiers.Control);
+            await Task.Delay(1200);
+            Assert.True(win.CanvasScale > 1.0, "应已放大");
+            int w1 = vm.CachedDecodeWidth(100);
+            Assert.True(w1 > w0, $"放大后缓存宽度应提升（{w0} -> {w1}）");
+            // 百分比跟随 scale（fit=100%）
+            Assert.True(Math.Abs(vm.ZoomPercent - win.CanvasScale * 100.0) < 1.0,
+                $"百分比应对应缩放（scale={win.CanvasScale:F2} percent={vm.ZoomPercent:F0}）");
+            win.Close();
+            await vm.DisposeAsync();
+        }
+        finally { try { File.Delete(db); } catch { } }
+    }
+
+    /// <summary>v3 回归：键盘 ↑↓ 在滚动模式滚动、分页模式翻页。</summary>
+    [AvaloniaFact]
+    public async Task Keyboard_UpDown_ScrollsOrPages()
+    {
+        var db = Path.Combine(Path.GetTempPath(), $"manga_wtf14_{Guid.NewGuid():N}.db");
+        try
+        {
+            var vm = new ReaderViewModel(StressBook, db);
+            await WaitUntilAsync(() => vm.Image1 is not null);
+            var win = await OpenWebtoonAsync(vm);
+            await WaitUntilAsync(() => win.WebtoonInstancedCount >= 1, 8000);
+
+            // 滚动模式：↓ 向下滚
+            double y0 = win.CanvasY;
+            win.KeyPressQwerty(PhysicalKey.ArrowDown, RawInputModifiers.None);
+            await Task.Delay(900);
+            Assert.True(win.CanvasY < y0 - 100, $"↓ 应向下滚动（ty {y0} -> {win.CanvasY}）");
+
+            // 滚动模式：↑ 向上滚
+            double y1 = win.CanvasY;
+            win.KeyPressQwerty(PhysicalKey.ArrowUp, RawInputModifiers.None);
+            await Task.Delay(900);
+            Assert.True(win.CanvasY > y1 + 100, $"↑ 应向上滚动（ty {y1} -> {win.CanvasY}）");
+
+            // 分页模式：↓ 下一页、↑ 上一页
+            vm.SetViewMode(ViewMode.Single);
+            await Task.Delay(300);
+            int p0 = vm.CurrentPhysical;
+            win.KeyPressQwerty(PhysicalKey.ArrowDown, RawInputModifiers.None);
+            await Task.Delay(300);
+            Assert.True(vm.CurrentPhysical == p0 + 1, $"分页 ↓ 应下一页（{p0 + 1} -> {vm.CurrentPhysical + 1}）");
+            win.KeyPressQwerty(PhysicalKey.ArrowUp, RawInputModifiers.None);
+            await Task.Delay(300);
+            Assert.True(vm.CurrentPhysical == p0, "分页 ↑ 应上一页");
             win.Close();
             await vm.DisposeAsync();
         }

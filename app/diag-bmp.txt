@@ -1,0 +1,13 @@
+EVICT phys=0 uiRefs=True
+REMOVE phys=0 srcNull=False
+EVICT phys=0 uiRefs=False
+RELEASE-DISPOSE ref0 cached=True
+ADD phys=0
+ADD phys=1
+ADD phys=2
+ADD phys=3
+EVICT phys=0 uiRefs=True
+ADD phys=4
+REMOVE phys=0 srcNull=False
+EVICT phys=0 uiRefs=False
+ADD phys=0

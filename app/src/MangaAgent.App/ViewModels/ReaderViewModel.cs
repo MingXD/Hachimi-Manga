@@ -139,10 +139,15 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
     private void LoadSizes()
     {
         // 同步读取页尺寸（避免在 UI 线程阻塞异步续体导致死锁）
+        // v3 健壮性：单页读取失败（损坏 CBZ 条目 CRC 等）不影响整本打开，该页用默认比例 0.7
         for (int i = 0; i < _source.PageCount; i++)
         {
-            var sz = _source.GetPageSize(i);
-            if (sz is { } s) _sizes[i] = s;
+            try
+            {
+                var sz = _source.GetPageSize(i);
+                if (sz is { } s) _sizes[i] = s;
+            }
+            catch { /* 坏条目：忽略，RatioOf 回退 0.7 */ }
         }
     }
 
@@ -339,6 +344,29 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
     /// <summary>Webtoon：按指定宽度获取位图（scroll-mode-fix v2：滚动模式按显示宽度解码，大图提速数倍）。</summary>
     public Task<Bitmap?> GetPageBitmapAsync(int physical, int wantWidth) => DecodeAsync(physical, wantWidth);
 
+    /// <summary>缓存位图宽度是否满足需求（v3 放大清晰度检查用）。</summary>
+    public bool HasCachedWidth(int physical, int wantWidth)
+        => _pageCache.TryGetValue(physical, out _)
+           && _pageCacheWidth.TryGetValue(physical, out var w) && w >= wantWidth;
+
+    /// <summary>测试用：指定页当前缓存解码宽度（0=未缓存）。</summary>
+    public int CachedDecodeWidth(int physical)
+        => _pageCacheWidth.TryGetValue(physical, out var w) ? w : 0;
+
+    /// <summary>分页当前页缓存宽度是否不足需求（v3 放大后立即重解码防模糊；0.85 迟滞防缩放风暴）。</summary>
+    public bool CurrentPageNeedsRedecode(int wantWidth)
+    {
+        int p = CurrentPhysical;
+        if (!_pageCache.TryGetValue(p, out _)) return false;
+        return _pageCacheWidth.TryGetValue(p, out var w) && w < wantWidth * 0.85;
+    }
+
+    /// <summary>分页模式：按当前 DecodeTargetWidth 重载当前页（放大清晰度；滚动模式由画布刷新负责）。</summary>
+    public void RefreshCurrentPage()
+    {
+        if (ViewMode != ViewMode.Webtoon) _ = LoadCurrentAsync();
+    }
+
     // 预览栏缩略图：独立小尺寸解码缓存（~150px），与正文大图缓存分离，避免解码风暴
     private readonly Dictionary<int, Bitmap> _thumbCache = new();
     private const int ThumbWidth = 150;
@@ -407,18 +435,8 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
                 AcquireUiBitmap(cached);   // 返回前 Acquire：位图从缓存取出即受 UI 保护（BUG-004）
                 return cached;
             }
-            // 高清重解码：若 cached 仍被 UI（PageImage/Webtoon）引用，则复用不重解码——
-            // 否则从缓存移除后若另一竞态路径 Release 使计数归零 → Dispose 掉仍被 UI 引用的位图 → 布局崩溃
-            if (_uiRefs.ContainsKey(cached))
-            {
-                _cacheOrder.Remove(physical);
-                _cacheOrder.AddLast(physical);
-                // 复用也必须 Acquire：调用方（LoadCurrentAsync/GetPageBitmapAsync）返回后都会 Release，
-                // 不 Acquire 会使引用计数下溢到 0 → 缓存淘汰时 Dispose 掉仍被 UI 引用的位图 → 渲染崩溃
-                // （scroll-mode-fix：快速切模式/滚动时复现 ObjectDisposedException@Bitmap.get_Size）
-                AcquireUiBitmap(cached);
-                return cached;
-            }
+            // v3（防放大模糊）：不再因"仍被 UI 引用"拒绝重解码 —— 调用方负责原位替换 Source 后
+            // 再 Release 旧引用（无崩溃窗口）。TryDispose 本就跳过 UI 引用，旧图在替换前不会 Dispose。
             TryDispose(cached);
             _pageCache.Remove(physical);
             _pageCacheWidth.Remove(physical);
@@ -451,20 +469,35 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
 
         HasStatus = false;
         _pageCache[physical] = decoded;
+        _pageCacheWidth[physical] = want;   // v3 修复：DecodeAsync 也须记录解码宽度
+                                            // （原缺失 → 缓存宽度检查永远失败 → 放大清晰度/重解码逻辑失效）
+        AcquireUiBitmap(decoded);           // v3 顺序：先 Acquire 再入队淘汰 —— 防"刚解码未引用即被淘汰 Dispose"
         _cacheOrder.AddLast(physical);
         EvictCache();
-        AcquireUiBitmap(decoded);   // 返回前 Acquire（BUG-004）
         return decoded;
     }
 
     private void EvictCache()
     {
+        // v3 修复：仍被 UI 引用的条目（滚动模式显示中的页）不淘汰 —— 否则条目消失 → HasCachedWidth 变 false
+        // → 放大刷新循环反复重解码（风暴）→ 配合"先淘汰后 Acquire"会 Dispose 刚解码未引用的位图 → 渲染崩溃。
+        int rotated = 0;
         while (_cacheOrder.Count > CacheCap)
         {
             var oldest = _cacheOrder.First!.Value;
             _cacheOrder.RemoveFirst();
-            if (_pageCache.Remove(oldest, out var bmp))
+            if (_pageCache.TryGetValue(oldest, out var bmp) && _uiRefs.ContainsKey(bmp))
+            {
+                _cacheOrder.AddLast(oldest);        // 显示中：保留并移到队尾，继续找可淘汰项
+                if (++rotated >= _cacheOrder.Count) break;   // 整轮都是显示中 → 无法淘汰，停止
+                continue;
+            }
+            rotated = 0;
+            if (_pageCache.Remove(oldest, out bmp))
+            {
+                _pageCacheWidth.Remove(oldest);     // 同步清理宽度记录（原缺失 → 脏数据）
                 TryDispose(bmp);
+            }
         }
     }
 
