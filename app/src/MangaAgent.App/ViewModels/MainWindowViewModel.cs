@@ -112,6 +112,24 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
+    /// <summary>清空所有资料库：移除库列表 + 树/目录/面包屑 + 清空 libraries.txt。</summary>
+    [RelayCommand]
+    private void ClearLibraries()
+    {
+        if (!MangaAgent.App.Views.ConfirmDialog.Show("确定清空所有资料库？")) return;
+        Libraries.Clear();
+        FolderTree.Clear();
+        FolderEntries.Clear();
+        Breadcrumbs.Clear();
+        SearchText = string.Empty;
+        SelectedLibrary = null;
+        CurrentFolder = null;
+        try { File.WriteAllText(LibrariesFile, string.Empty); }
+        catch (Exception ex) { App.SLog($"CLEAR LIB FAIL: {ex.Message}"); }
+        StatusText = "已清空资料库";
+        App.SLog("CLEAR_LIBRARIES");
+    }
+
     partial void OnSelectedFolderChanged(MangaAgent.Core.Library.FolderNode? value)
     {
         if (value is not null) ShowFolderContents(value);

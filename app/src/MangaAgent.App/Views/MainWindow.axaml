@@ -31,18 +31,22 @@
       <!-- 侧边栏：文件夹层级树 -->
       <Border Grid.Column="0" Background="#16161C">
         <DockPanel>
-          <TextBlock Text="资料库" Foreground="#888888" Margin="12,10,12,4" FontSize="12"/>
-          <ComboBox DockPanel.Dock="Top" ItemsSource="{Binding Libraries}" SelectedItem="{Binding SelectedLibrary}"
-                    Background="#1E1E26" Foreground="#E8E8E8" Margin="12,0,12,8" HorizontalAlignment="Stretch"
-                    PlaceholderText="选择资料库…">
-            <ComboBox.ItemTemplate>
-              <DataTemplate x:DataType="vm:LibraryItemViewModel">
-                <TextBlock Text="{Binding Name}" Foreground="#E8E8E8"/>
-              </DataTemplate>
-            </ComboBox.ItemTemplate>
-          </ComboBox>
+          <!-- 资料库：标签 + 下拉（固定宽度=侧边栏剩余，随名称不变）+ 清空按钮，与文件夹宽度一致 -->
+          <DockPanel DockPanel.Dock="Top" Margin="12,10,12,8">
+            <Button DockPanel.Dock="Right" Content="清空" Command="{Binding ClearLibrariesCommand}" FontSize="11" Padding="6,2" Margin="6,0,0,0" ToolTip.Tip="清空所有资料库"/>
+            <TextBlock DockPanel.Dock="Left" Text="资料库" Foreground="#888888" VerticalAlignment="Center" Margin="0,0,6,0" FontSize="12"/>
+            <ComboBox ItemsSource="{Binding Libraries}" SelectedItem="{Binding SelectedLibrary}"
+                      Background="#1E1E26" Foreground="#E8E8E8" HorizontalAlignment="Stretch"
+                      PlaceholderText="选择资料库…" MaxDropDownHeight="320">
+              <ComboBox.ItemTemplate>
+                <DataTemplate x:DataType="vm:LibraryItemViewModel">
+                  <TextBlock Text="{Binding Name}" Foreground="#E8E8E8" TextTrimming="CharacterEllipsis"/>
+                </DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+          </DockPanel>
           <TextBlock DockPanel.Dock="Top" Text="文件夹" Foreground="#888888" Margin="12,10,12,6" FontSize="12"/>
-          <TreeView ItemsSource="{Binding FolderTree}" SelectedItem="{Binding SelectedFolder}" Background="Transparent">
+          <TreeView ItemsSource="{Binding FolderTree}" SelectedItem="{Binding SelectedFolder}" Background="Transparent" ScrollViewer.VerticalScrollBarVisibility="Visible">
             <TreeView.ItemTemplate>
               <TreeDataTemplate ItemsSource="{Binding Children}">
                 <TextBlock Text="{Binding Name}" Foreground="#E8E8E8" Margin="4,3"/>

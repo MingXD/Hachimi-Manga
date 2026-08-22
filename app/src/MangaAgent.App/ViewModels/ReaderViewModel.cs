@@ -267,6 +267,64 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
             ? $"{_currentPhysical + 1} / {_source.PageCount}"
             : $"{CurrentIndex + 1} / {TotalLogical}";
         ProgressValue = CurrentIndex + 1;
+        // 翻页延迟优化（v2.3.15）：预解码相邻页入缓存，连续翻页即时显示
+        _ = PrefetchNeighborsAsync();
+    }
+
+    // ---------- 预解码（翻页延迟优化） ----------
+    private int _prefetchSeq;   // 预解码防堆积（只保留最新请求）
+
+    /// <summary>预取相邻页：单页 ±1；双页 下一逻辑页两张。_prefetchSeq 只保留最新一次请求（防堆积）。</summary>
+    private async Task PrefetchNeighborsAsync()
+    {
+        if (_logical.Count == 0 || _disposed) return;
+        int mySeq = ++_prefetchSeq;
+        var targets = new List<int>();
+        if (ViewMode == ViewMode.Single)
+        {
+            if (CurrentPhysical > 0) targets.Add(CurrentPhysical - 1);
+            if (CurrentPhysical < _source.PageCount - 1) targets.Add(CurrentPhysical + 1);
+        }
+        else if (CurrentIndex + 1 < _logical.Count)
+        {
+            targets.Add(_logical[CurrentIndex + 1].FirstIndex);
+            if (_logical[CurrentIndex + 1].IsDouble) targets.Add(_logical[CurrentIndex + 1].SecondIndex);
+        }
+        foreach (var p in targets)
+        {
+            if (mySeq != _prefetchSeq || _disposed) return;
+            await PrefetchDecodeAsync(p);
+        }
+    }
+
+    /// <summary>预解码单页入缓存但不 Acquire（缓存持有；UI 取用时 LoadCurrentAsync 再 Acquire）。</summary>
+    private async Task PrefetchDecodeAsync(int physical)
+    {
+        int want = Math.Max(400, DecodeTargetWidth);
+        if (_pageCache.TryGetValue(physical, out var c) &&
+            _pageCacheWidth.TryGetValue(physical, out var w) && w >= want) return;
+        try
+        {
+            using var stream = await _source.OpenPageAsync(physical);
+            using var ms = new MemoryStream();
+            await stream.CopyToAsync(ms);
+            ms.Position = 0;
+            var bmp = await Task.Run(() => Bitmap.DecodeToWidth(ms, want));
+            if (bmp is null) return;
+            if (_pageCache.TryGetValue(physical, out var old) && !_uiRefs.ContainsKey(old))
+            {
+                TryDispose(old);
+                _pageCache.Remove(physical);
+                _pageCacheWidth.Remove(physical);
+                _cacheOrder.Remove(physical);
+            }
+            _pageCache[physical] = bmp;
+            _pageCacheWidth[physical] = want;
+            _cacheOrder.Remove(physical);
+            _cacheOrder.AddLast(physical);
+            EvictCache();
+        }
+        catch { }
     }
 
     private double RatioOf(int physical) => _sizes.TryGetValue(physical, out var sz) ? sz.AspectRatio : 0.7;
@@ -639,6 +697,7 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
     private bool _disposed;
     public async ValueTask DisposeAsync()
     {
+        _disposed = true;
         if (_disposed) return;
         _disposed = true;
         SaveState();
