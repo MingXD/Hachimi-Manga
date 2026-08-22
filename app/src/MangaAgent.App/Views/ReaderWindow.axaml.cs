@@ -1005,8 +1005,10 @@ public partial class ReaderWindow : Window
     /// <summary>热区进入触发（PointerEntered 只触发一次，不再每帧重置 → 立即 400ms 唤出）。</summary>
     private void OnRightHotZonePointerEntered(object? sender, PointerEventArgs e)
     {
+        // 鼠标一挪到右边缘立即唤出（无需停留 400ms）
         if (PreviewStrip?.IsVisible == true) return;
-        StartHoverTimer(400, ShowPreviewStrip);
+        _lastMousePos = e.GetPosition(this);
+        ShowPreviewStrip();
     }
 
     private void OnRightHotZonePointerExited(object? sender, PointerEventArgs e)
