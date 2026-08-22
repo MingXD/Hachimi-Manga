@@ -104,6 +104,24 @@
 
 ---
 
+## 一·十、v2.3.6 主界面修复（2026-08-22）
+
+> 用户反馈：右上角搜索框没反应；展示模式（小图封面超框/大图封面太小/详情空白）；纯图片文件夹统计错误。
+
+| # | 修复/改动 | 文件位置 | 可能影响的功能（风险点） |
+|---|---|---|---|
+| 2.3.6-1 | **搜索框修复**：ApplyFilter 原过滤 Books（未绑定 UI 的集合）→ 改为**全库搜索**（遍历当前库 FolderTree，命中文件夹 + 漫画含纯图片 FolderBook/Zip），结果按类型+名称排序；清空恢复目录浏览；搜索态点文件夹条目 → 退出搜索并进入 | MainWindowViewModel.cs：ApplyFilter/CollectSearchHits/OpenAction | 搜索、目录浏览切换 |
+| 2.3.6-2 | **展示模式数据化**：封面/字体随模式注入（FolderEntryItemViewModel 加 CoverWidth/CoverHeight/TitleFontSize/SubtitleFontSize/IsDetail；WireEntry 按 GalleryMode 设置）→ 小图封面不再超框、大图封面匹配卡片；**详情模式行式布局**（图标📁/📖 + 名称 + 副标题，无图）；GalleryItemWidth/Height Detail 0→560/40（修复 WrapPanel 项高 0 一片空白） | MainWindowViewModel.cs：WireEntry/GalleryItemWidth/Height；FolderEntryItemViewModel.cs；MainWindow.axaml 模板双布局 | 四种展示模式 |
+| 2.3.6-3 | **文件夹统计修复**：FolderTreeScanner 补 gif/bmp 扩展名（与 LibraryScanner/FolderComicSource 一致）+ FolderBook PageCount = 本目录直接图片数（原硬编码 0） | FolderTree.cs | 纯图片文件夹识别、页数显示 |
+| 2.3.6-4 | **目录浏览默认排序**：文件夹在前 → 名称（OrdinalIgnoreCase） | MainWindowViewModel.cs：ShowFolderContents | 目录展示顺序 |
+| 2.3.6-5 | 新增 3 测试：全库搜索（含 gif 识别/页数/排序/清空恢复/详情属性）、有子文件夹+图片的文件夹按文件夹显示并统计子文件夹数 | FolderBrowserTests.cs | 测试基线 38→40 |
+
+### 语义备忘（用户确认）
+- 纯图片文件夹（无子文件夹）= 漫画，统计页数
+- 有子文件夹的文件夹 = 文件夹（可进入），统计子文件夹数；其内部纯图片子文件夹在进入后显示为漫画
+
+---
+
 ## 二、v2.2c + v2.2b（2026-08-22，热区与按钮配色修复）
 
 | # | 修复 | 文件位置 | 可能影响的功能 |
