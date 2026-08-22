@@ -79,6 +79,16 @@
 
 ---
 
+## 一·八、v2.3.4 预览栏视觉微调（2026-08-22）
+
+| # | 修复/改动 | 文件位置 | 可能影响的功能（风险点） |
+|---|---|---|---|
+| 2.3.4-1 | ▲▼ 按钮高 32→26（更矮） | ReaderWindow.axaml：▲▼ Button Height | 预览栏观感 |
+| 2.3.4-2 | Grid 加 RowSpacing=6 → 按钮与卡片间距 = 卡片间距 6px，视觉一致（原为 0 + ItemsControl 居中留白） | ReaderWindow.axaml：PreviewStrip Grid | 预览栏间距观感 |
+| 2.3.4-3 | 卡片高公式常数 58→64（按钮26×2 + RowSpacing6×2）同步，防溢出不变 | ReaderWindow.axaml.cs：RefreshThumbStrip | 卡片高度计算 |
+
+---
+
 ## 二、v2.2c + v2.2b（2026-08-22，热区与按钮配色修复）
 
 | # | 修复 | 文件位置 | 可能影响的功能 |
