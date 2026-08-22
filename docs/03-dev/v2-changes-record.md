@@ -122,6 +122,23 @@
 
 ---
 
+## 一·十一、v2.3.7 卡片文本防溢出 + 递归统计（2026-08-22）
+
+> 用户反馈：标题/统计文本超出卡片；统计"35 个子文件夹"错误（纯图片子文件夹被算作子文件夹）。
+
+| # | 修复/改动 | 文件位置 | 可能影响的功能（风险点） |
+|---|---|---|---|
+| 2.3.7-1 | **统计规则**：M/N 只统计本层（M=纯图片子文件夹数+本目录 FolderBook+Zip；N=非纯图片直接子文件夹数）；X=递归全层级漫画总数。文件夹副标题两行：第 1 行 "M 本漫画 · N 个子文件夹"（M/N=0 省略对应项，双 0 不显示）；第 2 行 "目录下共 X 本漫画"（X=0 不显示） | FolderEntryItemViewModel.cs：Subtitle/StatsLine2 + 静态辅助 IsPureImageFolder/CountDirectBooks/CountDirectSubfolders/CountBooksRecursive | 目录浏览副标题、详情模式 |
+| 2.3.7-2 | 纯图片漫画副标题 "N 页"（去掉 "· 文件夹" 后缀，与 CBZ "N 页 · CBZ" 区分） | FolderEntryItemViewModel.cs：Subtitle | 漫画条目副标题 |
+| 2.3.7-3 | **卡片封面防溢出**：封面高 = 卡片高 − 文本区（大 280/中 178/小 108）；卡片高对齐 WrapPanel 项高（366/262/188）；ClipToBounds 兜底 | MainWindowViewModel.cs：WireEntry；MainWindow.axaml | 三种卡片模式布局 |
+| 2.3.7-4 | **详情模式**：副标题贴右两行小字（MaxWidth 280 省略 + ToolTip），标题列伸缩（窗口变窄标题优先省略 + ToolTip 全名） | MainWindow.axaml | 详情模式 |
+| 2.3.7-5 | 新增递归统计测试（X=3 递归、M/N 分支、纯图片无后缀、M=0 仅子文件夹） | FolderBrowserTests.cs | 测试基线 40→41 |
+
+### 统计语义（用户确认）
+- 例：1. 同人志 = "34 本漫画 · 1 个子文件夹" + 第 2 行 "目录下共 44 本漫画"（子文件夹内 10 本递归计入）
+
+---
+
 ## 二、v2.2c + v2.2b（2026-08-22，热区与按钮配色修复）
 
 | # | 修复 | 文件位置 | 可能影响的功能 |
