@@ -90,6 +90,11 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
     public string ToolbarButtonBorder => IsDark ? "#3A3A46" : "#C8C4BC";
     public string ToolbarButtonHover => IsDark ? "#3A3A48" : "#D8D4CC";
     public string ToolbarButtonBorderHover => IsDark ? "#5A5A6A" : "#A8A49C";
+
+    // 预览栏背景（白天浅半透明/夜间深半透明 —— 均半透明，不遮死画面）
+    public string PreviewStripBg => IsDark ? "#CC1C1C24" : "#CCFFFFFF";
+    public string PreviewStripItemBg => IsDark ? "#3A3A44" : "#E8E6E1";
+    public string PreviewStripLabel => IsDark ? "#CCC" : "#333";
     public string ModeText => ViewMode switch
     {
         ViewMode.Double => "双页",
@@ -209,6 +214,9 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
         OnPropertyChanged(nameof(ToolbarButtonBorder));
         OnPropertyChanged(nameof(ToolbarButtonHover));
         OnPropertyChanged(nameof(ToolbarButtonBorderHover));
+        OnPropertyChanged(nameof(PreviewStripBg));
+        OnPropertyChanged(nameof(PreviewStripItemBg));
+        OnPropertyChanged(nameof(PreviewStripLabel));
     }
 
     private async Task LoadCurrentAsync()
@@ -244,10 +252,11 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
         IsDoublePageShown = showDouble;
         var old1 = Image1;
         var old2 = Image2;
-        Image1 = img1;
+        // 双页高度匹配（BUG）：Ratio 先于 Image 设置，Relayout 用正确的宽高比布局两图
         Ratio1 = RatioOf(firstPhys);
-        Image2 = img2;
+        Image1 = img1;
         if (img2 is not null) Ratio2 = RatioOf(secondPhys);
+        Image2 = img2;
         ReleaseUiBitmap(old1);
         ReleaseUiBitmap(old2);
         // BUG-A v1.9：单页显示物理页号；双页显示逻辑页号

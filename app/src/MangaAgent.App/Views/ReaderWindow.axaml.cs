@@ -4,6 +4,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.VisualTree;
 using MangaAgent.App.ViewModels;
 using MangaAgent.Core.Storage;
 
@@ -451,6 +452,7 @@ public partial class ReaderWindow : Window
     private void OnPointerWheelChanged(object? sender, PointerWheelEventArgs e)
     {
         if (_vm is null) return;
+        if (IsOverPreviewStrip(e.Source)) return;   // 预览栏滚轮翻页，不缩放
         bool ctrl = e.KeyModifiers.HasFlag(KeyModifiers.Control) || _ctrlDown;
         if (_vm.ViewMode == ViewMode.Webtoon)
         {
@@ -821,6 +823,16 @@ public partial class ReaderWindow : Window
         }
     }
 
+    /// <summary>事件源是否落在预览栏覆盖层内（覆盖层方案：PreviewStrip 在 Viewport 内部，
+    /// 冒泡事件会到达 Viewport 处理器——滚轮/双击需跳过，避免"翻页+缩放"同时发生）。</summary>
+    private bool IsOverPreviewStrip(object? src)
+    {
+        if (PreviewStrip?.IsVisible != true || src is not Visual v) return false;
+        for (Visual? cur = v; cur is not null; cur = cur.GetVisualParent())
+            if (cur == PreviewStrip) return true;
+        return false;
+    }
+
     private void OnViewportPointerMoved(object? sender, PointerEventArgs e)
     {
         // 右边缘检测（不占布局，画面不遮挡）：鼠标在视口右缘 48px 内 → 唤出预览栏
@@ -830,7 +842,10 @@ public partial class ReaderWindow : Window
         {
             if (PreviewStrip?.IsVisible != true) ShowPreviewStrip();
         }
-        else if (PreviewStrip?.IsVisible == true && edgePos.X < Viewport.Bounds.Width - 60)
+        // 覆盖层方案：PreviewStrip 在 Viewport 内部右侧（宽120），鼠标在其上时
+        // 事件冒泡到此——用 PreviewStrip.Bounds.Left 判断是否已离开预览区（含左半），
+        // 否则左半区域一悬停就被隐藏（闪烁）。
+        else if (PreviewStrip?.IsVisible == true && edgePos.X < PreviewStrip.Bounds.Left - 10)
         {
             PreviewStrip.IsVisible = false;
         }
@@ -980,6 +995,7 @@ public partial class ReaderWindow : Window
     private void OnViewportDoubleTapped(object? sender, TappedEventArgs e)
     {
         if (_vm is null) return;
+        if (IsOverPreviewStrip(e.Source)) return;   // 预览栏内双击不缩放
         double fit = CurrentFitScale();
         double target = Math.Abs(_scale - fit) < 0.02 ? fit * 2.0 : fit;   // Fit ↔ 200%
         ZoomTo(target, e.GetPosition(Viewport));

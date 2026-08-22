@@ -90,56 +90,15 @@
         <Button Content="复位" Click="OnResetZoomClick" ToolTip.Tip="适应宽度" Foreground="{Binding ForegroundHex}"/>
         <Button x:Name="SensitivityButton" Content="缩放×1" Click="OnSensitivityClick" ToolTip.Tip="滚轮缩放灵敏度（快/中/慢）" Foreground="{Binding ForegroundHex}"/>
         <Button x:Name="WebtoonSpeedButton" Content="滚动速度×1" Click="OnWebtoonSpeedClick" ToolTip.Tip="滚动模式滚动速度（快/中/慢）" Foreground="{Binding ForegroundHex}" IsVisible="False"/>
-        <Button Content="书签" Command="{Binding ToggleBookmarkCommand}" ToolTip.Tip="当前页书签 (B)" Foreground="{Binding ForegroundHex}"/>
-        <Button Content="◀书签" Command="{Binding PrevBookmarkCommand}" ToolTip.Tip="上一个书签" Foreground="{Binding ForegroundHex}"/>
-        <Button Content="书签▶" Command="{Binding NextBookmarkCommand}" ToolTip.Tip="下一个书签" Foreground="{Binding ForegroundHex}"/>
+        <Button Content="书签" Command="{Binding ToggleBookmarkCommand}" ToolTip.Tip="当前页书签 (B)" IsVisible="False" Foreground="{Binding ForegroundHex}"/>
+        <Button Content="◀书签" Command="{Binding PrevBookmarkCommand}" ToolTip.Tip="上一个书签" IsVisible="False" Foreground="{Binding ForegroundHex}"/>
+        <Button Content="书签▶" Command="{Binding NextBookmarkCommand}" ToolTip.Tip="下一个书签" IsVisible="False" Foreground="{Binding ForegroundHex}"/>
       </StackPanel>
     </Border>
 
     <!-- 阅读区：画布模型（视口 + 图片层，Scale/Translate 变换，复刻 Windows 看图器） -->
 
 
-    <!-- 右侧热区（悬停唤出预览栏） -->
-    <!-- 右侧悬浮预览栏（竖排，进度条+缩略图融合 v2.2） -->
-    <Border x:Name="PreviewStrip" DockPanel.Dock="Right" Width="120" Background="#E61C1C24" IsVisible="False"
-            PointerMoved="OnPreviewStripPointerMoved" PointerExited="OnPreviewStripPointerExited"
-            PointerWheelChanged="OnPreviewStripWheel">
-      <Grid>
-        <Grid.RowDefinitions>
-          <RowDefinition Height="Auto"/>
-          <RowDefinition Height="*"/>
-          <RowDefinition Height="Auto"/>
-        </Grid.RowDefinitions>
-        <Button Grid.Row="0" Content="▲" Click="OnPreviewStripPrev" Background="Transparent" Foreground="#E8E8E8"
-                FontSize="16" Height="32" HorizontalAlignment="Center"/>
-        <ItemsControl x:Name="ThumbStrip" Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center">
-          <ItemsControl.ItemsPanel>
-            <ItemsPanelTemplate><StackPanel Orientation="Vertical" Spacing="6"/></ItemsPanelTemplate>
-          </ItemsControl.ItemsPanel>
-          <ItemsControl.ItemTemplate>
-            <DataTemplate x:DataType="views:ReaderWindow+ThumbStripItem">
-              <Button Click="OnThumbStripItemClick" Tag="{Binding}" Background="Transparent" Padding="0" BorderThickness="0">
-                <StackPanel>
-                  <!-- 占位图（方案A）：灰块+居中页码，Image 加载成功后覆盖 -->
-                  <Border Background="#3A3A44" CornerRadius="3" ClipToBounds="True" BorderBrush="#555" BorderThickness="1"
-                          Width="{Binding CardWidth}" Height="{Binding CardHeight}">
-                    <Grid>
-                      <TextBlock Text="{Binding PageLabel}" Foreground="#999" FontSize="16"
-                                 HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                      <Image Source="{Binding Bitmap}" Stretch="Uniform"/>
-                    </Grid>
-                  </Border>
-                  <!-- 底部页码（始终显示） -->
-                  <TextBlock Text="{Binding PageLabel}" Foreground="#CCC" FontSize="9" HorizontalAlignment="Center" Margin="0,2,0,0"/>
-                </StackPanel>
-              </Button>
-            </DataTemplate>
-          </ItemsControl.ItemTemplate>
-        </ItemsControl>
-        <Button Grid.Row="2" Content="▼" Click="OnPreviewStripNext" Background="Transparent" Foreground="#E8E8E8"
-                FontSize="16" Height="32" HorizontalAlignment="Center"/>
-      </Grid>
-    </Border>
     <Border x:Name="Viewport" ClipToBounds="True" Background="{Binding BackgroundHex}"
             SizeChanged="OnViewportSizeChanged"
             PointerWheelChanged="OnPointerWheelChanged"
@@ -147,6 +106,7 @@
             PointerMoved="OnViewportPointerMoved"
             PointerReleased="OnViewportPointerReleased"
             DoubleTapped="OnViewportDoubleTapped">
+      <Grid>
       <Grid x:Name="PageLayer" HorizontalAlignment="Left" VerticalAlignment="Top">
         <StackPanel x:Name="PagePanel" Orientation="Horizontal" Spacing="0">
           <Image x:Name="PageImage1" Stretch="Uniform" VerticalAlignment="Top"
@@ -156,6 +116,47 @@
                  Source="{Binding Image2}"
                  IsVisible="{Binding Image2, Converter={x:Static conv:ObjectConverters.IsNotNull}}"/>
         </StackPanel>
+      </Grid>
+        <Border x:Name="PreviewStrip" Width="120" Background="{Binding PreviewStripBg}" IsVisible="False"
+                HorizontalAlignment="Right" VerticalAlignment="Stretch"
+                PointerMoved="OnPreviewStripPointerMoved" PointerExited="OnPreviewStripPointerExited"
+                PointerWheelChanged="OnPreviewStripWheel">
+          <Grid>
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto"/>
+              <RowDefinition Height="*"/>
+              <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            <Button Grid.Row="0" Content="▲" Click="OnPreviewStripPrev" Background="Transparent" Foreground="{Binding PreviewStripLabel}"
+                    FontSize="16" Height="32" HorizontalAlignment="Center"/>
+            <ItemsControl x:Name="ThumbStrip" Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate><StackPanel Orientation="Vertical" Spacing="6"/></ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="views:ReaderWindow+ThumbStripItem">
+                  <Button Click="OnThumbStripItemClick" Tag="{Binding}" Background="Transparent" Padding="0" BorderThickness="0">
+                    <StackPanel>
+                      <!-- 占位图（方案A）：灰块+居中页码，Image 加载成功后覆盖 -->
+                      <Border Background="{Binding $parent[Window].((vm:ReaderViewModel)DataContext).PreviewStripItemBg}" CornerRadius="3" ClipToBounds="True" BorderBrush="#555" BorderThickness="1"
+                              Width="{Binding CardWidth}" Height="{Binding CardHeight}">
+                        <Grid>
+                          <TextBlock Text="{Binding PageLabel}" Foreground="{Binding $parent[Window].((vm:ReaderViewModel)DataContext).PreviewStripLabel}" FontSize="16"
+                                     HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                          <Image Source="{Binding Bitmap}" Stretch="Uniform"/>
+                        </Grid>
+                      </Border>
+                      <!-- 底部页码（始终显示） -->
+                      <TextBlock Text="{Binding PageLabel}" Foreground="{Binding $parent[Window].((vm:ReaderViewModel)DataContext).PreviewStripLabel}" FontSize="9" HorizontalAlignment="Center" Margin="0,2,0,0"/>
+                    </StackPanel>
+                  </Button>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <Button Grid.Row="2" Content="▼" Click="OnPreviewStripNext" Background="Transparent" Foreground="{Binding PreviewStripLabel}"
+                    FontSize="16" Height="32" HorizontalAlignment="Center"/>
+          </Grid>
+        </Border>
       </Grid>
     </Border>
   </DockPanel>
