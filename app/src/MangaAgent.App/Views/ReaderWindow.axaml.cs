@@ -983,9 +983,17 @@ public partial class ReaderWindow : Window
     {
         public int Physical { get; }
         public string PageLabel { get; }
+        public double CardWidth { get; }
+        public double CardHeight { get; }
         private Avalonia.Media.Imaging.Bitmap? _bitmap;
         public Avalonia.Media.Imaging.Bitmap? Bitmap { get => _bitmap; set { _bitmap = value; OnPropertyChanged(); } }
-        public ThumbStripItem(int physical) { Physical = physical; PageLabel = $"{physical + 1}"; }
+        public ThumbStripItem(int physical, double cardW, double cardH)
+        {
+            Physical = physical;
+            PageLabel = $"{physical + 1}";
+            CardWidth = cardW;
+            CardHeight = cardH;
+        }
     }
 
     private Avalonia.Threading.DispatcherTimer? _hoverTimer;
@@ -995,13 +1003,13 @@ public partial class ReaderWindow : Window
     private Avalonia.Point _lastMousePos;
 
     /// <summary>热区进入触发（PointerEntered 只触发一次，不再每帧重置 → 立即 400ms 唤出）。</summary>
-    private void OnBottomHotZonePointerEntered(object? sender, PointerEventArgs e)
+    private void OnRightHotZonePointerEntered(object? sender, PointerEventArgs e)
     {
         if (PreviewStrip?.IsVisible == true) return;
         StartHoverTimer(400, ShowPreviewStrip);
     }
 
-    private void OnBottomHotZonePointerExited(object? sender, PointerEventArgs e)
+    private void OnRightHotZonePointerExited(object? sender, PointerEventArgs e)
     {
         StopHoverTimer();
         if (PreviewStrip?.IsVisible == true && !IsPointerOver(PreviewStrip)) HidePreviewStripDelayed();
@@ -1064,9 +1072,11 @@ public partial class ReaderWindow : Window
         while (end - start + 1 < 7 && start > 0) start--;
         while (end - start + 1 < 7 && end < total - 1) end++;
 
+        // 卡片尺寸：宽 96，高 = min(窗口高/7 - 间距, 130)，下限 80
+        double cardH = Math.Clamp((Viewport.Bounds.Height - 32 * 2 - 6 * 6) / 7.0, 80, 130);
         _thumbItems.Clear();
         for (int i = start; i <= end; i++)
-            _thumbItems.Add(new ThumbStripItem(i));
+            _thumbItems.Add(new ThumbStripItem(i, 96, cardH));
         ThumbStrip.ItemsSource = _thumbItems;
 
         // 小图解码（~150px，快），seq 过期则丢弃
