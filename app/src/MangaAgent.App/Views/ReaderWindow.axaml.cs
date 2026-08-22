@@ -1684,41 +1684,42 @@ public partial class ReaderWindow : Window
         await dialog.ShowDialog(this);
     }
 
-    /// <summary>键盘处理：按"当前模式 + 按键"查快捷键表分发（设置可重绑，三模式分开）。
-    /// DirNext/DirPrev 为方向感知语义键（分页 RTL：DirNext=←；LTR：DirNext=→）。</summary>
+    /// <summary>键盘处理：按"当前模式组 + 通用组"查快捷键表分发（设置可重绑；支持组合键 Ctrl+Shift+P）。</summary>
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
         if (e.Handled) return;
-        if (ResolveAction(e.Key) is not { } action) return;
-        App.SLog($"KEY {e.Key} -> {action}");
+        if (ResolveAction(e.Key, e.KeyModifiers) is not { } action) return;
+        App.SLog($"KEY {SettingsStore.KeyToken(e.Key, e.KeyModifiers)} -> {action}");
         ExecuteAction(action);
         e.Handled = true;
     }
 
-    /// <summary>当前模式下该按键对应的动作（无绑定返回 null；F12 调试在无 VM 时也可用）。</summary>
-    private ReaderAction? ResolveAction(Key key)
+    /// <summary>按键 → 动作：先查当前模式组（分页按方向选组），未命中查通用组。</summary>
+    private ReaderAction? ResolveAction(Key key, KeyModifiers modifiers)
     {
         if (_settings?.Hotkeys is not { } map) return null;
-        string mode = _vm?.ViewMode switch
+        string modeGroup = _vm?.ViewMode switch
         {
             ViewMode.Webtoon => "Webtoon",
-            ViewMode.Double => "Double",
-            _ => "Single",
+            _ => _vm?.Direction == ReadingDirection2.Ltr ? "PagedLtr" : "PagedRtl",
         };
-        if (!map.TryGetValue(mode, out var actions)) return null;
-        var dirNext = _vm?.Direction == ReadingDirection2.Ltr ? Key.Right : Key.Left;   // RTL 默认：←=下一页
-        var dirPrev = _vm?.Direction == ReadingDirection2.Ltr ? Key.Left : Key.Right;
+        if (TryMatch(map, modeGroup, key, modifiers, out var a)) return a;
+        if (TryMatch(map, "General", key, modifiers, out a)) return a;
+        return null;
+    }
+
+    private static bool TryMatch(Dictionary<string, Dictionary<string, List<string>>> map, string group,
+        Key key, KeyModifiers modifiers, out ReaderAction? action)
+    {
+        action = null;
+        if (!map.TryGetValue(group, out var actions)) return false;
+        string token = SettingsStore.KeyToken(key, modifiers);
         foreach (var (actionName, keys) in actions)
         {
             if (keys is null) continue;
-            foreach (var token in keys)
-            {
-                if (token == "DirNext" && key == dirNext) return ParseAction(actionName);
-                if (token == "DirPrev" && key == dirPrev) return ParseAction(actionName);
-                if (Enum.TryParse<Key>(token, out var k) && k == key) return ParseAction(actionName);
-            }
+            if (keys.Contains(token)) { action = ParseAction(actionName); return true; }
         }
-        return null;
+        return false;
     }
 
     private static ReaderAction? ParseAction(string name)

@@ -435,6 +435,27 @@
 
 ---
 
+## 一·三十二、v5 设置窗口 v2（2026-08-23）
+
+> 方案见 [settings-dialog-v2.md](../02-design/settings-dialog-v2.md)。用户决策：四组分类（通用/分页·左到右/分页·右到左/滚动）、分页 ↑↓ 默认不要、组合键支持、RTL 下一页=Left,PgDn,Space。
+
+| # | 修复/改动 | 文件位置 | 可能影响的功能（风险点） |
+|---|---|---|---|
+| 2.11-1 | **快捷键四组分类**：通用（M/D/T/G/F12/F/R/+/−/P 所有模式共用）+ 分页·左到右 + 分页·右到左 + 滚动；分页按当前方向选组 | SettingsStore.cs：DefaultHotkeys；ReaderWindow.axaml.cs：ResolveAction | 键盘分派（核心） |
+| 2.11-2 | **一方块一键（或组合键）**：一个功能多键 = 多个键块横排；点击替换、右键删除、行尾 `[+]` 新增；组合键 token `Ctrl+Shift+P`（修饰键+主键） | SettingsDialog.cs：RebuildHotkeyCards/MakeKeyCell/OnCaptureKeyDown | 快捷键编辑器 |
+| 2.11-3 | **录入修复**：捕获走窗口 Tunnel 阶段 + `Handled`，焦点移中性元素 —— Space/Enter 不激活按钮、↑↓/PgDn 不滚动不移焦；纯修饰键不结束捕获 | SettingsDialog.cs：_focusSink/AddHandler(Tunnel) | 快捷键录入体验 |
+| 2.11-4 | **滑块+数值框双向联动**：拖滑块实时更新数值框；数值框输入回车/失焦 → 滑块跳转（clamp）；整数/小数格式 | SettingsDialog.cs：MakeSliderRow | 设置操作 |
+| 2.11-5 | **恢复默认（每页独立）**：底部 `[恢复默认·阅读] [恢复默认·快捷键]`（只重置本页，不保存） | SettingsDialog.cs：RestoreReadingDefaults/恢复快捷键 | 设置操作 |
+| 2.11-6 | **UI 美化**：宽 720、分组圆角卡片+组标题、滑块行定宽对齐、键块统一样式（圆角/hover）、Tunnel 捕获高亮提示 | SettingsDialog.cs | 设置观感 |
+| 2.11-7 | **默认键表按用户指定**：LTR 下一页=Right,PgDn,Space、上一页=Left,PgUp；RTL 下一页=Left,PgDn,Space、上一页=Right,PgUp；滚动整页跳 Right,PgDn,Space / Left,PgUp、滑动 Down/Up；通用 M/D/T/G/F12/F/R/+/−/P；分页无 ↑↓；旧结构（三模式/DirNext）加载时迁移重置 | SettingsStore.cs | 默认行为 |
+| 2.11-8 | 新增回归：分页 LTR/RTL 分组独立（RTL ←=下一页、LTR ←=上一页）/ 组合键绑定生效（Ctrl+Shift+P 触发、单独 P 不触发）/ 分页 ↑↓ 无默认绑定；更新键盘测试 | ScrollModeFixesTests.cs | 测试基线 62→64 |
+
+### 设计备忘（v5）
+- 冲突检测：通用键查全表（所有模式生效）；模式组键查通用+本组（LTR 与 RTL 允许同键，不同时生效）
+- 分派：先查当前模式组（分页按方向），未命中查通用组；组合键同时匹配修饰键+主键
+
+---
+
 ## 二、v2.2c + v2.2b（2026-08-22，热区与按钮配色修复）
 
 | # | 修复 | 文件位置 | 可能影响的功能 |

@@ -38,33 +38,15 @@ public class AppSettings
     public int CacheCap { get; set; } = 10;              // 位图缓存页数
     public bool InvertScroll { get; set; }               // 滚动方向反转（自然滚动）
     public string PagedWheelMode { get; set; } = "Zoom"; // 分页滚轮：Zoom | Page
-    // —— 快捷键：模式 → 动作 → 按键列表（键名 = Key 枚举名；DirNext/DirPrev = 方向感知语义键）——
+    // —— 快捷键：组 → 动作 → 按键列表（组：General 通用 / PagedLtr 分页·左到右 / PagedRtl 分页·右到左 / Webtoon 滚动；
+    // 键 token = Key 枚举名，组合键 = 修饰键+主键，如 "Ctrl+Shift+P"）——
     public Dictionary<string, Dictionary<string, List<string>>> Hotkeys { get; set; } = DefaultHotkeys();
 
-    /// <summary>默认快捷键（三模式分开）。</summary>
+    /// <summary>默认快捷键（四组：通用 / 分页·左到右 / 分页·右到左 / 滚动）。</summary>
     public static Dictionary<string, Dictionary<string, List<string>>> DefaultHotkeys()
     {
-        var paged = new Dictionary<string, List<string>>
+        var general = new Dictionary<string, List<string>>
         {
-            [nameof(ReaderAction.NextPage)] = new() { "DirNext", "Down", "PageDown", "Space" },
-            [nameof(ReaderAction.PrevPage)] = new() { "DirPrev", "Up", "PageUp" },
-            [nameof(ReaderAction.ToggleMode)] = new() { "M" },
-            [nameof(ReaderAction.ToggleDirection)] = new() { "D" },
-            [nameof(ReaderAction.ToggleTheme)] = new() { "T" },
-            [nameof(ReaderAction.JumpDialog)] = new() { "G" },
-            [nameof(ReaderAction.DebugPanel)] = new() { "F12" },
-            [nameof(ReaderAction.CycleFit)] = new() { "F" },
-            [nameof(ReaderAction.ResetView)] = new() { "R" },
-            [nameof(ReaderAction.ZoomIn)] = new() { "OemPlus", "Add" },
-            [nameof(ReaderAction.ZoomOut)] = new() { "OemMinus", "Subtract" },
-            [nameof(ReaderAction.TogglePreview)] = new() { "P" },
-        };
-        var webtoon = new Dictionary<string, List<string>>
-        {
-            [nameof(ReaderAction.WebtoonNextPage)] = new() { "Right", "PageDown", "Space" },
-            [nameof(ReaderAction.WebtoonPrevPage)] = new() { "Left", "PageUp" },
-            [nameof(ReaderAction.WebtoonScrollDown)] = new() { "Down" },
-            [nameof(ReaderAction.WebtoonScrollUp)] = new() { "Up" },
             [nameof(ReaderAction.ToggleMode)] = new() { "M" },
             [nameof(ReaderAction.ToggleDirection)] = new() { "D" },
             [nameof(ReaderAction.ToggleTheme)] = new() { "T" },
@@ -78,9 +60,24 @@ public class AppSettings
         };
         return new()
         {
-            ["Single"] = paged,
-            ["Double"] = new Dictionary<string, List<string>>(paged),
-            ["Webtoon"] = webtoon,
+            ["General"] = general,
+            ["PagedLtr"] = new()
+            {
+                [nameof(ReaderAction.NextPage)] = new() { "Right", "PageDown", "Space" },
+                [nameof(ReaderAction.PrevPage)] = new() { "Left", "PageUp" },
+            },
+            ["PagedRtl"] = new()
+            {
+                [nameof(ReaderAction.NextPage)] = new() { "Left", "PageDown", "Space" },
+                [nameof(ReaderAction.PrevPage)] = new() { "Right", "PageUp" },
+            },
+            ["Webtoon"] = new()
+            {
+                [nameof(ReaderAction.WebtoonNextPage)] = new() { "Right", "PageDown", "Space" },
+                [nameof(ReaderAction.WebtoonPrevPage)] = new() { "Left", "PageUp" },
+                [nameof(ReaderAction.WebtoonScrollDown)] = new() { "Down" },
+                [nameof(ReaderAction.WebtoonScrollUp)] = new() { "Up" },
+            },
         };
     }
 }
@@ -88,6 +85,17 @@ public class AppSettings
 /// <summary>设置存取：%LOCALAPPDATA%\MangaAgent\settings.json + guide\usage.md（用户可直接编辑）。</summary>
 public static class SettingsStore
 {
+    /// <summary>按键 → 存储 token：修饰键(排序) + 主键（如 Ctrl+Shift+P）。</summary>
+    public static string KeyToken(Avalonia.Input.Key key, Avalonia.Input.KeyModifiers mods)
+    {
+        var parts = new List<string>();
+        if (mods.HasFlag(Avalonia.Input.KeyModifiers.Control)) parts.Add("Ctrl");
+        if (mods.HasFlag(Avalonia.Input.KeyModifiers.Shift)) parts.Add("Shift");
+        if (mods.HasFlag(Avalonia.Input.KeyModifiers.Alt)) parts.Add("Alt");
+        parts.Add(key.ToString());
+        return string.Join("+", parts);
+    }
+
     /// <summary>测试可覆盖的根目录（默认 %LOCALAPPDATA%\MangaAgent）。</summary>
     public static string BaseDir { get; set; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MangaAgent");
@@ -106,7 +114,13 @@ public static class SettingsStore
             {
                 var json = File.ReadAllText(SettingsPath);
                 var s = JsonSerializer.Deserialize<AppSettings>(json);
-                if (s is not null) return s;
+                if (s is not null)
+                {
+                    // v2 迁移：旧版三模式/DirNext 结构 → 重置为四组默认（旧结构无法映射）
+                    if (s.Hotkeys is not { } h || !h.ContainsKey("PagedLtr") || !h.ContainsKey("General"))
+                        s.Hotkeys = AppSettings.DefaultHotkeys();
+                    return s;
+                }
             }
         }
         catch { /* 损坏 → 默认 */ }

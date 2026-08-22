@@ -9,6 +9,7 @@ using MangaAgent.App.Services;
 using MangaAgent.App.ViewModels;
 using MangaAgent.App.Views;
 using MangaAgent.Core.Library;
+using MangaAgent.Core.Storage;
 using Xunit;
 
 namespace MangaAgent.Tests.PoC;
@@ -523,16 +524,18 @@ public class ScrollModeFixesTests
             await Task.Delay(900);
             Assert.True(win.CanvasY > y1 + 100, $"↑ 应向上滚动（ty {y1} -> {win.CanvasY}）");
 
-            // 分页模式：↓ 下一页、↑ 上一页
+            // 分页模式（v2 默认键表：分页组不含 ↑↓）→ ↓ 无绑定不应翻页；←→ 方向感知翻页
             vm.SetViewMode(ViewMode.Single);
+            vm.SetDirection(ReadingDirection2.Ltr);
             await Task.Delay(300);
             int p0 = vm.CurrentPhysical;
             win.KeyPressQwerty(PhysicalKey.ArrowDown, RawInputModifiers.None);
             await Task.Delay(300);
-            Assert.True(vm.CurrentPhysical == p0 + 1, $"分页 ↓ 应下一页（{p0 + 1} -> {vm.CurrentPhysical + 1}）");
-            win.KeyPressQwerty(PhysicalKey.ArrowUp, RawInputModifiers.None);
+            Assert.True(vm.CurrentPhysical == p0, $"分页默认无 ↓ 绑定，不应翻页（{vm.CurrentPhysical + 1}）");
+            // LTR 默认：→ = 下一页
+            win.KeyPressQwerty(PhysicalKey.ArrowRight, RawInputModifiers.None);
             await Task.Delay(300);
-            Assert.True(vm.CurrentPhysical == p0, "分页 ↑ 应上一页");
+            Assert.True(vm.CurrentPhysical == p0 + 1, $"分页 LTR → 应下一页（{p0 + 1} -> {vm.CurrentPhysical + 1}）");
             win.Close();
             await vm.DisposeAsync();
         }
@@ -737,6 +740,95 @@ public class ScrollModeFixesTests
             win.MouseWheel(new Point(550, 400), new Vector(0, -120), RawInputModifiers.None);   // 向下滚 → 下一页
             await Task.Delay(300);
             Assert.True(vm.CurrentPhysical == p0 + 1, $"分页滚轮=翻页：向下应下一页（{p0 + 1} -> {vm.CurrentPhysical + 1}）");
+            win.Close();
+            await vm.DisposeAsync();
+        }
+        finally
+        {
+            SettingsStore.BaseDir = old;
+            try { Directory.Delete(baseDir, true); } catch { }
+        }
+    }
+
+    /// <summary>v2 回归：分页 LTR/RTL 分组独立 —— 默认 RTL：←=下一页；切 LTR 后：←=上一页。</summary>
+    [AvaloniaFact]
+    public async Task Paged_DirectionGroups_Separate()
+    {
+        var baseDir = Path.Combine(Path.GetTempPath(), $"manga_set_{Guid.NewGuid():N}");
+        var old = SettingsStore.BaseDir;
+        SettingsStore.BaseDir = baseDir;
+        try
+        {
+            var db = Path.Combine(Path.GetTempPath(), $"manga_wtf20_{Guid.NewGuid():N}.db");
+            var vm = new ReaderViewModel(StressBook, db);
+            await WaitUntilAsync(() => vm.Image1 is not null);
+            var win = new ReaderWindow { DataContext = vm };
+            win.Show();
+            win.Measure(new Size(1100, 800));
+            win.Arrange(new Rect(0, 0, 1100, 800));
+            vm.SetDirection(ReadingDirection2.Rtl);
+            await Task.Delay(200);
+
+            // RTL：← = 下一页
+            int p0 = vm.CurrentPhysical;
+            win.KeyPressQwerty(PhysicalKey.ArrowLeft, RawInputModifiers.None);
+            await Task.Delay(300);
+            Assert.True(vm.CurrentPhysical == p0 + 1, $"RTL ← 应下一页（{p0 + 1} -> {vm.CurrentPhysical + 1}）");
+
+            // 切 LTR：← = 上一页
+            vm.SetDirection(ReadingDirection2.Ltr);
+            await Task.Delay(200);
+            int p1 = vm.CurrentPhysical;
+            win.KeyPressQwerty(PhysicalKey.ArrowLeft, RawInputModifiers.None);
+            await Task.Delay(300);
+            Assert.True(vm.CurrentPhysical == p1 - 1, $"LTR ← 应上一页（{p1 + 1} -> {vm.CurrentPhysical + 1}）");
+            win.Close();
+            await vm.DisposeAsync();
+        }
+        finally
+        {
+            SettingsStore.BaseDir = old;
+            try { Directory.Delete(baseDir, true); } catch { }
+        }
+    }
+
+    /// <summary>v2 回归：组合键（Ctrl+Shift+P）绑定生效；解绑的普通键不再触发。</summary>
+    [AvaloniaFact]
+    public async Task ComboKey_Binding_Works()
+    {
+        var baseDir = Path.Combine(Path.GetTempPath(), $"manga_set_{Guid.NewGuid():N}");
+        var old = SettingsStore.BaseDir;
+        SettingsStore.BaseDir = baseDir;
+        try
+        {
+            var s = new AppSettings();
+            s.Hotkeys["Webtoon"][nameof(ReaderAction.WebtoonNextPage)] = new() { "Ctrl+Shift+P" };
+            SettingsStore.Save(s);
+
+            var db = Path.Combine(Path.GetTempPath(), $"manga_wtf21_{Guid.NewGuid():N}.db");
+            var vm = new ReaderViewModel(StressBook, db);
+            await WaitUntilAsync(() => vm.Image1 is not null);
+            var win = await OpenWebtoonAsync(vm);
+            await WaitUntilAsync(() => win.WebtoonInstancedCount >= 1, 8000);
+
+            // Right 已解绑 → 不跳
+            win.KeyPressQwerty(PhysicalKey.ArrowRight, RawInputModifiers.None);
+            await Task.Delay(200);
+            Assert.True(Math.Abs(win.CanvasY) < 15, $"解绑后 → 不应跳页（ty={win.CanvasY:F0}）");
+
+            // Ctrl+Shift+P → 整页跳
+            win.KeyPressQwerty(PhysicalKey.P, RawInputModifiers.Control | RawInputModifiers.Shift);
+            await Task.Delay(200);
+            var vp = win.ViewportSize;
+            double pageH = Math.Min(vp.Width, vp.Height * PageRatio) / PageRatio;
+            Assert.True(Math.Abs(win.CanvasY - (-pageH)) < 15,
+                $"组合键应整页跳（ty={win.CanvasY:F0} 期望 {-pageH:F0}）");
+
+            // 单独 P（无修饰）不应触发
+            double yAfter = win.CanvasY;
+            win.KeyPressQwerty(PhysicalKey.P, RawInputModifiers.None);
+            await Task.Delay(200);
+            Assert.True(Math.Abs(win.CanvasY - yAfter) < 15, $"单独 P 不应触发组合键绑定（ty={win.CanvasY:F0}）");
             win.Close();
             await vm.DisposeAsync();
         }
