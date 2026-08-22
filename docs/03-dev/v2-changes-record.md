@@ -219,6 +219,22 @@
 
 ---
 
+## 一·十八、v2.3.14 焦点翻页修复 + 资料库切换（2026-08-22）
+
+> 用户反馈：进入漫画第一次按 ← 不翻页（◀ 按钮白框）；库无法手动切换；翻页延迟。
+
+| # | 修复/改动 | 文件位置 | 可能影响的功能（风险点） |
+|---|---|---|---|
+| 2.3.14-1 | **焦点翻页（A+B）**：Viewport 加 Focusable + OnOpened 时 Viewport.Focus()（焦点落中性区无白框）；隧道阶段 KeyDown 处理器（AddHandler Tunnel）优先处理翻页键（Left/Right/PageUp/PageDown/Space）→ 焦点导航/按钮不再吞第一次按键；bubble OnKeyDown 开头加 e.Handled 检查防重复 | ReaderWindow.axaml(.cs) | 翻页、键盘交互 |
+| 2.3.14-2 | **资料库切换**：侧边栏顶部加资料库下拉框（Libraries/SelectedLibrary），选择库 → OnSelectedLibraryChanged → 重建该库文件夹树 + 目录浏览 | MainWindow.axaml + MainWindowViewModel.cs | 多库管理、目录浏览 |
+| 2.3.14-3 | 新增首次按键翻页回归测试（ArrowKeyFocusDiagTests：无焦点时第一次 ← 即翻页） | 测试 | 42/42 |
+
+### 翻页延迟分析（预解码方案待确认）
+- 延迟点：翻页时新页不在 LRU 缓存（Cap=6）→ 现解码 1200~4096px 大图（100~500ms，线程池不卡 UI 但显示延迟）；ZIP 读流几十 ms
+- 优化方案：翻页后异步预解码相邻页 ±1~2 入缓存 + 缓存 Cap 6→10 → 连续翻页接近零延迟
+
+---
+
 ## 二、v2.2c + v2.2b（2026-08-22，热区与按钮配色修复）
 
 | # | 修复 | 文件位置 | 可能影响的功能 |
