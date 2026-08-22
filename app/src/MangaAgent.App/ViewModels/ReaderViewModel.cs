@@ -62,7 +62,8 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
     [ObservableProperty] private bool _hasStatus;
 
     // 页面位图 LRU 缓存（上限 CacheCap 页，淘汰时 Dispose，控制内存峰值 —— BUG-001 修复）
-    private const int CacheCap = 6;
+    /// <summary>缓存页数上限（设置可调，默认 10）。</summary>
+    public int CacheCap { get; set; } = 10;
     private readonly Dictionary<int, Bitmap> _pageCache = new();
     private readonly LinkedList<int> _cacheOrder = new();
     // BUG-004：UI 引用计数 —— 位图同时被缓存与 UI Image 控件引用（缓存共享返回同一对象），

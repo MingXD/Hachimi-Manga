@@ -72,8 +72,9 @@
     <!-- 工具栏 -->
     <Border DockPanel.Dock="Top" Padding="10,6" Background="{Binding ToolbarHex}">
       <StackPanel Orientation="Horizontal" Spacing="6" Classes="toolbar">
-        <TextBlock Text="{Binding BookTitle}" FontWeight="Bold" Foreground="{Binding ForegroundHex}"
-                   VerticalAlignment="Center" Margin="0,0,18,0" MaxWidth="340" TextTrimming="CharacterEllipsis"/>
+        <!-- 设置按钮放最前，与操作按钮以竖线分隔（书名已显示在窗口标题栏，不再占工具栏） -->
+        <Button Content="⚙ 设置" Click="OnSettingsClick" ToolTip.Tip="阅读设置（基准/手感/快捷键/使用介绍）" Foreground="{Binding ForegroundHex}" MinWidth="64"/>
+        <Border Width="1" Background="#666666" Margin="2,2" VerticalAlignment="Stretch"/>
         <Button x:Name="NavPrevButton" Content="◀" Click="OnNavPrevClick" Foreground="{Binding ForegroundHex}"/>
         <Button x:Name="NavNextButton" Content="▶" Click="OnNavNextClick" Foreground="{Binding ForegroundHex}"/>
         <Button Content="{Binding PageText}" Click="OnPageTextClick" ToolTip.Tip="点击跳转到指定页 (G)" Background="Transparent" Foreground="{Binding ForegroundHex}" Padding="6,2" Margin="8,0"/>

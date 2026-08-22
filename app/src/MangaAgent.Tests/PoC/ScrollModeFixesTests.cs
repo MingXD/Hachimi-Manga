@@ -5,6 +5,7 @@ using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
+using MangaAgent.App.Services;
 using MangaAgent.App.ViewModels;
 using MangaAgent.App.Views;
 using MangaAgent.Core.Library;
@@ -593,5 +594,156 @@ public class ScrollModeFixesTests
             await vm.DisposeAsync();
         }
         finally { try { File.Delete(db); } catch { } }
+    }
+
+    // ---------- v4 设置系统回归 ----------
+
+    /// <summary>设置存取往返 + 使用介绍默认生成。</summary>
+    [AvaloniaFact]
+    public async Task SettingsStore_RoundTrip_AndGuideGenerated()
+    {
+        var baseDir = Path.Combine(Path.GetTempPath(), $"manga_set_{Guid.NewGuid():N}");
+        var old = SettingsStore.BaseDir;
+        SettingsStore.BaseDir = baseDir;
+        try
+        {
+            var s = new AppSettings { ZoomSensitivity = 1.5, WebtoonSpeed = 1.2, ScrollFriction = 8, CacheCap = 16, InvertScroll = true, PagedWheelMode = "Page" };
+            s.Hotkeys["Webtoon"][nameof(ReaderAction.WebtoonNextPage)] = new() { "X" };
+            SettingsStore.Save(s);
+            var loaded = SettingsStore.Load();
+            Assert.Equal(1.5, loaded.ZoomSensitivity);
+            Assert.Equal(1.2, loaded.WebtoonSpeed);
+            Assert.Equal(8, loaded.ScrollFriction);
+            Assert.Equal(16, loaded.CacheCap);
+            Assert.True(loaded.InvertScroll);
+            Assert.Equal("Page", loaded.PagedWheelMode);
+            Assert.Equal(new[] { "X" }, loaded.Hotkeys["Webtoon"][nameof(ReaderAction.WebtoonNextPage)]);
+            Assert.True(File.Exists(SettingsStore.GuidePath), "首次运行应生成默认使用介绍");
+        }
+        finally
+        {
+            SettingsStore.BaseDir = old;
+            try { Directory.Delete(baseDir, true); } catch { }
+        }
+    }
+
+    /// <summary>滚动模式 ←→ = 整页顶对齐跳（→ 下一页顶到视口顶、← 上一页顶到视口顶）。</summary>
+    [AvaloniaFact]
+    public async Task Webtoon_ArrowKeys_PageJumpTopAligned()
+    {
+        var baseDir = Path.Combine(Path.GetTempPath(), $"manga_set_{Guid.NewGuid():N}");
+        var old = SettingsStore.BaseDir;
+        SettingsStore.BaseDir = baseDir;
+        try
+        {
+            var db = Path.Combine(Path.GetTempPath(), $"manga_wtf17_{Guid.NewGuid():N}.db");
+            var vm = new ReaderViewModel(StressBook, db);
+            await WaitUntilAsync(() => vm.Image1 is not null);
+            var win = await OpenWebtoonAsync(vm);
+            await WaitUntilAsync(() => win.WebtoonInstancedCount >= 1, 8000);
+
+            // 初始在页 0（页顶对齐）→ 按 → 下一页整页跳：页 1 顶对齐视口顶
+            win.KeyPressQwerty(PhysicalKey.ArrowRight, RawInputModifiers.None);
+            await Task.Delay(100);
+            var vp = win.ViewportSize;
+            double pageH = Math.Min(vp.Width, vp.Height * PageRatio) / PageRatio;
+            Assert.True(Math.Abs(win.CanvasY - (-pageH)) < 15,
+                $"→ 应跳到页 2 顶对齐（ty={win.CanvasY:F0} 期望 {-pageH:F0}）");
+            Assert.Equal("2 / 300", vm.PageText);
+
+            // 按 ← 上一页整页跳：回到页 0 顶
+            win.KeyPressQwerty(PhysicalKey.ArrowLeft, RawInputModifiers.None);
+            await Task.Delay(100);
+            Assert.True(Math.Abs(win.CanvasY) < 15, $"← 应回到页 1 顶对齐（ty={win.CanvasY:F0}）");
+
+            // ↑↓ 仍是滑动（动量），不是整页跳
+            double y0 = win.CanvasY;
+            win.KeyPressQwerty(PhysicalKey.ArrowDown, RawInputModifiers.None);
+            await Task.Delay(800);
+            Assert.True(win.CanvasY < y0 - 50 && win.CanvasY > y0 - vp.Height * 2,
+                $"↓ 应平滑滑动而非整页跳（ty {y0:F0} -> {win.CanvasY:F0}）");
+            win.Close();
+            await vm.DisposeAsync();
+        }
+        finally
+        {
+            SettingsStore.BaseDir = old;
+            try { Directory.Delete(baseDir, true); } catch { }
+        }
+    }
+
+    /// <summary>快捷键重绑生效：把滚动"下一页整页跳"绑到 X → X 触发、Right 不再触发。</summary>
+    [AvaloniaFact]
+    public async Task HotkeyRebind_ChangesAction()
+    {
+        var baseDir = Path.Combine(Path.GetTempPath(), $"manga_set_{Guid.NewGuid():N}");
+        var old = SettingsStore.BaseDir;
+        SettingsStore.BaseDir = baseDir;
+        try
+        {
+            var s = new AppSettings();
+            s.Hotkeys["Webtoon"][nameof(ReaderAction.WebtoonNextPage)] = new() { "X" };
+            SettingsStore.Save(s);
+
+            var db = Path.Combine(Path.GetTempPath(), $"manga_wtf18_{Guid.NewGuid():N}.db");
+            var vm = new ReaderViewModel(StressBook, db);
+            await WaitUntilAsync(() => vm.Image1 is not null);
+            var win = await OpenWebtoonAsync(vm);
+            await WaitUntilAsync(() => win.WebtoonInstancedCount >= 1, 8000);
+
+            // Right 已解绑 → 不应整页跳
+            win.KeyPressQwerty(PhysicalKey.ArrowRight, RawInputModifiers.None);
+            await Task.Delay(200);
+            Assert.True(Math.Abs(win.CanvasY) < 15, $"解绑后 → 不应跳页（ty={win.CanvasY:F0}）");
+
+            // X → 整页跳
+            win.KeyPressQwerty(PhysicalKey.X, RawInputModifiers.None);
+            await Task.Delay(200);
+            var vp = win.ViewportSize;
+            double pageH = Math.Min(vp.Width, vp.Height * PageRatio) / PageRatio;
+            Assert.True(Math.Abs(win.CanvasY - (-pageH)) < 15,
+                $"重绑 X 应整页跳（ty={win.CanvasY:F0} 期望 {-pageH:F0}）");
+            win.Close();
+            await vm.DisposeAsync();
+        }
+        finally
+        {
+            SettingsStore.BaseDir = old;
+            try { Directory.Delete(baseDir, true); } catch { }
+        }
+    }
+
+    /// <summary>分页滚轮行为=翻页：分页模式滚轮翻页而非缩放。</summary>
+    [AvaloniaFact]
+    public async Task PagedWheelMode_Page_Pages()
+    {
+        var baseDir = Path.Combine(Path.GetTempPath(), $"manga_set_{Guid.NewGuid():N}");
+        var old = SettingsStore.BaseDir;
+        SettingsStore.BaseDir = baseDir;
+        try
+        {
+            var s = new AppSettings { PagedWheelMode = "Page" };
+            SettingsStore.Save(s);
+
+            var db = Path.Combine(Path.GetTempPath(), $"manga_wtf19_{Guid.NewGuid():N}.db");
+            var vm = new ReaderViewModel(StressBook, db);
+            await WaitUntilAsync(() => vm.Image1 is not null);
+            var win = new ReaderWindow { DataContext = vm };
+            win.Show();
+            win.Measure(new Size(1100, 800));
+            win.Arrange(new Rect(0, 0, 1100, 800));
+
+            int p0 = vm.CurrentPhysical;
+            win.MouseWheel(new Point(550, 400), new Vector(0, -120), RawInputModifiers.None);   // 向下滚 → 下一页
+            await Task.Delay(300);
+            Assert.True(vm.CurrentPhysical == p0 + 1, $"分页滚轮=翻页：向下应下一页（{p0 + 1} -> {vm.CurrentPhysical + 1}）");
+            win.Close();
+            await vm.DisposeAsync();
+        }
+        finally
+        {
+            SettingsStore.BaseDir = old;
+            try { Directory.Delete(baseDir, true); } catch { }
+        }
     }
 }

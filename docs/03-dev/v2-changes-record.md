@@ -413,6 +413,28 @@
 
 ---
 
+## 一·三十一、v4 设置系统 + 基础修改（2026-08-23）
+
+> 方案见 [settings-system.md](../02-design/settings-system.md)。用户决策：存储 %LOCALAPPDATA%\MangaAgent\ / 轻量介绍格式 / 快捷键三模式分开 / 书签快捷键移除 / 滚动模式 ←→ 整页跳 / 滚轮基准加大。
+
+| # | 修复/改动 | 文件位置 | 可能影响的功能（风险点） |
+|---|---|---|---|
+| 2.10-1 | **工具栏：移除书名 + 设置按钮（最前）+ `\|` 分隔** | ReaderWindow.axaml | 工具栏布局 |
+| 2.10-2 | **书签快捷键移除**（功能使用侧屏蔽；命令/存储保留） | ReaderWindow.axaml.cs（删 case B） | 快捷键 |
+| 2.10-3 | **滚动模式 ←→ 整页顶对齐跳**：→=下一页顶到视口顶、←=上一页顶到视口顶（同步当前页状态）；PageDown/Space=整页跳；↑↓=滑动一屏 | ReaderWindow.axaml.cs：WebtoonJumpPage | 滚动模式键盘 |
+| 2.10-4 | **SettingsStore**：`%LOCALAPPDATA%\MangaAgent\settings.json`（System.Text.Json）+ guide\usage.md 首次自动生成（含完整使用介绍模板与插图说明）；BaseDir 可注入（测试隔离） | Services/SettingsStore.cs（新） | 设置持久化 |
+| 2.10-5 | **设置接入**：缩放/滚动速度基准（工具栏 ×1 按钮=相对基准的倍率）、停止快慢、甩动阈值/限幅、解码宽度上限、缓存页数（VM CacheCap 可配置）、滚动方向反转、分页滚轮行为（缩放/翻页） | ReaderWindow.axaml.cs：ApplySettings；ReaderViewModel.cs：CacheCap | 全部手感/性能项 |
+| 2.10-6 | **滚轮基准加大**：WheelNotchScreenRatio 1.0→1.2（每物理档 ≈ 120% 视口高） | ReaderWindow.axaml.cs：常量 | 滚动手感 |
+| 2.10-7 | **快捷键查表改造**：硬编码 switch → 按"当前模式+按键"查表（三模式分开）；DirNext/DirPrev 方向感知语义键（分页 RTL：DirNext=←）；冲突检测；点击捕获/右键清空；F12 无 VM 可用 | ReaderWindow.axaml.cs：ResolveAction/ExecuteAction；SettingsDialog.cs（新） | 键盘全部行为 |
+| 2.10-8 | **SettingsDialog 三页签**：阅读（基准/手感/性能滑块+开关+下拉）/ 快捷键（三模式网格）/ 使用介绍（usage.md 轻量渲染：# 标题、## 小节、!img:相对路径、正文；打开介绍文件按钮） | Views/SettingsDialog.cs（新） | 设置窗口 |
+| 2.10-9 | 新增 4 项回归：设置存取往返+介绍生成 / ←→ 整页顶对齐跳 / 快捷键重绑生效（X 触发、Right 解绑） / 分页滚轮=翻页 | ScrollModeFixesTests.cs | 测试基线 58→62 |
+
+### 设计备忘（v4）
+- 快捷键三模式分开 + 方向感知语义键：分页 ←→ 随 RTL/LTR 自动；用户显式重绑固定键后按固定键生效
+- 使用介绍 = 用户可直接编辑的文件（LOCALAPPDATA 持久，发布更新不清除）；插图 = guide\images\ + `!img:` 行
+
+---
+
 ## 二、v2.2c + v2.2b（2026-08-22，热区与按钮配色修复）
 
 | # | 修复 | 文件位置 | 可能影响的功能 |
@@ -478,6 +500,7 @@
 
 ## 七、验证状态
 
+- **v4（2.10）：62/62 自动化测试通过**（设置系统 + 快捷键查表 + 整页跳 + 基础修改；发布版已更新，冒烟通过）
 - **v3.2（2.8）：58/58 自动化测试通过**（滚轮按视口归一化一档≈80%屏、适应高度铺满视口高）
 - **v3.1（2.7）：57/57 自动化测试通过**（新增适应宽度铺满测试；滚轮纯比例脉冲）
 - **v3（2.6）：56/56 自动化测试通过**（v3 新增 5 项：弱 Delta 滚轮/坏条目占位/复位无残留/放大刷新+百分比/键盘↑↓）；真实书诊断复验
