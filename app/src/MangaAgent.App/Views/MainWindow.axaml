@@ -67,7 +67,7 @@
               </ListBox.ItemsPanel>
               <ListBox.ItemTemplate>
                 <DataTemplate x:DataType="vm:FolderEntryItemViewModel">
-                  <Border Width="{Binding CardWidth}" Height="{Binding CardHeight}" Background="#1E1E26" CornerRadius="6" BorderBrush="#333333" BorderThickness="1" ClipToBounds="True" Margin="2"
+                  <Border Width="{Binding CardWidth}" Height="{Binding CardHeight}" Background="#1E1E26" CornerRadius="6" BorderBrush="#333333" BorderThickness="1" ClipToBounds="True" Margin="8"
                           ToolTip.Tip="{Binding DisplayName}">
                     <Border.ContextMenu>
                       <ContextMenu>
@@ -104,10 +104,7 @@
                       <Grid IsVisible="{Binding IsDetail}" Margin="10,0" VerticalAlignment="Center" ColumnDefinitions="34,*,Auto">
                         <TextBlock Grid.Column="0" Text="{Binding IconText}" FontSize="20" VerticalAlignment="Center"/>
                         <TextBlock Grid.Column="1" Text="{Binding DisplayName}" Foreground="#E8E8E8" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding DisplayName}" FontSize="13" VerticalAlignment="Center" Margin="10,0,0,0"/>
-                        <StackPanel Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Right" MaxWidth="280" Margin="16,0,0,0">
-                          <TextBlock Text="{Binding Subtitle}" Foreground="#888888" FontSize="10" TextAlignment="Right" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Subtitle}"/>
-                          <TextBlock Text="{Binding StatsLine2}" Foreground="#888888" FontSize="10" TextAlignment="Right" TextTrimming="CharacterEllipsis"/>
-                        </StackPanel>
+                        <TextBlock Grid.Column="2" Text="{Binding SubtitleOneLine}" Foreground="#888888" FontSize="10" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding SubtitleOneLine}" Margin="16,0,0,0" HorizontalAlignment="Right"/>
                     </Grid>
                     </Grid>
                   </Border>

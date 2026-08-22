@@ -57,17 +57,17 @@ public partial class MainWindowViewModel : ViewModelBase
     /// <summary>封面墙卡片尺寸（随展示模式变化）。</summary>
     public double GalleryItemWidth => GalleryMode switch
     {
-        GalleryMode.Large => 264,
-        GalleryMode.Small => 132,
+        GalleryMode.Large => 256,   // = 卡片宽240 + Margin8×2
+        GalleryMode.Small => 136,
         GalleryMode.Detail => 560,  // 详情：行式条宽
         _ => 184,
     };
     public double GalleryItemHeight => GalleryMode switch
     {
-        GalleryMode.Large => 366,
-        GalleryMode.Small => 188,
+        GalleryMode.Large => 396,   // = 卡片高380 + Margin8×2
+        GalleryMode.Small => 212,
         GalleryMode.Detail => 40,  // 详情：行式条高
-        _ => 262,
+        _ => 288,
     };
 
     [RelayCommand]
@@ -152,19 +152,19 @@ public partial class MainWindowViewModel : ViewModelBase
         // 功能-1：卡片尺寸随展示模式
         (item.CardWidth, item.CardHeight) = GalleryMode switch
         {
-            GalleryMode.Large => (248.0, 366.0),   // 卡片高对齐 WrapPanel 项高
-            GalleryMode.Small => (116.0, 188.0),
+            // 卡片 = 封面(0.7 单行本比例) + 文本区；详情 = 行式条
+            GalleryMode.Large => (240.0, 380.0),
+            GalleryMode.Small => (120.0, 196.0),
             GalleryMode.Detail => (560.0, 40.0),
-            _ => (168.0, 262.0),
+            _ => (168.0, 272.0),
         };
-        // 展示模式数据化：封面/字体随模式；详情模式行式无图
-        // 封面高 = 卡片高 - 文本区（标题2行+副标题2行+间距），保证文本不溢出卡片
+        // 封面统一 0.7 比例（单行本：新书判148×210≈0.705 / B6 182×257≈0.708），三模式等比 ×1.5
         (item.CoverWidth, item.CoverHeight) = GalleryMode switch
         {
-            GalleryMode.Large => (220.0, 280.0),
-            GalleryMode.Small => (100.0, 108.0),
+            GalleryMode.Large => (216.0, 309.0),
+            GalleryMode.Small => (96.0, 137.0),
             GalleryMode.Detail => (0.0, 0.0),
-            _ => (164.0, 178.0),
+            _ => (144.0, 206.0),
         };
         item.IsDetail = GalleryMode == GalleryMode.Detail;
         item.TitleFontSize = GalleryMode switch { GalleryMode.Small => 11, GalleryMode.Large => 13, _ => 12 };

@@ -66,6 +66,27 @@ public partial class FolderEntryItemViewModel : ViewModelBase
         }
     }
 
+    /// <summary>详情模式单行副标题：M 本漫画 · N 个子文件夹 · 共 X 本漫画（各段为 0 时省略；漫画条目 = 页数）。</summary>
+    public string SubtitleOneLine
+    {
+        get
+        {
+            if (IsFolder)
+            {
+                if (Folder is null) return "";
+                int m = CountDirectBooks(Folder);
+                int n = CountDirectSubfolders(Folder);
+                int x = CountBooksRecursive(Folder);
+                var parts = new List<string>();
+                if (m > 0) parts.Add($"{m} 本漫画");
+                if (n > 0) parts.Add($"{n} 个子文件夹");
+                if (x > 0) parts.Add($"共 {x} 本漫画");
+                return string.Join(" · ", parts);
+            }
+            return Subtitle;
+        }
+    }
+
     /// <summary>副标题第 2 行（仅文件夹）：递归统计目录下共 X 本漫画（X=0 不显示）。</summary>
     public string StatsLine2
     {

@@ -202,6 +202,24 @@ public class FolderBrowserTests
             Assert.True(subDir.IsFolder);
             Assert.Equal("1 本漫画", subDir.Subtitle);   // N=0 → 只显示漫画数
             Assert.Equal("目录下共 1 本漫画", subDir.StatsLine2);
+            // 详情模式单行副标题
+            Assert.Equal("1 页", pure1.SubtitleOneLine);
+            Assert.Equal("1 本漫画 · 共 1 本漫画", subDir.SubtitleOneLine);   // M=1, N=0, X=1
+
+            // 三模式封面统一 0.7 比例、等比 ×1.5（卡片/封面尺寸）
+            vm.GalleryMode = GalleryMode.Large;
+            Assert.All(vm.FolderEntries, e => Assert.Equal(240.0, e.CardWidth));
+            Assert.All(vm.FolderEntries, e => Assert.Equal(216.0, e.CoverWidth));
+            Assert.All(vm.FolderEntries, e => Assert.Equal(309.0, e.CoverHeight));
+            Assert.True(Math.Abs(vm.FolderEntries[0].CoverWidth / vm.FolderEntries[0].CoverHeight - 0.7) < 0.01);
+            vm.GalleryMode = GalleryMode.Medium;
+            Assert.All(vm.FolderEntries, e => Assert.Equal(168.0, e.CardWidth));
+            Assert.All(vm.FolderEntries, e => Assert.Equal(144.0, e.CoverWidth));
+            Assert.All(vm.FolderEntries, e => Assert.Equal(206.0, e.CoverHeight));
+            vm.GalleryMode = GalleryMode.Small;
+            Assert.All(vm.FolderEntries, e => Assert.Equal(120.0, e.CardWidth));
+            Assert.All(vm.FolderEntries, e => Assert.Equal(96.0, e.CoverWidth));
+            Assert.All(vm.FolderEntries, e => Assert.Equal(137.0, e.CoverHeight));
         }
         finally
         {
