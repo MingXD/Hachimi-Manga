@@ -977,18 +977,26 @@ public partial class ReaderWindow : Window
 
 
     /// <summary>进度条拖动/点击 → 跳页（拖动中实时更新，松手才真正跳转避免逐页解码）。</summary>
-    // ---------- 底部悬浮预览栏（v2：进度条+缩略图融合，悬停唤出） ----------
-    /// <summary>预览栏缩略图条目。</summary>
-    public sealed record ThumbStripItem(int Physical, int Logical, string PageLabel, Avalonia.Media.Imaging.Bitmap? Bitmap);
+    // ---------- 底部悬浮预览栏（v2.1 重构：修 CPU/内存拉满 + 缩略图不显示） ----------
+    /// <summary>预览栏缩略图条目（ObservableCollection 自动刷新）。</summary>
+    public sealed class ThumbStripItem : ViewModelBase
+    {
+        public int Physical { get; }
+        public string PageLabel { get; }
+        private Avalonia.Media.Imaging.Bitmap? _bitmap;
+        public Avalonia.Media.Imaging.Bitmap? Bitmap { get => _bitmap; set { _bitmap = value; OnPropertyChanged(); } }
+        public ThumbStripItem(int physical) { Physical = physical; PageLabel = $"{physical + 1}"; }
+    }
 
     private Avalonia.Threading.DispatcherTimer? _hoverTimer;
-    private readonly List<ThumbStripItem> _thumbItems = new();
+    private readonly System.Collections.ObjectModel.ObservableCollection<ThumbStripItem> _thumbItems = new();
     private int _thumbCenterPhysical;
+    private int _thumbSeq;   // 刷新序列号：只认最新一次，防并发叠加
     private Avalonia.Point _lastMousePos;
 
-    private void OnBottomHotZonePointerMoved(object? sender, PointerEventArgs e)
+    /// <summary>热区进入触发（PointerEntered 只触发一次，不再每帧重置 → 立即 400ms 唤出）。</summary>
+    private void OnBottomHotZonePointerEntered(object? sender, PointerEventArgs e)
     {
-        _lastMousePos = e.GetPosition(this);
         if (PreviewStrip?.IsVisible == true) return;
         StartHoverTimer(400, ShowPreviewStrip);
     }
@@ -1009,13 +1017,17 @@ public partial class ReaderWindow : Window
 
     private void StartHoverTimer(int ms, Action action)
     {
-        _hoverTimer ??= new Avalonia.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(ms) };
-        _hoverTimer.Tick -= (_, _) => action();
-        _hoverTimer.Tick += (_, _) => { _hoverTimer.Stop(); action(); };
+        if (_hoverTimer is null)
+        {
+            _hoverTimer = new Avalonia.Threading.DispatcherTimer();
+            _hoverTimer.Tick += (_, _) => { _hoverTimer.Stop(); _hoverAction?.Invoke(); };
+        }
+        _hoverAction = action;
         _hoverTimer.Interval = TimeSpan.FromMilliseconds(ms);
         _hoverTimer.Stop();
         _hoverTimer.Start();
     }
+    private Action? _hoverAction;
 
     private void StopHoverTimer() => _hoverTimer?.Stop();
 
@@ -1040,10 +1052,11 @@ public partial class ReaderWindow : Window
         RefreshThumbStrip();
     }
 
-    /// <summary>加载 7 张缩略图（当前页居中，加载中显示页码占位）。</summary>
+    /// <summary>加载 7 张缩略图（小图解码，seq 防并发，ObservableCollection 自动刷新）。</summary>
     private async void RefreshThumbStrip()
     {
         if (_vm is null || ThumbStrip is null || !PreviewStrip.IsVisible) return;
+        int mySeq = ++_thumbSeq;
         int total = _vm.PhysicalPageCount;
         int center = Math.Clamp(_thumbCenterPhysical, 0, total - 1);
         int start = Math.Max(0, center - 3);
@@ -1053,24 +1066,17 @@ public partial class ReaderWindow : Window
 
         _thumbItems.Clear();
         for (int i = start; i <= end; i++)
-            _thumbItems.Add(new ThumbStripItem(i, i, $"{i + 1}", null));
+            _thumbItems.Add(new ThumbStripItem(i));
         ThumbStrip.ItemsSource = _thumbItems;
 
-        foreach (var item in _thumbItems.ToList())
+        // 小图解码（~150px，快），seq 过期则丢弃
+        for (int i = start; i <= end; i++)
         {
-            int phys = item.Physical;
-            try
-            {
-                var bmp = await _vm.GetPageBitmapAsync(phys);
-                if (!PreviewStrip.IsVisible) return;
-                int idx = _thumbItems.FindIndex(t => t.Physical == phys);
-                if (idx >= 0 && ThumbStrip.ItemsSource is System.Collections.IList list)
-                {
-                    _thumbItems[idx] = _thumbItems[idx] with { Bitmap = bmp };
-                    list[idx] = _thumbItems[idx];
-                }
-            }
-            catch { }
+            int phys = i;
+            var bmp = await _vm.GetThumbnailAsync(phys);
+            if (mySeq != _thumbSeq || !PreviewStrip.IsVisible) return;
+            var item = _thumbItems.FirstOrDefault(t => t.Physical == phys);
+            if (item is not null) item.Bitmap = bmp;
         }
     }
 
@@ -1118,6 +1124,57 @@ public partial class ReaderWindow : Window
             }
         }
     }
+
+
+
+    private void OnNavPrevClick(object? sender, RoutedEventArgs e)
+    {
+        if (_vm is null) return;
+        if (_vm.Direction == ReadingDirection2.Rtl) _vm.NextPageCommand.Execute(null);
+        else _vm.PrevPageCommand.Execute(null);
+    }
+
+    private void OnNavNextClick(object? sender, RoutedEventArgs e)
+    {
+        App.SLog($"BTN 下一页点击");
+        if (_vm is null) return;
+        if (_vm.Direction == ReadingDirection2.Rtl) _vm.PrevPageCommand.Execute(null);
+        else _vm.NextPageCommand.Execute(null);
+    }
+
+    /// <summary>阅读模式下拉菜单。</summary>
+    private void OnModeMenuClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button b) b.ContextMenu?.Open(b);
+    }
+
+    private void OnDirectionMenuClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button b) b.ContextMenu?.Open(b);
+    }
+
+    private void OnDirectionMenuItemClick(object? sender, RoutedEventArgs e)
+    {
+        if (_vm is null || sender is not MenuItem { Tag: string tag }) return;
+        var target = tag == "Rtl" ? ReadingDirection2.Rtl : ReadingDirection2.Ltr;
+        _vm.SetDirection(target);
+    }
+
+    private void OnModeMenuItemClick(object? sender, RoutedEventArgs e)
+    {
+        if (_vm is null || sender is not MenuItem { Tag: string tag }) return;
+        var target = tag switch
+        {
+            "Single" => ViewMode.Single,
+            "Double" => ViewMode.Double,
+            _ => ViewMode.Webtoon,
+        };
+        _vm.SetViewMode(target);
+    }
+
+
+
+
 
     private void OnPageTextClick(object? sender, RoutedEventArgs e)
         => ShowJumpDialog();
@@ -1168,51 +1225,6 @@ public partial class ReaderWindow : Window
     }
 
     /// <summary>方向感知翻页（v1.8）：RTL 时 ◀=下一页、▶=上一页；ToolTip 随方向显示。</summary>
-    private void OnNavPrevClick(object? sender, RoutedEventArgs e)
-    {
-        if (_vm is null) return;
-        if (_vm.Direction == ReadingDirection2.Rtl) _vm.NextPageCommand.Execute(null);
-        else _vm.PrevPageCommand.Execute(null);
-    }
-
-    private void OnNavNextClick(object? sender, RoutedEventArgs e)
-    {
-        App.SLog($"BTN 下一页点击");
-        if (_vm is null) return;
-        if (_vm.Direction == ReadingDirection2.Rtl) _vm.PrevPageCommand.Execute(null);
-        else _vm.NextPageCommand.Execute(null);
-    }
-
-    /// <summary>阅读模式下拉菜单。</summary>
-    private void OnModeMenuClick(object? sender, RoutedEventArgs e)
-    {
-        if (sender is Button b) b.ContextMenu?.Open(b);
-    }
-
-    private void OnDirectionMenuClick(object? sender, RoutedEventArgs e)
-    {
-        if (sender is Button b) b.ContextMenu?.Open(b);
-    }
-
-    private void OnDirectionMenuItemClick(object? sender, RoutedEventArgs e)
-    {
-        if (_vm is null || sender is not MenuItem { Tag: string tag }) return;
-        var target = tag == "Rtl" ? ReadingDirection2.Rtl : ReadingDirection2.Ltr;
-        _vm.SetDirection(target);
-    }
-
-    private void OnModeMenuItemClick(object? sender, RoutedEventArgs e)
-    {
-        if (_vm is null || sender is not MenuItem { Tag: string tag }) return;
-        var target = tag switch
-        {
-            "Single" => ViewMode.Single,
-            "Double" => ViewMode.Double,
-            _ => ViewMode.Webtoon,
-        };
-        _vm.SetViewMode(target);
-    }
-
 
 
     private void OnKeyDown(object? sender, KeyEventArgs e)

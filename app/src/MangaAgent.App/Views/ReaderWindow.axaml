@@ -100,7 +100,7 @@
 
     <!-- 底部热区（悬停唤出预览栏） -->
     <Border x:Name="BottomHotZone" DockPanel.Dock="Bottom" Height="24" Background="Transparent"
-            PointerMoved="OnBottomHotZonePointerMoved" PointerExited="OnBottomHotZonePointerExited"/>
+            PointerEntered="OnBottomHotZonePointerEntered" PointerExited="OnBottomHotZonePointerExited"/>
     <!-- 底部悬浮预览栏（进度条+缩略图融合 v2） -->
     <Border x:Name="PreviewStrip" DockPanel.Dock="Bottom" Height="150" Background="#E61C1C24" IsVisible="False"
             PointerMoved="OnPreviewStripPointerMoved" PointerExited="OnPreviewStripPointerExited"

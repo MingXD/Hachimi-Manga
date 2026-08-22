@@ -257,6 +257,35 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
     /// <summary>Webtoon：获取指定物理页位图（带缓存）。</summary>
     public Task<Bitmap?> GetPageBitmapAsync(int physical) => DecodeAsync(physical);
 
+    // 预览栏缩略图：独立小尺寸解码缓存（~150px），与正文大图缓存分离，避免解码风暴
+    private readonly Dictionary<int, Bitmap> _thumbCache = new();
+    private const int ThumbWidth = 150;
+
+    /// <summary>预览栏缩略图（小尺寸，独立缓存，线程安全队列解码）。</summary>
+    public async Task<Bitmap?> GetThumbnailAsync(int physical)
+    {
+        if (_thumbCache.TryGetValue(physical, out var cached)) return cached;
+        Bitmap? bmp = null;
+        try
+        {
+            using var stream = await _source.OpenPageAsync(physical);
+            using var ms = new MemoryStream();
+            await stream.CopyToAsync(ms);
+            ms.Position = 0;
+            bmp = await Task.Run(() => Avalonia.Media.Imaging.Bitmap.DecodeToWidth(ms, ThumbWidth));
+            if (bmp is not null) _thumbCache[physical] = bmp;
+        }
+        catch { }
+        return bmp;
+    }
+
+    /// <summary>清空缩略图缓存（书关闭时）。</summary>
+    private void ClearThumbCache()
+    {
+        foreach (var b in _thumbCache.Values) b.Dispose();
+        _thumbCache.Clear();
+    }
+
     /// <summary>Webtoon：页数。</summary>
     public int PhysicalPageCount => _source.PageCount;
 
@@ -609,5 +638,6 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
         _pageCache.Clear();
         _cacheOrder.Clear();
         _uiRefs.Clear();
+        ClearThumbCache();
     }
 }
