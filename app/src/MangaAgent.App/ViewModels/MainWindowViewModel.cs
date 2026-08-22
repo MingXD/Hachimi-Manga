@@ -88,7 +88,29 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
     partial void OnSearchTextChanged(string value) => ApplyFilter();
-    partial void OnSelectedLibraryChanged(LibraryItemViewModel? value) { if (value is not null) ShowBooks(value); }
+    partial void OnSelectedLibraryChanged(LibraryItemViewModel? value)
+    {
+        if (value is null) return;
+        ShowBooks(value);
+        // 库切换（资料库下拉选择）：重建该库文件夹树 + 目录浏览
+        _ = RebuildTreeForLibraryAsync(value);
+    }
+
+    /// <summary>库切换：扫描库根建树 → 显示根目录内容。</summary>
+    private async Task RebuildTreeForLibraryAsync(LibraryItemViewModel lib)
+    {
+        try
+        {
+            var tree = await MangaAgent.Core.Library.FolderTreeScanner.ScanAsync(lib.Path);
+            FolderTree.Clear();
+            FolderTree.Add(tree);
+            ShowFolderContents(tree);
+        }
+        catch (Exception ex)
+        {
+            App.SLog($"LIB SWITCH FAIL {lib.Path}: {ex.Message}");
+        }
+    }
 
     partial void OnSelectedFolderChanged(MangaAgent.Core.Library.FolderNode? value)
     {

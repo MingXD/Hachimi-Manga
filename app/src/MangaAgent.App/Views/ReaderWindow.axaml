@@ -113,7 +113,7 @@
     <!-- 阅读区：画布模型（视口 + 图片层，Scale/Translate 变换，复刻 Windows 看图器） -->
 
 
-    <Border x:Name="Viewport" ClipToBounds="True" Background="{Binding BackgroundHex}"
+    <Border x:Name="Viewport" ClipToBounds="True" Focusable="True" Background="{Binding BackgroundHex}"
             SizeChanged="OnViewportSizeChanged"
             PointerWheelChanged="OnPointerWheelChanged"
             PointerPressed="OnViewportPointerPressed"

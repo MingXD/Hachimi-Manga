@@ -137,6 +137,8 @@ public partial class ReaderWindow : Window
     {
         base.OnOpened(e);
         Relayout();
+        // 方案A：打开时焦点落在阅读区（Focusable 中性控件，无白框、不消费翻页键）
+        Viewport.Focus();
         if (Environment.GetCommandLineArgs().Contains("--diag"))
             RunZoomDiagnostics();
     }
@@ -1268,8 +1270,42 @@ public partial class ReaderWindow : Window
     /// <summary>方向感知翻页（v1.8）：RTL 时 ◀=下一页、▶=上一页；ToolTip 随方向显示。</summary>
 
 
+    /// <summary>隧道阶段 KeyDown（窗口最先收到）：翻页键优先处理并 Handled —— 焦点在任何位置（按钮/无焦点）翻页都立即生效。</summary>
+    private void OnKeyDownTunnel(object? sender, KeyEventArgs e)
+    {
+        if (_vm is null || e.Handled) return;
+        bool webtoon = _vm.ViewMode == ViewMode.Webtoon;
+        switch (e.Key)
+        {
+            case Key.Left:
+                if (webtoon) { ScrollWebtoonPages(-1); e.Handled = true; return; }
+                if (_vm.Direction == ReadingDirection2.Rtl) _vm.NextPageCommand.Execute(null);
+                else _vm.PrevPageCommand.Execute(null);
+                e.Handled = true;
+                return;
+            case Key.Right:
+                if (webtoon) { ScrollWebtoonPages(1); e.Handled = true; return; }
+                if (_vm.Direction == ReadingDirection2.Rtl) _vm.PrevPageCommand.Execute(null);
+                else _vm.NextPageCommand.Execute(null);
+                e.Handled = true;
+                return;
+            case Key.PageDown:
+            case Key.Space:
+                if (webtoon) { ScrollWebtoonPages(1); e.Handled = true; return; }
+                _vm.NextPageCommand.Execute(null);
+                e.Handled = true;
+                return;
+            case Key.PageUp:
+                if (webtoon) { ScrollWebtoonPages(-1); e.Handled = true; return; }
+                _vm.PrevPageCommand.Execute(null);
+                e.Handled = true;
+                return;
+        }
+    }
+
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
+        if (e.Handled) return;   // 隧道阶段已处理的翻页键（v2.3.14 B）
                 // F12 调试面板必须在任何状态都能打开（不受 _vm null 限制）
         if (e.Key == Key.F12) { ToggleDebugPanel(); e.Handled = true; return; }
 if (_vm is null) return;
