@@ -66,3 +66,38 @@
 - ThumbnailPopup — 由预览栏取代
 - 工具栏"🖼 缩略图"按钮 — 由悬停唤出取代
 - 进度条相关的 OnJumpSliderValueChanged/SyncJumpSlider 逻辑
+
+---
+
+## 八、实施后现状（v2.3，2026-08-22）—— 与方案的差异
+
+> 本文档为 v2 底部方案定稿；实际实施历经 v2.0（底部）→ v2.1（重构）→ v2.2（右侧竖排）→ v2.3（覆盖层），现按 v2.3 为准。
+
+### 实际布局（覆盖层）
+- 预览栏为 **Viewport 内部覆盖层**（不再占任何布局）：Viewport 内容包一层 Grid，PageLayer 与 PreviewStrip 叠加；PreviewStrip 宽 120、HorizontalAlignment=Right
+- **不推挤图片**：显示时图片不被左移/压缩，仅遮挡右侧 120px（用户已确认可接受）
+- 唤出：鼠标移到 Viewport 右缘 **48px** 内立即唤出（v2.2c 删布局热区，改 PointerMoved 检测）
+- 隐藏：鼠标离开预览区（左移越过 PreviewStrip.Bounds.Left−10）或移出 → 300ms 延迟隐藏
+
+### 实际内容与交互（对照原方案差异）
+| 原方案（本文档） | 实际（v2.3） |
+|---|---|
+| 底部横排 7 张 | **右侧竖排 7 张**（宽 96，高 = min(窗口高/7−间距, 130)，下限 80） |
+| 卡片含缩略图+下方页码 | 占位灰块+居中页码，150px 小图加载后覆盖；**每张底部页码常显** |
+| 左右 ◀ ▶ 整排换 ±7 | 上下 ▲▼ 整排换 ±7（竖排） |
+| 滚轮一格一页 | 同（中心页 ±1 刷新） |
+| 点击跳转（三模式映射） | 同：物理页 / 逻辑页 / 滚动定位（Webtoon 附加 ScrollWebtoonToPhysical），点击后隐藏预览栏 |
+| 滚动模式双向联动 | 同（SyncPreviewStripToScroll） |
+| 半透明背景 | 绑定主题色：夜 #CC1C1C24 / 昼 #CCFFFFFF（均半透明）；条目底色/页码同主题 |
+| 拖动扫描 | 仍暂不做 |
+
+### 覆盖层方案的技术要点（v2.3 新增）
+- PreviewStrip 移入 Viewport 后，其上的指针事件会冒泡到 Viewport 处理器（Avalonia XAML 处理器默认忽略 Handled）→ 需守卫：
+  - 滚轮：OnPointerWheelChanged 开头 `if (IsOverPreviewStrip(e.Source)) return`（防"翻页+缩放"同时）
+  - 双击：OnViewportDoubleTapped 同守卫（防预览栏内双击缩放）
+  - 左半悬停：隐藏条件用 `edgePos.X < PreviewStrip.Bounds.Left - 10`（防闪烁）
+- `IsOverPreviewStrip`：沿 `GetVisualParent()` 遍历可视树判断事件源是否在预览栏内（Avalonia 12：`VisualParent` 为 internal，须用扩展方法）
+
+### 验证
+- 36/36 测试通过（v2.3 新增 PreviewStripOverlayTests：覆盖层结构/不占 DockPanel/显隐不改 Viewport 尺寸/主题色切换）
+- 完整演进与风险点见 [v2-changes-record.md](v2-changes-record.md)
