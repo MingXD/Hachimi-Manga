@@ -114,9 +114,10 @@ public partial class MainWindowViewModel : ViewModelBase
 
     /// <summary>清空所有资料库：移除库列表 + 树/目录/面包屑 + 清空 libraries.txt。</summary>
     [RelayCommand]
-    private void ClearLibraries()
+    private async Task ClearLibraries()
     {
-        if (!MangaAgent.App.Views.ConfirmDialog.Show("确定清空所有资料库？")) return;
+        App.SLog("CLEAR_TRY");
+        if (!await MangaAgent.App.Views.ConfirmDialog.ShowAsync("确定清空所有资料库？")) return;
         Libraries.Clear();
         FolderTree.Clear();
         FolderEntries.Clear();

@@ -7,9 +7,10 @@ namespace MangaAgent.App.Views;
 /// <summary>简单确认对话框（确定/取消）。</summary>
 public static class ConfirmDialog
 {
-    public static bool Show(string message)
+    /// <summary>异步确认（tcs 模式，不依赖 ShowDialog 阻塞）：窗口显示后等待按钮点击，点击确定返回 true。</summary>
+    public static async Task<bool> ShowAsync(string message)
     {
-        bool result = false;
+        App.SLog($"CONFIRM_SHOW: {message}");
         var text = new TextBlock { Text = message, TextWrapping = Avalonia.Media.TextWrapping.Wrap, MinWidth = 260, MaxWidth = 380 };
         var ok = new Button { Content = "确定" };
         var cancel = new Button { Content = "取消" };
@@ -36,10 +37,12 @@ public static class ConfirmDialog
                 }
             },
         };
-        ok.Click += (_, _) => { result = true; window.Close(); };
-        cancel.Click += (_, _) => window.Close();
-        window.ShowDialog(GetOwner()!);
-        return result;
+        var tcs = new TaskCompletionSource<bool>();
+        ok.Click += (_, _) => { App.SLog("CONFIRM_OK_CLICK"); tcs.TrySetResult(true); window.Close(); };
+        cancel.Click += (_, _) => { App.SLog("CONFIRM_CANCEL_CLICK"); tcs.TrySetResult(false); window.Close(); };
+        window.Closed += (_, _) => tcs.TrySetResult(false);   // 窗口被 X 关闭 → false
+        await window.ShowDialog(GetOwner()!);
+        return await tcs.Task;
     }
 
     private static Window? GetOwner()
