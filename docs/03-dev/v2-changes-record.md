@@ -235,6 +235,19 @@
 
 ---
 
+## 一·十九、v2.3.15 资料库 UI 重构 + 清空功能 + 翻页预解码（2026-08-22）
+
+> 用户反馈：资料库标签占整列、下拉宽度随名称变、文件夹展开左挪；需要清空资料库；翻页延迟。
+
+| # | 修复/改动 | 文件位置 | 可能影响的功能（风险点） |
+|---|---|---|---|
+| 2.3.15-1 | **资料库横排**：标签+下拉+清空按钮同一行（DockPanel）；下拉 Stretch 填满剩余 = 侧边栏宽（与文件夹宽度一致）；名称 TextTrimming 截断、MaxDropDownHeight 320 | MainWindow.axaml | 侧边栏布局 |
+| 2.3.15-2 | **TreeView 展开不左挪**：垂直滚动条常驻（ScrollViewer.VerticalScrollBarVisibility=Visible）——根因：展开出现滚动条占布局宽导致内容左移 | MainWindow.axaml | 文件夹树 |
+| 2.3.15-3 | **清空资料库**：侧边栏清空按钮 → ConfirmDialog 确认 → 清 Libraries/树/目录/面包屑 + libraries.txt 清空 | ConfirmDialog.cs（新）+ MainWindowViewModel.ClearLibrariesCommand | 库管理 |
+| 2.3.15-4 | **翻页预解码**：LoadCurrentAsync 后 PrefetchNeighborsAsync（单页 ±1 / 双页下一逻辑页两张）解码入缓存不 Acquire（防引用计数泄漏）；_prefetchSeq 防堆积；_disposed 防护；缓存 Cap 6→10 | ReaderViewModel.cs | 翻页延迟（连续翻页命中缓存即时显示） |
+
+---
+
 ## 二、v2.2c + v2.2b（2026-08-22，热区与按钮配色修复）
 
 | # | 修复 | 文件位置 | 可能影响的功能 |
