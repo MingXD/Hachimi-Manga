@@ -860,9 +860,13 @@ public partial class ReaderWindow : Window
         // 放大清晰度（v3）：可见页缓存宽度不足显示需求 → 移除旧图并按新宽度重请求（防放大模糊）
         for (int i = first; i <= last; i++)
             if (_webtoonImages.ContainsKey(i)) TryRefreshWebtoonImage(i);
-        // 当前可见页号 → 状态显示
+        // 当前可见页号 → 状态显示（v3.3：页未变不更新 PageText —— 防每帧按钮重评估/布局，提升滑动帧率）
         int curPhys = Math.Clamp(PhysicalAt(Math.Max(0, baseTop)), 0, n - 1);
-        _vm.UpdateWebtoonPageText(curPhys);
+        if (curPhys != _lastWebtoonPageText)
+        {
+            _lastWebtoonPageText = curPhys;
+            _vm.UpdateWebtoonPageText(curPhys);
+        }
         SyncPreviewStripToScroll();
     }
 
@@ -997,34 +1001,52 @@ public partial class ReaderWindow : Window
     }
 
     // 平滑滚动 + 惯性（scroll-mode-fix B：纯动量模型，手机长页面式）
-    // 滚轮输入（scroll-mode-fix v3.2，归一化设计）：
-    //   v = dy/120 × 视口高 × WheelNotchScreenRatio × 摩擦  →  滑行距离 = v/摩擦 = dy/120 × 视口高 × ratio
-    // 即"一档（120 Delta）滚动 ≈ ratio×视口高"—— 任何窗口大小、任何 Delta 粒度的设备手感一致；
-    // 弱 Delta 设备（每格 1~40）按比例获得完整距离；±1 抖动只产生 ±(1/120)×屏 的微小滑行、正负相抵不反弹；
-    // 连滚累积速度（动量叠加），速度上限 MaxScrollVelocity 防失控。
+    // 滚轮输入（scroll-mode-fix v3.3，自适应一档归一化）：
+    //   - 设计目标：**每个物理档位（用户一次滚轮/一次触摸板手势）滚动 ≈ WheelNotchScreenRatio 视口高**；
+    //   - 设备差异：不同鼠标/触摸板每物理档的 Delta 总量不同（标准 120、高分辨率 1~40 且分多事件），
+    //     直接按 120 归一化会让弱 Delta 设备每档只滚一小段（"和设计不符"的根因）；
+    //   - 自适应：按"事件间隔 > 100ms"切分物理档，每档累积的 |Δ| 即该设备一档的 Delta 总量，
+    //     用 EMA 估计（_wheelNotchDelta），随后按估计值归一化 → 任何设备每物理档都滚 ≈ 一档距离；
+    //   - 动量滑行保留：每事件施速度脉冲 → 指数摩擦衰减缓慢停住；连滚累积速度；上限防失控。
     private double _scrollVelocity;          // 当前速度（px/s，正=向上/ty 增大）
     private bool _scrolling;
     private Avalonia.Threading.DispatcherTimer? _scrollTimer;
     private readonly System.Diagnostics.Stopwatch _scrollWatch = new();
     private long _lastTickLog;               // 滚动过程周期性日志（F12 诊断）
+    private double _wheelNotchDelta = 120.0; // 设备每物理档的 Delta 总量（自适应估计，初始 Windows 标准）
+    private double _wheelBurstAccum;         // 当前物理档的 Delta 累积
+    private long _wheelBurstLastMs;          // 上一滚轮事件时间（物理档切分）
+    private int _lastWebtoonPageText = -1;   // PageText 更新节流（防每帧按钮重评估）
     private const double ScrollFriction = 6.0;        // 指数摩擦系数（越大停得越快）
     private const double ScrollStopEps = 8.0;         // 停止速度阈值（px/s）
     private const double MaxScrollVelocity = 6000.0;  // 速度上限（防快速连滚失控）
-    private const double WheelNotch = 120.0;          // 一档的 Delta 定义（Windows 标准一档）
-    private const double WheelNotchScreenRatio = 0.8; // 一档滚动距离 = 80% 视口高（默认手感，可调）
+    private const double WheelNotchScreenRatio = 1.0; // 每物理档滚动距离 = 100% 视口高（默认手感，可调）
     private const double DragFlingThreshold = 150.0;  // 拖拽甩动触发阈值（px/s）
     private const double DragFlingMax = 3000.0;       // 拖拽甩动速度上限
 
-    /// <summary>Webtoon：滚轮事件 —— 按视口高归一化的比例脉冲（一档≈80%视口高，事件进 F12 日志）。</summary>
+    /// <summary>Webtoon：滚轮事件 —— 自适应一档归一化（每物理档 ≈ 100% 视口高，事件进 F12 日志）。</summary>
     private void ScrollWebtoonByEvent(PointerWheelEventArgs e)
     {
         if (_vm is null) return;
         double dy = e.Delta.Y;
         if (dy == 0) { e.Handled = true; return; }
-        double v = dy / WheelNotch * Viewport.Bounds.Height * WheelNotchScreenRatio
+        long now = Environment.TickCount64;
+        // 物理档切分：与上一事件间隔 > 100ms → 结束上一档并更新该设备的"一档 Delta"估计
+        if (_wheelBurstAccum != 0 && now - _wheelBurstLastMs > 100)
+        {
+            double burst = Math.Abs(_wheelBurstAccum);
+            if (burst > 5 && burst < 4000)   // 合理范围过滤异常
+                _wheelNotchDelta = _wheelNotchDelta * 0.7 + burst * 0.3;
+            _wheelBurstAccum = 0;
+        }
+        _wheelBurstLastMs = now;
+        _wheelBurstAccum += dy;
+        double notch = Math.Clamp(_wheelNotchDelta, 20, 480);
+        // v = dy/一档Delta × 视口高 × ratio × 摩擦 → 滑行距离 = v/摩擦 = dy/一档Delta × 视口高 × ratio
+        double v = dy / notch * Viewport.Bounds.Height * WheelNotchScreenRatio
                    * ScrollFriction * Math.Max(0.1, WebtoonSpeed);
         AddScrollVelocity(Math.Clamp(v, -MaxScrollVelocity, MaxScrollVelocity));
-        App.SLog($"WHEEL dy={dy:F1} v={v:F0} ty={_ty:F0}");
+        App.SLog($"WHEEL dy={dy:F0} notch≈{notch:F0} v={v:F0} ty={_ty:F0}");
         e.Handled = true;
     }
 
@@ -1243,7 +1265,7 @@ public partial class ReaderWindow : Window
         _sensIdx = (_sensIdx + 1) % SensLevels.Length;
         ZoomSensitivity = SensLevels[_sensIdx];
         if (SensitivityButton is not null)
-            SensitivityButton.Content = $"缩放×{ZoomSensitivity:0.#}";
+            SensitivityButton.Content = $"缩放速度×{ZoomSensitivity:0.#}";
     }
 
     private void OnWebtoonSpeedClick(object? sender, RoutedEventArgs e)

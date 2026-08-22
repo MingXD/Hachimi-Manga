@@ -398,6 +398,21 @@
 
 ---
 
+## 一·三十、v3.3 修复（2026-08-23，滚轮自适应一档 / 按钮改名 / 滑动帧率优化）
+
+| # | 修复/改动 | 文件位置 | 可能影响的功能（风险点） |
+|---|---|---|---|
+| 2.9-1 | **滚轮自适应一档归一化**（"速度与设计不符"根治）：设计目标是**每物理档位（用户一次滚轮/手势）滚动 ≈ 100% 视口高**；原按固定 120 Delta 归一化，弱 Delta 设备（高分辨率滚轮/触摸板每档 1~40 且分多事件）每档只滚一小段 → 显慢。改为按"事件间隔 > 100ms"切分物理档、EMA 估计设备每档 Delta 总量（`_wheelNotchDelta`，初始 120，收敛于 20~480），随后按估计值归一化 → 任何设备每物理档都滚 ≈ 一档距离；F12 日志显示 `notch≈` 估计值 | ReaderWindow.axaml.cs：ScrollWebtoonByEvent + _wheelNotchDelta/_wheelBurstAccum | 滚动手感（核心） |
+| 2.9-2 | **默认提速**：WheelNotchScreenRatio 0.8→1.0（每档 100% 视口高） | ReaderWindow.axaml.cs：常量 | 滚动手感 |
+| 2.9-3 | **按钮改名+加长**：缩放×1 → 缩放速度×1（与滚动速度×1 对应），两按钮 MinWidth 84 | ReaderWindow.axaml(.cs)：SensitivityButton/OnSensitivityClick | 工具栏布局 |
+| 2.9-4 | **滑动帧率优化**：`UpdateWebtoonPages` 页未变不再更新 PageText（原每帧改 PageText → 工具栏按钮绑定重评估+布局，与渲染争抢 → 滑动掉帧） | ReaderWindow.axaml.cs：UpdateWebtoonPages + _lastWebtoonPageText | 滑动流畅度、页码显示 |
+
+### 设计备忘（v3.3）
+- 自适应一档解决"设备差异"：标准鼠标 120/档、高分辨率滚轮 1~40 分多事件、触摸板手势 —— 全部归一为"每物理档 = 一档距离"，不再依赖设备
+- 滑动帧率低的主因是每帧 PageText 变化触发按钮重评估；节流后每帧只剩变换+轻量检查
+
+---
+
 ## 二、v2.2c + v2.2b（2026-08-22，热区与按钮配色修复）
 
 | # | 修复 | 文件位置 | 可能影响的功能 |
