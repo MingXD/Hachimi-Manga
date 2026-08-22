@@ -248,6 +248,20 @@
 
 ---
 
+## 一·二十、v2.3.16 清空资料库修复（2026-08-22）
+
+> 用户反馈：清空按钮没效果（点了确定也不清空）。
+
+| # | 修复/改动 | 文件位置 | 可能影响的功能（风险点） |
+|---|---|---|---|
+| 2.3.16-1 | **根因（日志定位）**：ConfirmDialog.ShowDialog 在本环境不阻塞——立即返回 False 但窗口仍显示；用户点确定时方法早已返回 → 清空被跳过。**改异步 tcs 模式**：ShowAsync = await ShowDialog + TaskCompletionSource 等待按钮点击（确定 true / 取消或 X 关闭 false）；ClearLibraries 改 async await | ConfirmDialog.cs + MainWindowViewModel.cs | 确认对话框、清空资料库 |
+
+### 教训
+- ShowDialog 阻塞行为依赖环境：遇到"对话框弹出但不阻塞"时改用 await ShowDialog + TCS 模式（对不阻塞环境也健壮）
+- 诊断流程：SLog 分步记录（CLEAR_TRY → CONFIRM_SHOW → CONFIRM_RETURN → OK_CLICK）精确定位卡点
+
+---
+
 ## 二、v2.2c + v2.2b（2026-08-22，热区与按钮配色修复）
 
 | # | 修复 | 文件位置 | 可能影响的功能 |
