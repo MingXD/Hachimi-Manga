@@ -100,9 +100,6 @@
 
 
     <!-- 右侧热区（悬停唤出预览栏） -->
-    <!-- 右侧热区（透明不占视觉，48px 面积大，鼠标一挪到即触发） -->
-    <Border x:Name="RightHotZone" DockPanel.Dock="Right" Width="48" Background="Transparent"
-            IsHitTestVisible="True" PointerEntered="OnRightHotZonePointerEntered" PointerExited="OnRightHotZonePointerExited"/>
     <!-- 右侧悬浮预览栏（竖排，进度条+缩略图融合 v2.2） -->
     <Border x:Name="PreviewStrip" DockPanel.Dock="Right" Width="120" Background="#E61C1C24" IsVisible="False"
             PointerMoved="OnPreviewStripPointerMoved" PointerExited="OnPreviewStripPointerExited"

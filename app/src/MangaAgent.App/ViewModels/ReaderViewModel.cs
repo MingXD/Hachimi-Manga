@@ -204,6 +204,11 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
         OnPropertyChanged(nameof(ToolbarHex));
         OnPropertyChanged(nameof(ForegroundHex));
         OnPropertyChanged(nameof(ThemeText));
+        // 按钮配色也必须通知（否则白天/夜间切换后按钮背景停留在旧值 → 白天按钮仍黑色）
+        OnPropertyChanged(nameof(ToolbarButtonBg));
+        OnPropertyChanged(nameof(ToolbarButtonBorder));
+        OnPropertyChanged(nameof(ToolbarButtonHover));
+        OnPropertyChanged(nameof(ToolbarButtonBorderHover));
     }
 
     private async Task LoadCurrentAsync()

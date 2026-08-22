@@ -823,6 +823,17 @@ public partial class ReaderWindow : Window
 
     private void OnViewportPointerMoved(object? sender, PointerEventArgs e)
     {
+        // 右边缘检测（不占布局，画面不遮挡）：鼠标在视口右缘 48px 内 → 唤出预览栏
+        var edgePos = e.GetPosition(Viewport);
+        _lastMousePos = e.GetPosition(this);
+        if (_vm is not null && edgePos.X > Viewport.Bounds.Width - 48 && edgePos.X < Viewport.Bounds.Width)
+        {
+            if (PreviewStrip?.IsVisible != true) ShowPreviewStrip();
+        }
+        else if (PreviewStrip?.IsVisible == true && edgePos.X < Viewport.Bounds.Width - 60)
+        {
+            PreviewStrip.IsVisible = false;
+        }
         if (!_isDragging) return;
         var pos = e.GetPosition(Viewport);
         _tx += pos.X - _dragStart.X;
@@ -1003,19 +1014,7 @@ public partial class ReaderWindow : Window
     private Avalonia.Point _lastMousePos;
 
     /// <summary>热区进入触发（PointerEntered 只触发一次，不再每帧重置 → 立即 400ms 唤出）。</summary>
-    private void OnRightHotZonePointerEntered(object? sender, PointerEventArgs e)
-    {
-        // 鼠标一挪到右边缘立即唤出（无需停留 400ms）
-        if (PreviewStrip?.IsVisible == true) return;
-        _lastMousePos = e.GetPosition(this);
-        ShowPreviewStrip();
-    }
 
-    private void OnRightHotZonePointerExited(object? sender, PointerEventArgs e)
-    {
-        StopHoverTimer();
-        if (PreviewStrip?.IsVisible == true && !IsPointerOver(PreviewStrip)) HidePreviewStripDelayed();
-    }
 
     private void OnPreviewStripPointerMoved(object? sender, PointerEventArgs e)
     {
