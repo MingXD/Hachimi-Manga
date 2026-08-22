@@ -117,8 +117,21 @@
             <!-- 层级：标题先声明(下层, NoWrap 延伸) → 副标题后声明(上层, 贴右带背景盖住标题) -->
             <!-- 窗口过窄：行 MinWidth=440 不再变短，应用窗口右缘裁剪（ScrollViewer 水平不滚动） -->
           </ScrollViewer>
-            <ListBox x:Name="DetailList" IsVisible="{Binding IsDetailView}" ItemsSource="{Binding FolderEntries}" Margin="14"
+            <ListBox x:Name="DetailList" IsVisible="{Binding IsDetailView}" ItemsSource="{Binding FolderEntries}" Margin="14" Padding="0,0,12,0"
                      Background="Transparent" DoubleTapped="OnBookDoubleTapped">
+              <ListBox.Styles>
+                <Style Selector="Border.detailRow">
+                  <Setter Property="Background" Value="#1E1E26"/>
+                  <Setter Property="BorderBrush" Value="#333333"/>
+                </Style>
+                <Style Selector="Border.detailRow:pointerover">
+                  <Setter Property="Background" Value="#2E2E38"/>
+                  <Setter Property="BorderBrush" Value="#5A5A6A"/>
+                </Style>
+                <Style Selector="Border.detailRow:pointerover TextBlock.subtitleCover">
+                  <Setter Property="Background" Value="#2E2E38"/>
+                </Style>
+              </ListBox.Styles>
               <ListBox.ItemContainerTheme>
                 <ControlTheme TargetType="ListBoxItem">
                   <Setter Property="Padding" Value="0"/>
@@ -127,7 +140,7 @@
               </ListBox.ItemContainerTheme>
               <ListBox.ItemTemplate>
                 <DataTemplate x:DataType="vm:FolderEntryItemViewModel">
-                  <Border Height="32" MinWidth="440" Margin="0,3" Background="#1E1E26" CornerRadius="4"
+                  <Border Classes="detailRow" Height="32" MinWidth="440" Margin="0,1" Background="#1E1E26" CornerRadius="4"
                           BorderBrush="#333333" BorderThickness="1" ClipToBounds="True" ToolTip.Tip="{Binding DisplayName}">
                     <Border.ContextMenu>
                       <ContextMenu>
@@ -147,7 +160,7 @@
                       <TextBlock Grid.Column="0" Text="{Binding IconText}" FontSize="20" VerticalAlignment="Center" HorizontalAlignment="Center"/>
                       <Grid Grid.Column="1">
                         <TextBlock Text="{Binding DisplayName}" FontSize="13" Foreground="#E8E8E8" VerticalAlignment="Center" TextWrapping="NoWrap"/>
-                        <TextBlock Text="{Binding SubtitleOneLine}" FontSize="10" Foreground="#888888" VerticalAlignment="Center"
+                        <TextBlock Classes="subtitleCover" Text="{Binding SubtitleOneLine}" FontSize="10" Foreground="#888888" VerticalAlignment="Center"
                                    HorizontalAlignment="Right" Background="#1E1E26" Padding="10,0,6,0"/>
                       </Grid>
                     </Grid>
