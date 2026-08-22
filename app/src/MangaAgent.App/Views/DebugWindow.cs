@@ -13,7 +13,7 @@ public class DebugWindow : Window
 
     public DebugWindow()
     {
-        Title = "MangaAgent 调试面板";
+        Title = "Hachimi Manga 调试面板";
         Width = 460;
         Height = 380;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;

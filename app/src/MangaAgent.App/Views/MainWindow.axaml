@@ -5,13 +5,13 @@
         x:Class="MangaAgent.App.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Width="1200" Height="800"
-        Title="MangaAgent — 漫画阅读器">
+        Title="Hachimi Manga — 漫画阅读器">
 
   <DockPanel>
     <!-- 顶栏 -->
     <Border DockPanel.Dock="Top" Padding="10,8" Background="#1C1C24">
       <DockPanel>
-        <TextBlock DockPanel.Dock="Left" Text="MangaAgent" Foreground="#E8E8E8" FontSize="18" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,20,0"/>
+        <TextBlock DockPanel.Dock="Left" Text="Hachimi Manga" Foreground="#E8E8E8" FontSize="18" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,20,0"/>
         <Button DockPanel.Dock="Left" Content="＋ 添加资料库" Command="{Binding AddLibraryCommand}" Margin="0,0,8,0"/>
         <Button DockPanel.Dock="Left" Content="重新扫描" Command="{Binding RescanCommand}" IsEnabled="{Binding !IsScanning}" Margin="0,0,8,0"/>
         <Button DockPanel.Dock="Left" Content="{Binding GalleryModeText}" Command="{Binding CycleGalleryModeCommand}" Margin="0,0,8,0" ToolTip.Tip="切换展示（大图/中图/小图/详情）"/>
