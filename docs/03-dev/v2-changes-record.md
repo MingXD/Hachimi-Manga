@@ -456,6 +456,22 @@
 
 ---
 
+## 一·三十三、v5.2 设置扩展 + 阅读页布局（2026-08-23）
+
+| # | 修复/改动 | 文件位置 | 可能影响的功能（风险点） |
+|---|---|---|---|
+| 2.12-1 | **新增 4 个设置项**：默认阅读模式（无保存状态时进入 Single/Double/Webtoon）、恢复上次位置（续读开关，关=从第 1 页）、双击行为（放大/复位/无动作）、默认适应模式（分页 FitScreen/FitWidth） | SettingsStore.cs；ReaderViewModel.cs（静态 DefaultMode/ResumePosition + 构造逻辑）；ReaderWindow.axaml.cs（OnOpened 默认适应、OnViewportDoubleTapped 分支）；MainWindowViewModel.cs（OpenBook 注入） | 打开书行为、双击 |
+| 2.12-2 | **速度基准范围加大加细**：缩放/滚动速度基准 0.2~4.0（原 0.5~2.0）；工具栏 ×0.5/1/2 按钮保留（快速倍率，基准×档位=实际） | SettingsDialog.cs：MakeSliderRow 范围 | 滚轮/滚动手感 |
+| 2.12-3 | **阅读页布局修复**（文本/按钮/标签挤在一起）：设置行改两行标签（名称+说明灰字）+ 控件星列拉伸 + 行距 12；卡片内边距 14；下拉/复选框左对齐 | SettingsDialog.cs：SettingRow/Card | 设置窗口布局 |
+| 2.12-4 | **三页统一视觉**：使用介绍也套卡片；卡片/行/间距统一；内容随窗口拉伸（拉长拉短自适应，ScrollViewer 滚动） | SettingsDialog.cs | 设置窗口观感 |
+| 2.12-5 | 新增回归：默认模式+续读（有保存状态恢复 / 续读关从第 1 页+默认模式）/ 设置存取含新字段 | ScrollModeFixesTests.cs | 测试基线 64→65 |
+
+### 设计备忘（v5.2）
+- 默认阅读模式/续读在打开书前注入 VM 静态（MainWindowViewModel.OpenBook 读设置）；续读关 = 忽略保存状态
+- 速度：设置=基准（0.2~4.0 细调），工具栏按钮=快速倍率（×0.5/1/2 相对基准），二者相乘为实际速度
+
+---
+
 ## 二、v2.2c + v2.2b（2026-08-22，热区与按钮配色修复）
 
 | # | 修复 | 文件位置 | 可能影响的功能 |

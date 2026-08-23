@@ -450,6 +450,15 @@ public partial class MainWindowViewModel : ViewModelBase
         if (book is null) return;
         try
         {
+            // v5.2：打开书前注入设置的"默认阅读模式/续读"
+            var s = global::MangaAgent.App.Services.SettingsStore.Load();
+            ReaderViewModel.DefaultMode = s.DefaultMode switch
+            {
+                "Double" => ViewMode.Double,
+                "Webtoon" => ViewMode.Webtoon,
+                _ => ViewMode.Single,
+            };
+            ReaderViewModel.ResumePosition = s.ResumePosition;
             var vm = new ReaderViewModel(book.Book, StateDbPath);
             new ReaderWindow { DataContext = vm }.Show();
         }

@@ -171,6 +171,9 @@ public partial class ReaderWindow : Window
     protected override void OnOpened(EventArgs e)
     {
         base.OnOpened(e);
+        // v5.2：分页默认适应模式（设置；每次打开应用，适应模式不持久化）
+        if (_vm is not null)
+            _vm.FitMode = _settings.DefaultFitMode == "FitWidth" ? FitMode.FitWidth : FitMode.FitScreen;
         Relayout();
         ApplySettings();   // 设置基准/手感/性能项应用到运行时
         // 方案A：打开时焦点落在阅读区（Focusable 中性控件，无白框、不消费翻页键）
@@ -1037,6 +1040,7 @@ public partial class ReaderWindow : Window
     private int _maxDecodeWidth = 2048;               // 解码宽度上限（设置）
     private bool _invertScroll;                       // 滚动方向反转（设置）
     private string _pagedWheelMode = "Zoom";          // 分页滚轮：Zoom | Page（设置）
+    private string _doubleClickAction = "Zoom";       // 双击行为：Zoom/Reset/None（设置）
 
     // —— 设置（settings.json）——
     private AppSettings _settings = SettingsStore.Load();
@@ -1056,6 +1060,7 @@ public partial class ReaderWindow : Window
         _maxDecodeWidth = Math.Clamp(_settings.MaxDecodeWidth, 1200, 4096);
         _invertScroll = _settings.InvertScroll;
         _pagedWheelMode = _settings.PagedWheelMode == "Page" ? "Page" : "Zoom";
+        _doubleClickAction = _settings.DoubleClickAction is "Reset" or "None" ? _settings.DoubleClickAction : "Zoom";
         if (_vm is not null) _vm.CacheCap = Math.Clamp(_settings.CacheCap, 4, 30);
         if (SensitivityButton is not null) SensitivityButton.Content = $"缩放速度×{SensLevels[_sensIdx]:0.#}";
         if (WebtoonSpeedButton is not null) WebtoonSpeedButton.Content = $"滚动速度×{SensLevels[_wsIdx]:0.#}";
@@ -1405,9 +1410,20 @@ public partial class ReaderWindow : Window
     {
         if (_vm is null) return;
         if (IsOverPreviewStrip(e.Source)) return;   // 预览栏内双击不缩放
-        double fit = CurrentFitScale();
-        double target = Math.Abs(_scale - fit) < 0.02 ? fit * 2.0 : fit;   // Fit ↔ 200%
-        ZoomTo(target, e.GetPosition(Viewport));
+        switch (_doubleClickAction)
+        {
+            case "Reset":
+                if (_vm.ViewMode == ViewMode.Webtoon) ResetWebtoonView();
+                else ResetPagedView();
+                break;
+            case "None":
+                break;
+            default:   // Zoom（默认）：Fit ↔ 200%
+                double fit = CurrentFitScale();
+                double target = Math.Abs(_scale - fit) < 0.02 ? fit * 2.0 : fit;
+                ZoomTo(target, e.GetPosition(Viewport));
+                break;
+        }
         e.Handled = true;
     }
 

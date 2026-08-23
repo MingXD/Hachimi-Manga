@@ -124,18 +124,23 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
         RebuildLayout();
 
         var saved = _state.LoadState(book.Path);
-        // BUG-A v1.9：状态存物理页，恢复后定位（单页直接设；双页找逻辑页）
-        _viewMode = saved?.Mode switch
-        {
-            ReadingMode.Double => ViewMode.Double,
-            _ => ViewMode.Single,
-        };
+        // v5.2：设置"续读"关 → 忽略保存状态（从第 1 页、用默认模式）
+        if (!ResumePosition) saved = null;
+        // 无保存状态 → 用设置"默认阅读模式"；有 → 尊重保存的模式（BUG-A v1.9：状态存物理页）
+        if (saved is null) _viewMode = DefaultMode;
+        else _viewMode = saved.Value.Mode == ReadingMode.Double ? ViewMode.Double : ViewMode.Single;
         _currentPhysical = Math.Clamp(saved?.LogicalPage ?? 0, 0, Math.Max(0, _source.PageCount - 1));
         _currentIndex = _logical.Count > 0 ? LogicalIndexOfPhysical(_currentPhysical) : 0;
         _direction = saved?.Direction ?? ReadingDirection2.Rtl;
         LoadBookmarks();
         _ = LoadCurrentAsync();
     }
+
+    /// <summary>打开书且无保存状态时的默认模式（设置注入，打开书前设置）。</summary>
+    public static ViewMode DefaultMode { get; set; } = ViewMode.Single;
+
+    /// <summary>是否恢复上次阅读位置（设置注入，打开书前设置）。</summary>
+    public static bool ResumePosition { get; set; } = true;
 
     private void LoadSizes()
     {

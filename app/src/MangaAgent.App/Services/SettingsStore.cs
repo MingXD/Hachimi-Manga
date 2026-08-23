@@ -27,8 +27,13 @@ public enum ReaderAction
 public class AppSettings
 {
     // —— 阅读基准 ——
-    public double ZoomSensitivity { get; set; } = 1.0;   // 缩放速度基准（滚轮缩放每格幅度）
-    public double WebtoonSpeed { get; set; } = 1.0;      // 滚动速度基准（滚动模式一档距离）
+    public double ZoomSensitivity { get; set; } = 1.0;   // 缩放速度基准（滚轮缩放每格幅度，0.2~4.0）
+    public double WebtoonSpeed { get; set; } = 1.0;      // 滚动速度基准（滚动模式一档距离，0.2~4.0）
+    // —— 打开书行为 ——
+    public string DefaultMode { get; set; } = "Single";  // 无保存状态时的默认模式：Single/Double/Webtoon
+    public bool ResumePosition { get; set; } = true;     // 续读：打开书恢复上次位置
+    public string DoubleClickAction { get; set; } = "Zoom"; // 双击行为：Zoom/Reset/None
+    public string DefaultFitMode { get; set; } = "FitScreen"; // 分页默认适应：FitScreen/FitWidth
     // —— 滚动手感 ——
     public double ScrollFriction { get; set; } = 6.0;    // 停止快慢（越大停越快）
     public double DragFlingThreshold { get; set; } = 150.0; // 甩动触发阈值（px/s）

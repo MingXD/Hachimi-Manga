@@ -612,6 +612,10 @@ public class ScrollModeFixesTests
         {
             var s = new AppSettings { ZoomSensitivity = 1.5, WebtoonSpeed = 1.2, ScrollFriction = 8, CacheCap = 16, InvertScroll = true, PagedWheelMode = "Page" };
             s.Hotkeys["Webtoon"][nameof(ReaderAction.WebtoonNextPage)] = new() { "X" };
+            s.DefaultMode = "Webtoon";
+            s.ResumePosition = false;
+            s.DoubleClickAction = "Reset";
+            s.DefaultFitMode = "FitWidth";
             SettingsStore.Save(s);
             var loaded = SettingsStore.Load();
             Assert.Equal(1.5, loaded.ZoomSensitivity);
@@ -620,6 +624,10 @@ public class ScrollModeFixesTests
             Assert.Equal(16, loaded.CacheCap);
             Assert.True(loaded.InvertScroll);
             Assert.Equal("Page", loaded.PagedWheelMode);
+            Assert.Equal("Webtoon", loaded.DefaultMode);
+            Assert.False(loaded.ResumePosition);
+            Assert.Equal("Reset", loaded.DoubleClickAction);
+            Assert.Equal("FitWidth", loaded.DefaultFitMode);
             Assert.Equal(new[] { "X" }, loaded.Hotkeys["Webtoon"][nameof(ReaderAction.WebtoonNextPage)]);
             Assert.True(File.Exists(SettingsStore.GuidePath), "首次运行应生成默认使用介绍");
         }
@@ -836,6 +844,50 @@ public class ScrollModeFixesTests
         {
             SettingsStore.BaseDir = old;
             try { Directory.Delete(baseDir, true); } catch { }
+        }
+    }
+
+    /// <summary>v5.2 回归：默认阅读模式 + 续读开关（设置注入静态，须复位）。</summary>
+    [AvaloniaFact]
+    public async Task DefaultMode_And_ResumePosition_Apply()
+    {
+        var db = Path.Combine(Path.GetTempPath(), $"manga_wtf22_{Guid.NewGuid():N}.db");
+        var oldMode = ReaderViewModel.DefaultMode;
+        var oldResume = ReaderViewModel.ResumePosition;
+        try
+        {
+            // 1) 制造保存状态：翻到物理页 5 并保存
+            ReaderViewModel.ResumePosition = true;
+            ReaderViewModel.DefaultMode = ViewMode.Single;
+            var vm1 = new ReaderViewModel(StressBook, db);
+            await WaitUntilAsync(() => vm1.Image1 is not null);
+            for (int i = 0; i < 5; i++) vm1.NextPageCommand.Execute(null);
+            await Task.Delay(300);
+            await vm1.DisposeAsync();
+
+            // 2) 续读开 + 默认模式 Single → 恢复物理页 5
+            ReaderViewModel.DefaultMode = ViewMode.Single;
+            ReaderViewModel.ResumePosition = true;
+            var vm2 = new ReaderViewModel(StressBook, db);
+            await WaitUntilAsync(() => vm2.Image1 is not null);
+            Assert.Equal(5, vm2.CurrentPhysical);
+            Assert.Equal(ViewMode.Single, vm2.ViewMode);
+            await vm2.DisposeAsync();
+
+            // 3) 续读关 + 默认模式 Webtoon → 从第 1 页、滚动模式
+            ReaderViewModel.DefaultMode = ViewMode.Webtoon;
+            ReaderViewModel.ResumePosition = false;
+            var vm3 = new ReaderViewModel(StressBook, db);
+            await WaitUntilAsync(() => vm3.Image1 is not null);
+            Assert.Equal(ViewMode.Webtoon, vm3.ViewMode);
+            Assert.Equal(0, vm3.CurrentPhysical);
+            await vm3.DisposeAsync();
+        }
+        finally
+        {
+            ReaderViewModel.DefaultMode = oldMode;
+            ReaderViewModel.ResumePosition = oldResume;
+            try { File.Delete(db); } catch { }
         }
     }
 }

@@ -31,8 +31,8 @@ public class SettingsDialog : Window
     // 阅读页控件
     private readonly Slider _zoomBase, _scrollBase, _friction, _flingThreshold, _flingMax, _decodeCap, _cacheCap;
     private readonly TextBox _zoomBaseT, _scrollBaseT, _frictionT, _flingThresholdT, _flingMaxT, _decodeCapT, _cacheCapT;
-    private readonly CheckBox _invert;
-    private readonly ComboBox _pagedWheel;
+    private readonly CheckBox _invert, _resume;
+    private readonly ComboBox _pagedWheel, _defaultMode, _doubleClick, _defaultFit;
 
     private static readonly (string Group, string Label)[] Groups =
     {
@@ -74,21 +74,30 @@ public class SettingsDialog : Window
             _hotkeyEdit[g] = gCopy;
         }
 
-        // —— 页签一：阅读（卡片样式 + 滑块/数值框双向 + 响应式拉伸）——
-        (_zoomBase, _zoomBaseT) = MakeSliderRow(0.5, 2.0, _copy.ZoomSensitivity, true);
-        (_scrollBase, _scrollBaseT) = MakeSliderRow(0.5, 2.0, _copy.WebtoonSpeed, true);
+        // —— 页签一：阅读（卡片样式 + 滑块/数值框双向 + 响应式拉伸 + 打开书行为）——
+        (_zoomBase, _zoomBaseT) = MakeSliderRow(0.2, 4.0, _copy.ZoomSensitivity, false);   // 基准可调幅度更大更细
+        (_scrollBase, _scrollBaseT) = MakeSliderRow(0.2, 4.0, _copy.WebtoonSpeed, false);
         (_friction, _frictionT) = MakeSliderRow(3, 12, _copy.ScrollFriction, false);
         (_flingThreshold, _flingThresholdT) = MakeSliderRow(50, 400, _copy.DragFlingThreshold, false);
         (_flingMax, _flingMaxT) = MakeSliderRow(1000, 6000, _copy.DragFlingMax, false);
         (_decodeCap, _decodeCapT) = MakeSliderRow(1200, 4096, _copy.MaxDecodeWidth, true);
         (_cacheCap, _cacheCapT) = MakeSliderRow(4, 20, _copy.CacheCap, true);
-        _invert = new CheckBox { Content = "滚动方向反转（自然滚动）", IsChecked = _copy.InvertScroll, Margin = new Thickness(0, 4, 0, 0) };
-        _pagedWheel = new ComboBox { ItemsSource = new[] { "缩放", "翻页" }, SelectedIndex = _copy.PagedWheelMode == "Page" ? 1 : 0, Width = 140, HorizontalAlignment = HorizontalAlignment.Left };
+        _invert = new CheckBox { IsChecked = _copy.InvertScroll, VerticalAlignment = VerticalAlignment.Center };
+        _resume = new CheckBox { IsChecked = _copy.ResumePosition, VerticalAlignment = VerticalAlignment.Center };
+        _defaultMode = new ComboBox { ItemsSource = new[] { "单页", "双页", "滚动" }, SelectedIndex = _copy.DefaultMode switch { "Double" => 1, "Webtoon" => 2, _ => 0 }, Width = 120, HorizontalAlignment = HorizontalAlignment.Left };
+        _doubleClick = new ComboBox { ItemsSource = new[] { "放大", "复位", "无动作" }, SelectedIndex = _copy.DoubleClickAction switch { "Reset" => 1, "None" => 2, _ => 0 }, Width = 120, HorizontalAlignment = HorizontalAlignment.Left };
+        _defaultFit = new ComboBox { ItemsSource = new[] { "适应屏幕", "适应宽度" }, SelectedIndex = _copy.DefaultFitMode == "FitWidth" ? 1 : 0, Width = 120, HorizontalAlignment = HorizontalAlignment.Left };
+        _pagedWheel = new ComboBox { ItemsSource = new[] { "缩放", "翻页" }, SelectedIndex = _copy.PagedWheelMode == "Page" ? 1 : 0, Width = 120, HorizontalAlignment = HorizontalAlignment.Left };
         var tab1 = new ScrollViewer { Content = new StackPanel { Margin = new Thickness(14), Spacing = 10, HorizontalAlignment = HorizontalAlignment.Stretch, Children =
         {
             Card("阅读基准",
-                SettingRow("缩放速度基准", _zoomBase, _zoomBaseT, "滚轮缩放每格幅度（0.5~2.0）"),
-                SettingRow("滚动速度基准", _scrollBase, _scrollBaseT, "滚动模式一档距离（0.5~2.0）")),
+                SettingRow("缩放速度基准", _zoomBase, _zoomBaseT, "滚轮缩放每格幅度（0.2~4.0）"),
+                SettingRow("滚动速度基准", _scrollBase, _scrollBaseT, "滚动模式一档距离（0.2~4.0）")),
+            Card("打开书行为",
+                SettingRow("默认阅读模式", _defaultMode, null, "打开书且无保存状态时进入的模式"),
+                SettingRow("恢复上次位置", _resume, null, "打开书是否跳到上次阅读页；关 = 总是从第 1 页"),
+                SettingRow("双击行为", _doubleClick, null, "双击图片：放大 / 复位 / 无动作"),
+                SettingRow("默认适应模式", _defaultFit, null, "分页打开默认视图：适应屏幕 / 适应宽度")),
             Card("滚动手感（滚动模式）",
                 SettingRow("停止快慢", _friction, _frictionT, "摩擦系数（越大停得越快）"),
                 SettingRow("甩动触发阈值", _flingThreshold, _flingThresholdT, "拖拽释放多快才算甩动（px/s）"),
@@ -97,7 +106,7 @@ public class SettingsDialog : Window
                 SettingRow("解码宽度上限", _decodeCap, _decodeCapT, "大图解码分辨率上限（清晰度 vs 速度/内存）"),
                 SettingRow("缓存页数", _cacheCap, _cacheCapT, "位图缓存上限（流畅 vs 内存）"),
                 SettingRow("分页滚轮行为", _pagedWheel, null, "分页模式下滚轮 = 缩放 或 翻页"),
-                _invert),
+                SettingRow("滚动方向反转", _invert, null, "自然滚动（滚轮方向反转）")),
         } } };
 
         // —— 页签二：快捷键（四组竖排卡片）——
@@ -109,8 +118,14 @@ public class SettingsDialog : Window
             _hotkeyRoot,
         } } };
 
-        // —— 页签三：使用介绍（内容/图片随窗口宽度自适应）——
-        var guideScroll = new ScrollViewer { Content = RenderGuide() };
+        // —— 页签三：使用介绍（卡片包裹，内容/图片随窗口宽度自适应）——
+        var (guideStack, guideImages) = RenderGuideContent();
+        var guideScroll = new ScrollViewer { HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled, Content = Card("使用介绍", guideStack) };
+        guideScroll.SizeChanged += (_, e) =>
+        {
+            double w = e.NewSize.Width - 52;   // 外边距 14×2 + 卡片内边距 12×2
+            foreach (var img in guideImages) img.MaxWidth = Math.Max(120, w);
+        };
         var tab3 = guideScroll;
 
         var tabs = new TabControl();
@@ -274,6 +289,10 @@ public class SettingsDialog : Window
         SetSlider(_decodeCap, _decodeCapT, d.MaxDecodeWidth, true);
         SetSlider(_cacheCap, _cacheCapT, d.CacheCap, true);
         _invert.IsChecked = d.InvertScroll;
+        _resume.IsChecked = d.ResumePosition;
+        _defaultMode.SelectedIndex = 0;
+        _doubleClick.SelectedIndex = 0;
+        _defaultFit.SelectedIndex = 0;
         _pagedWheel.SelectedIndex = 0;
     }
 
@@ -313,10 +332,10 @@ public class SettingsDialog : Window
 
     // ================= 通用辅助 =================
 
-    /// <summary>分组卡片（圆角 Border + 标题 + 内容），随宽度拉伸 —— 阅读/快捷键两页统一样式。</summary>
+    /// <summary>分组卡片（圆角 Border + 标题 + 内容），随宽度拉伸 —— 阅读/快捷键/介绍三页统一样式。</summary>
     private static Border Card(string title, params Control[] children)
     {
-        var sp = new StackPanel { Spacing = 8, HorizontalAlignment = HorizontalAlignment.Stretch };
+        var sp = new StackPanel { Spacing = 12, HorizontalAlignment = HorizontalAlignment.Stretch };
         sp.Children.Add(new TextBlock { Text = title, FontWeight = FontWeight.SemiBold, FontSize = 14, Foreground = new SolidColorBrush(Color.Parse("#4A9EFF")) });
         foreach (var c in children) sp.Children.Add(c);
         return new Border
@@ -325,27 +344,37 @@ public class SettingsDialog : Window
             CornerRadius = new CornerRadius(8),
             BorderBrush = new SolidColorBrush(Color.Parse("#33333E")),
             BorderThickness = new Thickness(1),
-            Padding = new Thickness(12),
+            Padding = new Thickness(14),
             HorizontalAlignment = HorizontalAlignment.Stretch,
             Child = sp,
         };
     }
 
-    /// <summary>设置行：Grid 布局 [名称 130 | 控件 * | 数值框 70]，随宽度拉伸；提示放名称 ToolTip。</summary>
+    /// <summary>设置行：Grid [名称+说明 190 | 控件 * | 数值框 72]，名称两行（名称+说明）、间距舒展，随宽度拉伸。</summary>
     private static Control SettingRow(string label, Control control, TextBox? valueBox, string hint)
     {
         var g = new Grid { HorizontalAlignment = HorizontalAlignment.Stretch };
-        g.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(130)));
+        g.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(190)));
         g.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
-        g.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(70)));
-        var labelTb = new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center };
-        if (!string.IsNullOrEmpty(hint)) ToolTip.SetTip(labelTb, hint);
+        g.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(72)));
+        var labelStack = new StackPanel { Spacing = 2, VerticalAlignment = VerticalAlignment.Center };
+        labelStack.Children.Add(new TextBlock { Text = label });
+        if (!string.IsNullOrEmpty(hint))
+            labelStack.Children.Add(new TextBlock { Text = hint, Foreground = Brushes.Gray, FontSize = 10, TextWrapping = TextWrapping.Wrap });
+        g.Children.Add(labelStack);
+        Grid.SetColumn(labelStack, 0);
         control.VerticalAlignment = VerticalAlignment.Center;
-        control.HorizontalAlignment = HorizontalAlignment.Stretch;
-        if (control is Slider) control.Margin = new Thickness(0, 6, 0, 6);
-        g.Children.Add(labelTb);
+        control.HorizontalAlignment = control is Slider ? HorizontalAlignment.Stretch : HorizontalAlignment.Left;
+        if (control is Slider) control.Margin = new Thickness(0, 8, 0, 8);
         g.Children.Add(control);
-        if (valueBox is not null) g.Children.Add(valueBox);
+        Grid.SetColumn(control, 1);
+        if (valueBox is not null)
+        {
+            valueBox.VerticalAlignment = VerticalAlignment.Center;
+            valueBox.Margin = new Thickness(8, 0, 0, 0);
+            g.Children.Add(valueBox);
+            Grid.SetColumn(valueBox, 2);
+        }
         return g;
     }
 
@@ -353,6 +382,10 @@ public class SettingsDialog : Window
     {
         _copy.ZoomSensitivity = _zoomBase.Value;
         _copy.WebtoonSpeed = _scrollBase.Value;
+        _copy.DefaultMode = _defaultMode.SelectedIndex switch { 1 => "Double", 2 => "Webtoon", _ => "Single" };
+        _copy.ResumePosition = _resume.IsChecked == true;
+        _copy.DoubleClickAction = _doubleClick.SelectedIndex switch { 1 => "Reset", 2 => "None", _ => "Zoom" };
+        _copy.DefaultFitMode = _defaultFit.SelectedIndex == 1 ? "FitWidth" : "FitScreen";
         _copy.ScrollFriction = _friction.Value;
         _copy.DragFlingThreshold = _flingThreshold.Value;
         _copy.DragFlingMax = _flingMax.Value;
@@ -367,6 +400,10 @@ public class SettingsDialog : Window
     {
         ZoomSensitivity = s.ZoomSensitivity,
         WebtoonSpeed = s.WebtoonSpeed,
+        DefaultMode = s.DefaultMode,
+        ResumePosition = s.ResumePosition,
+        DoubleClickAction = s.DoubleClickAction,
+        DefaultFitMode = s.DefaultFitMode,
         ScrollFriction = s.ScrollFriction,
         DragFlingThreshold = s.DragFlingThreshold,
         DragFlingMax = s.DragFlingMax,
@@ -421,61 +458,50 @@ public class SettingsDialog : Window
 
     // ================= 使用介绍渲染 =================
 
-    /// <summary>渲染使用介绍（usage.md 轻量格式：# 标题 / ## 小节 / !img:相对路径 / 正文）。
-    /// 内容随窗口宽度拉伸；图片按面板宽等比缩放（SizeChanged 联动）。</summary>
-    private static Control RenderGuide()
+    /// <summary>解析 usage.md（# 标题 / ## 小节 / !img:相对路径 / 正文），返回内容与图片列表（图片宽随面板联动）。</summary>
+    private static (Control Stack, List<Image> Images) RenderGuideContent()
     {
-        var scroll = new ScrollViewer { HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled };
-        var stack = new StackPanel { Margin = new Thickness(14), Spacing = 8, HorizontalAlignment = HorizontalAlignment.Stretch };
+        var stack = new StackPanel { Spacing = 8, HorizontalAlignment = HorizontalAlignment.Stretch };
         var images = new List<Image>();
         if (!File.Exists(SettingsStore.GuidePath))
         {
             stack.Children.Add(new TextBlock { Text = "使用介绍文件不存在：" + SettingsStore.GuidePath, Foreground = Brushes.Red });
+            return (stack, images);
         }
-        else
+        var dir = Path.GetDirectoryName(SettingsStore.GuidePath)!;
+        foreach (var raw in File.ReadAllLines(SettingsStore.GuidePath))
         {
-            var dir = Path.GetDirectoryName(SettingsStore.GuidePath)!;
-            foreach (var raw in File.ReadAllLines(SettingsStore.GuidePath))
+            var line = raw.TrimEnd();
+            if (string.IsNullOrWhiteSpace(line)) continue;
+            if (line.StartsWith("!img:", StringComparison.Ordinal))
             {
-                var line = raw.TrimEnd();
-                if (string.IsNullOrWhiteSpace(line)) continue;
-                if (line.StartsWith("!img:", StringComparison.Ordinal))
+                var rel = line[5..].Trim();
+                var imgPath = Path.Combine(dir, rel);
+                if (File.Exists(imgPath))
                 {
-                    var rel = line[5..].Trim();
-                    var imgPath = Path.Combine(dir, rel);
-                    if (File.Exists(imgPath))
+                    try
                     {
-                        try
+                        var img = new Image
                         {
-                            var img = new Image
-                            {
-                                Source = new Avalonia.Media.Imaging.Bitmap(imgPath),
-                                Stretch = Stretch.Uniform,
-                                HorizontalAlignment = HorizontalAlignment.Stretch,
-                                Margin = new Thickness(0, 4),
-                            };
-                            images.Add(img);
-                            stack.Children.Add(img);
-                        }
-                        catch { stack.Children.Add(new TextBlock { Text = $"[图片无法加载: {rel}]", Foreground = Brushes.Gray }); }
+                            Source = new Avalonia.Media.Imaging.Bitmap(imgPath),
+                            Stretch = Stretch.Uniform,
+                            HorizontalAlignment = HorizontalAlignment.Stretch,
+                            Margin = new Thickness(0, 4),
+                        };
+                        images.Add(img);
+                        stack.Children.Add(img);
                     }
-                    else stack.Children.Add(new TextBlock { Text = $"[图片未找到: {rel} —— 把图片放到 {SettingsStore.GuideDir}\\images\\ 目录]", Foreground = Brushes.Gray });
+                    catch { stack.Children.Add(new TextBlock { Text = $"[图片无法加载: {rel}]", Foreground = Brushes.Gray }); }
                 }
-                else if (line.StartsWith("## ", StringComparison.Ordinal))
-                    stack.Children.Add(new TextBlock { Text = line[3..], FontSize = 16, FontWeight = FontWeight.SemiBold, Foreground = new SolidColorBrush(Color.Parse("#4A9EFF")) });
-                else if (line.StartsWith("# ", StringComparison.Ordinal))
-                    stack.Children.Add(new TextBlock { Text = line[2..], FontSize = 20, FontWeight = FontWeight.Bold, Foreground = new SolidColorBrush(Color.Parse("#4A9EFF")), Margin = new Thickness(0, 10, 0, 0) });
-                else
-                    stack.Children.Add(new TextBlock { Text = line, TextWrapping = TextWrapping.Wrap, FontSize = 12 });
+                else stack.Children.Add(new TextBlock { Text = $"[图片未找到: {rel} —— 把图片放到 {SettingsStore.GuideDir}\\images\\ 目录]", Foreground = Brushes.Gray });
             }
+            else if (line.StartsWith("## ", StringComparison.Ordinal))
+                stack.Children.Add(new TextBlock { Text = line[3..], FontSize = 16, FontWeight = FontWeight.SemiBold, Foreground = new SolidColorBrush(Color.Parse("#4A9EFF")) });
+            else if (line.StartsWith("# ", StringComparison.Ordinal))
+                stack.Children.Add(new TextBlock { Text = line[2..], FontSize = 20, FontWeight = FontWeight.Bold, Foreground = new SolidColorBrush(Color.Parse("#4A9EFF")), Margin = new Thickness(0, 10, 0, 0) });
+            else
+                stack.Children.Add(new TextBlock { Text = line, TextWrapping = TextWrapping.Wrap, FontSize = 12 });
         }
-        scroll.Content = stack;
-        // 图片宽随面板宽（去掉左右留白 28）
-        scroll.SizeChanged += (_, e) =>
-        {
-            double w = e.NewSize.Width - 28;
-            foreach (var img in images) img.MaxWidth = Math.Max(120, w);
-        };
-        return scroll;
+        return (stack, images);
     }
 }
