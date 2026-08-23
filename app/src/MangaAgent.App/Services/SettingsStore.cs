@@ -101,7 +101,24 @@ public static class SettingsStore
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MangaAgent");
 
     public static string SettingsPath => Path.Combine(BaseDir, "settings.json");
-    public static string GuideDir => Path.Combine(BaseDir, "guide");
+
+    /// <summary>使用介绍目录：优先 exe 旁边 guide 文件夹（随包分发自定义介绍），否则本机 %LOCALAPPDATA%。</summary>
+    public static string GuideDir
+    {
+        get
+        {
+            try
+            {
+                var exeDir = Path.GetDirectoryName(Environment.ProcessPath) ?? AppContext.BaseDirectory;
+                var exeGuide = Path.Combine(exeDir, "guide");
+                if (Directory.Exists(exeGuide) && File.Exists(Path.Combine(exeGuide, "usage.md")))
+                    return exeGuide;   // 随包分发的介绍优先（收件人可直接看到/编辑）
+            }
+            catch { }
+            return Path.Combine(BaseDir, "guide");
+        }
+    }
+
     public static string GuidePath => Path.Combine(GuideDir, "usage.md");
 
     /// <summary>加载设置（文件缺失/损坏 → 默认值）；同时确保 guide 文件存在。</summary>

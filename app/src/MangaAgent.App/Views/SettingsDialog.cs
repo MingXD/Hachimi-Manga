@@ -74,43 +74,44 @@ public class SettingsDialog : Window
             _hotkeyEdit[g] = gCopy;
         }
 
-        // —— 页签一：阅读（滑块 + 数值框 双向联动）——
-        (_zoomBase, _zoomBaseT) = MakeSliderRow("缩放速度基准", 0.5, 2.0, _copy.ZoomSensitivity, "滚轮缩放每格幅度", false);
-        (_scrollBase, _scrollBaseT) = MakeSliderRow("滚动速度基准", 0.5, 2.0, _copy.WebtoonSpeed, "滚动模式一档距离", false);
-        (_friction, _frictionT) = MakeSliderRow("停止快慢", 3, 12, _copy.ScrollFriction, "摩擦系数（越大停得越快）", false);
-        (_flingThreshold, _flingThresholdT) = MakeSliderRow("甩动触发阈值", 50, 400, _copy.DragFlingThreshold, "拖拽释放多快才算甩动（px/s）", false);
-        (_flingMax, _flingMaxT) = MakeSliderRow("甩动限幅", 1000, 6000, _copy.DragFlingMax, "甩动最大速度（px/s）", false);
-        (_decodeCap, _decodeCapT) = MakeSliderRow("解码宽度上限", 1200, 4096, _copy.MaxDecodeWidth, "大图解码分辨率上限", true);
-        (_cacheCap, _cacheCapT) = MakeSliderRow("缓存页数", 4, 20, _copy.CacheCap, "位图缓存上限", true);
+        // —— 页签一：阅读（卡片样式 + 滑块/数值框双向 + 响应式拉伸）——
+        (_zoomBase, _zoomBaseT) = MakeSliderRow(0.5, 2.0, _copy.ZoomSensitivity, true);
+        (_scrollBase, _scrollBaseT) = MakeSliderRow(0.5, 2.0, _copy.WebtoonSpeed, true);
+        (_friction, _frictionT) = MakeSliderRow(3, 12, _copy.ScrollFriction, false);
+        (_flingThreshold, _flingThresholdT) = MakeSliderRow(50, 400, _copy.DragFlingThreshold, false);
+        (_flingMax, _flingMaxT) = MakeSliderRow(1000, 6000, _copy.DragFlingMax, false);
+        (_decodeCap, _decodeCapT) = MakeSliderRow(1200, 4096, _copy.MaxDecodeWidth, true);
+        (_cacheCap, _cacheCapT) = MakeSliderRow(4, 20, _copy.CacheCap, true);
         _invert = new CheckBox { Content = "滚动方向反转（自然滚动）", IsChecked = _copy.InvertScroll, Margin = new Thickness(0, 4, 0, 0) };
-        _pagedWheel = new ComboBox { ItemsSource = new[] { "缩放", "翻页" }, SelectedIndex = _copy.PagedWheelMode == "Page" ? 1 : 0, Width = 140 };
-        var tab1 = new ScrollViewer { Content = new StackPanel { Margin = new Thickness(14), Spacing = 8, Children =
+        _pagedWheel = new ComboBox { ItemsSource = new[] { "缩放", "翻页" }, SelectedIndex = _copy.PagedWheelMode == "Page" ? 1 : 0, Width = 140, HorizontalAlignment = HorizontalAlignment.Left };
+        var tab1 = new ScrollViewer { Content = new StackPanel { Margin = new Thickness(14), Spacing = 10, HorizontalAlignment = HorizontalAlignment.Stretch, Children =
         {
-            Group("阅读基准",
-                Row("缩放速度基准", _zoomBase, _zoomBaseT, "滚轮缩放每格幅度（0.5~2.0）"),
-                Row("滚动速度基准", _scrollBase, _scrollBaseT, "滚动模式一档距离（0.5~2.0）")),
-            Group("滚动手感（滚动模式）",
-                Row("停止快慢", _friction, _frictionT, "摩擦系数（越大停得越快）"),
-                Row("甩动触发阈值", _flingThreshold, _flingThresholdT, "拖拽释放多快才算甩动（px/s）"),
-                Row("甩动限幅", _flingMax, _flingMaxT, "甩动最大速度（px/s）")),
-            Group("性能与行为",
-                Row("解码宽度上限", _decodeCap, _decodeCapT, "大图解码分辨率上限（清晰度 vs 速度/内存）"),
-                Row("缓存页数", _cacheCap, _cacheCapT, "位图缓存上限（流畅 vs 内存）"),
-                Row("分页滚轮行为", _pagedWheel, null, "分页模式下滚轮 = 缩放 或 翻页"),
+            Card("阅读基准",
+                SettingRow("缩放速度基准", _zoomBase, _zoomBaseT, "滚轮缩放每格幅度（0.5~2.0）"),
+                SettingRow("滚动速度基准", _scrollBase, _scrollBaseT, "滚动模式一档距离（0.5~2.0）")),
+            Card("滚动手感（滚动模式）",
+                SettingRow("停止快慢", _friction, _frictionT, "摩擦系数（越大停得越快）"),
+                SettingRow("甩动触发阈值", _flingThreshold, _flingThresholdT, "拖拽释放多快才算甩动（px/s）"),
+                SettingRow("甩动限幅", _flingMax, _flingMaxT, "甩动最大速度（px/s）")),
+            Card("性能与行为",
+                SettingRow("解码宽度上限", _decodeCap, _decodeCapT, "大图解码分辨率上限（清晰度 vs 速度/内存）"),
+                SettingRow("缓存页数", _cacheCap, _cacheCapT, "位图缓存上限（流畅 vs 内存）"),
+                SettingRow("分页滚轮行为", _pagedWheel, null, "分页模式下滚轮 = 缩放 或 翻页"),
                 _invert),
         } } };
 
         // —— 页签二：快捷键（四组竖排卡片）——
         RebuildHotkeyCards();
-        var tab2 = new ScrollViewer { Content = new StackPanel { Margin = new Thickness(14), Spacing = 8, Children =
+        var tab2 = new ScrollViewer { Content = new StackPanel { Margin = new Thickness(14), Spacing = 8, HorizontalAlignment = HorizontalAlignment.Stretch, Children =
         {
             new TextBlock { Text = "点击键块 = 替换该键；右键键块 = 删除；行尾 [+] = 新增一个键。支持组合键（如 Ctrl+Shift+P）。", Foreground = Brushes.Gray, FontSize = 11 },
             _captureHint,
             _hotkeyRoot,
         } } };
 
-        // —— 页签三：使用介绍 ——
-        var tab3 = new ScrollViewer { Content = RenderGuide() };
+        // —— 页签三：使用介绍（内容/图片随窗口宽度自适应）——
+        var guideScroll = new ScrollViewer { Content = RenderGuide() };
+        var tab3 = guideScroll;
 
         var tabs = new TabControl();
         tabs.Items.Add(new TabItem { Header = "阅读", Content = tab1 });
@@ -137,16 +138,7 @@ public class SettingsDialog : Window
             RebuildHotkeyCards();
             _captureHint.Text = "快捷键已恢复为默认（尚未保存）";
         };
-        var pathInfo = new TextBlock
-        {
-            Text = $"设置：{SettingsStore.SettingsPath}\n介绍：{SettingsStore.GuidePath}",
-            Foreground = Brushes.Gray, FontSize = 10, TextWrapping = TextWrapping.Wrap,
-        };
-        var bottom = new DockPanel { Margin = new Thickness(14, 8, 14, 14) };
-        DockPanel.SetDock(pathInfo, Dock.Right);
-        var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { restoreRead, restoreHot, save, cancel, openGuide } };
-        bottom.Children.Add(pathInfo);
-        bottom.Children.Add(buttons);
+        var bottom = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Thickness(14, 8, 14, 14), Children = { restoreRead, restoreHot, save, cancel, openGuide } };
 
         var root = new DockPanel();
         DockPanel.SetDock(bottom, Dock.Bottom);
@@ -169,16 +161,7 @@ public class SettingsDialog : Window
         _hotkeyRoot.Children.Clear();
         foreach (var (group, label) in Groups)
         {
-            var card = new Border
-            {
-                Background = new SolidColorBrush(Color.Parse("#1E1E26")),
-                CornerRadius = new CornerRadius(8),
-                BorderBrush = new SolidColorBrush(Color.Parse("#33333E")),
-                BorderThickness = new Thickness(1),
-                Padding = new Thickness(12),
-            };
             var rows = new StackPanel { Spacing = 6 };
-            rows.Children.Add(new TextBlock { Text = label, FontWeight = FontWeight.SemiBold, FontSize = 14, Foreground = new SolidColorBrush(Color.Parse("#4A9EFF")), Margin = new Thickness(0, 0, 0, 4) });
             foreach (var action in GroupActions.First(x => x.Group == group).Actions)
             {
                 if (!_hotkeyEdit.TryGetValue(group, out var actions)) continue;
@@ -188,8 +171,7 @@ public class SettingsDialog : Window
                 var wrap = new WrapPanel();
                 foreach (var token in keys.ToList())
                 {
-                    var cell = MakeKeyCell(group, action, token);
-                    wrap.Children.Add(cell);
+                    wrap.Children.Add(MakeKeyCell(group, action, token));
                 }
                 var addBtn = new Button { Content = "＋", MinWidth = 26, MinHeight = 24, Padding = new Thickness(4, 0), Tag = new KeyRef(group, action, "") };
                 addBtn.Click += (_, _) => StartCapture(group, action, "", addBtn);
@@ -198,8 +180,7 @@ public class SettingsDialog : Window
                 row.Children.Add(addBtn);
                 rows.Children.Add(row);
             }
-            card.Child = rows;
-            _hotkeyRoot.Children.Add(card);
+            _hotkeyRoot.Children.Add(Card(label, rows));
         }
     }
 
@@ -302,18 +283,21 @@ public class SettingsDialog : Window
         t.Text = isInt ? ((int)v).ToString() : v.ToString("0.0");
     }
 
-    /// <summary>滑块 + 数值框 双向联动。</summary>
-    private static (Slider, TextBox) MakeSliderRow(string label, double min, double max, double value, string hint, bool isInt)
+    /// <summary>滑块 + 数值框 双向联动（滑块拉伸填满行宽）。</summary>
+    private static (Slider, TextBox) MakeSliderRow(double min, double max, double value, bool isInt)
     {
         var slider = new Slider
         {
-            Minimum = min, Maximum = max, Value = value, Width = 240, VerticalAlignment = VerticalAlignment.Center,
+            Minimum = min, Maximum = max, Value = value,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            VerticalAlignment = VerticalAlignment.Center,
             IsSnapToTickEnabled = true, TickFrequency = isInt ? 1 : 0.1,
         };
         var box = new TextBox
         {
             Text = isInt ? ((int)value).ToString() : value.ToString("0.0"),
-            Width = 64, VerticalAlignment = VerticalAlignment.Center, TextAlignment = TextAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center, TextAlignment = TextAlignment.Center,
+            Margin = new Thickness(8, 0, 0, 0),
         };
         slider.ValueChanged += (_, _) => { if (!box.IsFocused) box.Text = isInt ? ((int)slider.Value).ToString() : slider.Value.ToString("0.0"); };
         void Commit()
@@ -329,22 +313,40 @@ public class SettingsDialog : Window
 
     // ================= 通用辅助 =================
 
-    private static StackPanel Group(string title, params Control[] children)
+    /// <summary>分组卡片（圆角 Border + 标题 + 内容），随宽度拉伸 —— 阅读/快捷键两页统一样式。</summary>
+    private static Border Card(string title, params Control[] children)
     {
-        var sp = new StackPanel { Spacing = 6 };
-        sp.Children.Add(new TextBlock { Text = title, FontWeight = FontWeight.SemiBold, FontSize = 14, Foreground = new SolidColorBrush(Color.Parse("#4A9EFF")), Margin = new Thickness(0, 4, 0, 2) });
+        var sp = new StackPanel { Spacing = 8, HorizontalAlignment = HorizontalAlignment.Stretch };
+        sp.Children.Add(new TextBlock { Text = title, FontWeight = FontWeight.SemiBold, FontSize = 14, Foreground = new SolidColorBrush(Color.Parse("#4A9EFF")) });
         foreach (var c in children) sp.Children.Add(c);
-        return sp;
+        return new Border
+        {
+            Background = new SolidColorBrush(Color.Parse("#1E1E26")),
+            CornerRadius = new CornerRadius(8),
+            BorderBrush = new SolidColorBrush(Color.Parse("#33333E")),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(12),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Child = sp,
+        };
     }
 
-    private static StackPanel Row(string label, Control control, TextBox? valueBox, string hint)
+    /// <summary>设置行：Grid 布局 [名称 130 | 控件 * | 数值框 70]，随宽度拉伸；提示放名称 ToolTip。</summary>
+    private static Control SettingRow(string label, Control control, TextBox? valueBox, string hint)
     {
-        var sp = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
-        sp.Children.Add(new TextBlock { Text = label, Width = 110, VerticalAlignment = VerticalAlignment.Center });
-        sp.Children.Add(control);
-        if (valueBox is not null) sp.Children.Add(valueBox);
-        sp.Children.Add(new TextBlock { Text = hint, Foreground = Brushes.Gray, FontSize = 10, VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap });
-        return sp;
+        var g = new Grid { HorizontalAlignment = HorizontalAlignment.Stretch };
+        g.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(130)));
+        g.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
+        g.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(70)));
+        var labelTb = new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center };
+        if (!string.IsNullOrEmpty(hint)) ToolTip.SetTip(labelTb, hint);
+        control.VerticalAlignment = VerticalAlignment.Center;
+        control.HorizontalAlignment = HorizontalAlignment.Stretch;
+        if (control is Slider) control.Margin = new Thickness(0, 6, 0, 6);
+        g.Children.Add(labelTb);
+        g.Children.Add(control);
+        if (valueBox is not null) g.Children.Add(valueBox);
+        return g;
     }
 
     private void ApplyControlsToCopy()
@@ -419,41 +421,61 @@ public class SettingsDialog : Window
 
     // ================= 使用介绍渲染 =================
 
-    /// <summary>渲染使用介绍（usage.md 轻量格式：# 标题 / ## 小节 / !img:相对路径 / 正文）。</summary>
+    /// <summary>渲染使用介绍（usage.md 轻量格式：# 标题 / ## 小节 / !img:相对路径 / 正文）。
+    /// 内容随窗口宽度拉伸；图片按面板宽等比缩放（SizeChanged 联动）。</summary>
     private static Control RenderGuide()
     {
-        var stack = new StackPanel { Margin = new Thickness(14), Spacing = 8 };
+        var scroll = new ScrollViewer { HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled };
+        var stack = new StackPanel { Margin = new Thickness(14), Spacing = 8, HorizontalAlignment = HorizontalAlignment.Stretch };
+        var images = new List<Image>();
         if (!File.Exists(SettingsStore.GuidePath))
         {
             stack.Children.Add(new TextBlock { Text = "使用介绍文件不存在：" + SettingsStore.GuidePath, Foreground = Brushes.Red });
-            return stack;
         }
-        var dir = Path.GetDirectoryName(SettingsStore.GuidePath)!;
-        foreach (var raw in File.ReadAllLines(SettingsStore.GuidePath))
+        else
         {
-            var line = raw.TrimEnd();
-            if (string.IsNullOrWhiteSpace(line)) continue;
-            if (line.StartsWith("!img:", StringComparison.Ordinal))
+            var dir = Path.GetDirectoryName(SettingsStore.GuidePath)!;
+            foreach (var raw in File.ReadAllLines(SettingsStore.GuidePath))
             {
-                var rel = line[5..].Trim();
-                var imgPath = Path.Combine(dir, rel);
-                if (File.Exists(imgPath))
+                var line = raw.TrimEnd();
+                if (string.IsNullOrWhiteSpace(line)) continue;
+                if (line.StartsWith("!img:", StringComparison.Ordinal))
                 {
-                    try
+                    var rel = line[5..].Trim();
+                    var imgPath = Path.Combine(dir, rel);
+                    if (File.Exists(imgPath))
                     {
-                        stack.Children.Add(new Image { Source = new Avalonia.Media.Imaging.Bitmap(imgPath), Stretch = Stretch.Uniform, MaxWidth = 620, Margin = new Thickness(0, 4) });
+                        try
+                        {
+                            var img = new Image
+                            {
+                                Source = new Avalonia.Media.Imaging.Bitmap(imgPath),
+                                Stretch = Stretch.Uniform,
+                                HorizontalAlignment = HorizontalAlignment.Stretch,
+                                Margin = new Thickness(0, 4),
+                            };
+                            images.Add(img);
+                            stack.Children.Add(img);
+                        }
+                        catch { stack.Children.Add(new TextBlock { Text = $"[图片无法加载: {rel}]", Foreground = Brushes.Gray }); }
                     }
-                    catch { stack.Children.Add(new TextBlock { Text = $"[图片无法加载: {rel}]", Foreground = Brushes.Gray }); }
+                    else stack.Children.Add(new TextBlock { Text = $"[图片未找到: {rel} —— 把图片放到 {SettingsStore.GuideDir}\\images\\ 目录]", Foreground = Brushes.Gray });
                 }
-                else stack.Children.Add(new TextBlock { Text = $"[图片未找到: {rel} —— 把图片放到 {SettingsStore.GuideDir}\\images\\ 目录]", Foreground = Brushes.Gray });
+                else if (line.StartsWith("## ", StringComparison.Ordinal))
+                    stack.Children.Add(new TextBlock { Text = line[3..], FontSize = 16, FontWeight = FontWeight.SemiBold, Foreground = new SolidColorBrush(Color.Parse("#4A9EFF")) });
+                else if (line.StartsWith("# ", StringComparison.Ordinal))
+                    stack.Children.Add(new TextBlock { Text = line[2..], FontSize = 20, FontWeight = FontWeight.Bold, Foreground = new SolidColorBrush(Color.Parse("#4A9EFF")), Margin = new Thickness(0, 10, 0, 0) });
+                else
+                    stack.Children.Add(new TextBlock { Text = line, TextWrapping = TextWrapping.Wrap, FontSize = 12 });
             }
-            else if (line.StartsWith("## ", StringComparison.Ordinal))
-                stack.Children.Add(new TextBlock { Text = line[3..], FontSize = 16, FontWeight = FontWeight.SemiBold, Foreground = new SolidColorBrush(Color.Parse("#4A9EFF")) });
-            else if (line.StartsWith("# ", StringComparison.Ordinal))
-                stack.Children.Add(new TextBlock { Text = line[2..], FontSize = 20, FontWeight = FontWeight.Bold, Foreground = new SolidColorBrush(Color.Parse("#4A9EFF")), Margin = new Thickness(0, 10, 0, 0) });
-            else
-                stack.Children.Add(new TextBlock { Text = line, TextWrapping = TextWrapping.Wrap, FontSize = 12 });
         }
-        return stack;
+        scroll.Content = stack;
+        // 图片宽随面板宽（去掉左右留白 28）
+        scroll.SizeChanged += (_, e) =>
+        {
+            double w = e.NewSize.Width - 28;
+            foreach (var img in images) img.MaxWidth = Math.Max(120, w);
+        };
+        return scroll;
     }
 }
