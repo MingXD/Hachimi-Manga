@@ -535,8 +535,37 @@
 
 ---
 
+## 八、code-audit 优化实施（P0–P3，2026-11）
+
+> 依据 docs/03-dev/code-audit-optimization-plan.md 全量实施；全程不改功能行为，测试基线 65→67（新增压力测试 2 项）。
+
+| # | 改动 | 文件位置 | 风险点 |
+|---|---|---|---|
+| P0-1 | **DisposeAsync 守卫写反修复**：原 `_disposed=true; if(_disposed) return;` 恒真 → DisposeAsync 从不清理（每本书泄漏 ZIP 句柄/SQLite/位图/缩略图）；改 `int _disposeGuard` + `Interlocked.Exchange` 幂等，OnClosed fire-and-forget 与测试显式调用并存安全 | ReaderViewModel.State.cs | 泄漏根治；双调用幂等有测试 |
+| P0-2 | 死代码清理：WebtoonVisibleRange 访问器（无引用）、ProgressValue（只写不读）、SyncJumpSlider 陈旧注释 | ReaderWindow 各文件 | 无 |
+| P0-3 | **编译警告清零**：CS0108 IsPointerOver → new；测试项目 xUnit1051/xUnit1031（传 TestContext CT、去 GetAwaiter().GetResult() 阻塞）、CS0618（SkiaSharp SKFont/SKTextAlign）、CS1998 | ReaderWindow / 各测试文件 | build 0 警告基线 |
+| P1-1 | **ReaderWindow 拆 5 个 partial**：Canvas（画布/缩放/Fit）、Webtoon（滚动虚拟化/惯性）、Preview（预览栏）、Input（键盘/鼠标/快捷键分派）、Dialog（跳页/设置/调试）——纯搬移，行为零变化 | Views\ReaderWindow.{Canvas,Webtoon,Preview,Input,Dialog}.cs | 编译验证 + 65/65 |
+| P1-2 | **ReaderViewModel 拆 3 个 partial**：Decode（缓存/解码/引用计数）、Nav（翻页/书签/跳转）、State（构造/保存/释放） | ViewModels\ReaderViewModel.{Decode,Nav,State}.cs | 同上 |
+| P1-3 | **ScrollModeFixesTests（856 行）拆文件**：ReaderTestFixtures（压力书/等待/进滚动/坏 CBZ 共享基建）+ ScrollModeFixesTests（核心滚动）+ ScrollModeFitTests（适应/缩放）+ SettingsSystemTests（设置系统） | Tests\PoC\ | AssemblyInfo 已全局 DisableTestParallelization，静态 BaseDir 无竞态 |
+| P1-4 | **vm.PropertyChanged 退订**：委托存 `_vmPropertyChanged` 字段，OnClosed 对称退订（窗口与 VM 同生命周期成环，GC 可回收但更干净） | ReaderWindow.axaml.cs | 无 |
+| P1-5 | CODE-MAP 更新：partial 文件/SettingsStore/SettingsDialog/guide 机制/新测试文件 | docs\03-dev\CODE-MAP.md | 无 |
+| P2-1 | **LoadSizes 异步化**：构造只同步读前 2 页尺寸 → 后台任务补全其余（每 64 页让出）→ 回 UI 线程 RebuildLayout 应用真实比例（双页配对/页高依赖真实 AspectRatio）；配套 **ZipComicSource 线程安全修复**（ZipArchive 所有 entry.Open() 在同一 FileStream 上 Seek，与解码并发会读坏/抛异常 → 读取体 Task.Run + 普通 lock，持锁不 await 防死锁）+ Dispose 后禁止重开文件 | ReaderViewModel.State.cs / ZipComicSource.cs | **高危**：深页比例敏感测试在 OpenWebtoonAsync 内等 SizesLoaded（SizesLoaded 访问器）；背景 RebuildLayout 必须回 UI 线程（否则 code-behind Relayout 在线程池跑坏布局） |
+| P2-2 | **日志级别**：新增 AppSettings.DebugLog（默认关）；WHEEL_EVT/WHEEL/SCROLL 高频项仅开启时记录；模式/跳页/异常等关键事件始终记 | SettingsStore.cs / ReaderWindow.Input.cs / ReaderWindow.Webtoon.cs | 无 |
+| P2-3 | **压力测试**：StressRegressionTests ×2（长时连续滚动 60 档 + 快速切模式 8 轮 + 缩放循环 12 次 + 关闭后缓存/UI 引用计数归零；打开即关不崩溃）；配套 DecodeAsync/Prefetch/Thumbnail 加 `_disposed` 守卫（关闭后不再入缓存）+ 竞态守卫补 `_disposed` | Tests\PoC\StressRegressionTests.cs / ReaderViewModel.Decode.cs | 测试基线 65→67 |
+| P3-1 | **.editorconfig + dotnet format whitespace 全库一次格式化**：4 空格 / CRLF / UTF-8（去 BOM）+ 对象初始化换行规范；确认 diff 仅格式（build 0 警告 + 67/67） | .editorconfig（仓库根） | 全库一次性 diff 噪音 |
+| P3-2 | Nullable 抽查：三个项目均 enable，`!` 使用有依据 | — | 无需改动 |
+
+### 实施中踩坑备忘
+1. **ZipArchive 并发读会读坏**：`entry.Open()` 在同一 FileStream 上 Seek，LoadSizes 后台补全与解码并发 → 尺寸读抛异常（SizesLoaded 永不 true）、解码读垃圾（Image1 变 null → 图不可见）。第一版 SemaphoreSlim 持锁 await 与 UI 线程同步取 PageCount 死锁（持锁任务续体等 UI dispatcher，UI 卡在锁上）→ 改 Task.Run + lock（持锁期间无 await、无 SynchronizationContext 捕获）。
+2. **背景 RebuildLayout 必须在 UI 线程**：其 LoadCurrentAsync 触发 Image1 等 PropertyChanged，ReaderWindow 的 code-behind 处理器同步 Relayout()；后台线程触发 → 线程池操作 Avalonia 布局树 → 分页图不可见（Webtoon 不受影响因其 LoadCurrentAsync 短路）。
+3. **dotnet format 参数顺序**：`dotnet format <sln> whitespace`（子命令在后），`-p:` 属性会解析失败打印帮助。
+4. **拆分脚本生成的文档注释乱码**（split-readerwindow.ps1 自身模板被 ANSI 读坏 + `。</summary>` 的 `<` 被 GBK 尾字节吞掉）：正则按 `.*?/summary>`（无 `<`）替换修复。
+
+---
+
 ## 七、验证状态
 
+- **code-audit（P0–P3）：67/67 自动化测试通过，build 0 警告**（LoadSizes 异步化/Zip 线程安全/压力测试新增 2 项；发布版已更新，冒烟通过）
 - **v4（2.10）：62/62 自动化测试通过**（设置系统 + 快捷键查表 + 整页跳 + 基础修改；发布版已更新，冒烟通过）
 - **v3.2（2.8）：58/58 自动化测试通过**（滚轮按视口归一化一档≈80%屏、适应高度铺满视口高）
 - **v3.1（2.7）：57/57 自动化测试通过**（新增适应宽度铺满测试；滚轮纯比例脉冲）

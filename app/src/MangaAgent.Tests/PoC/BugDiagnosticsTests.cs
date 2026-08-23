@@ -68,8 +68,9 @@ public class BugDiagnosticsTests
                 using (var canvas = new SKCanvas(bmp))
                 {
                     canvas.Clear(new SKColor(245, 240, 235));
-                    using var paint = new SKPaint { Color = new SKColor(40, 40, 40), TextSize = 300 };
-                    canvas.DrawText($"PAGE {i + 1}", 300, 1700, paint);
+                    using var font = new SKFont { Size = 300 };
+                    using var paint = new SKPaint { Color = new SKColor(40, 40, 40) };
+                    canvas.DrawText($"PAGE {i + 1}", 300, 1700, SKTextAlign.Left, font, paint);
                 }
                 using var img = SKImage.FromBitmap(bmp);
                 using var data = img.Encode(SKEncodedImageFormat.Jpeg, 90);

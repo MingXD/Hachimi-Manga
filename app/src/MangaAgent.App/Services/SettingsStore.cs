@@ -43,6 +43,7 @@ public class AppSettings
     public int CacheCap { get; set; } = 10;              // 位图缓存页数
     public bool InvertScroll { get; set; }               // 滚动方向反转（自然滚动）
     public string PagedWheelMode { get; set; } = "Zoom"; // 分页滚轮：Zoom | Page
+    public bool DebugLog { get; set; }                   // 诊断日志：WHEEL/SCROLL 高频项（默认关，性能；关键事件始终记）
     // —— 快捷键：组 → 动作 → 按键列表（组：General 通用 / PagedLtr 分页·左到右 / PagedRtl 分页·右到左 / Webtoon 滚动；
     // 键 token = Key 枚举名，组合键 = 修饰键+主键，如 "Ctrl+Shift+P"）——
     public Dictionary<string, Dictionary<string, List<string>>> Hotkeys { get; set; } = DefaultHotkeys();

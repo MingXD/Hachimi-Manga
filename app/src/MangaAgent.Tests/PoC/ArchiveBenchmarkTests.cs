@@ -23,7 +23,7 @@ public class ArchiveBenchmarkTests
         await using (var src = new ZipComicSource(Stress))
         {
             pageCount = src.PageCount;
-            for (int i = 0; i < pageCount; i++) src.GetPageSizeAsync(i).GetAwaiter().GetResult();
+            for (int i = 0; i < pageCount; i++) await src.GetPageSizeAsync(i, TestContext.Current.CancellationToken);
         }
         sw.Stop();
         var indexMs = sw.Elapsed.TotalMilliseconds;
@@ -37,7 +37,7 @@ public class ArchiveBenchmarkTests
             for (int k = 0; k < 30; k++)
             {
                 int idx = rng.Next(pageCount);
-                using var s = src.OpenPageAsync(idx).GetAwaiter().GetResult();
+                using var s = await src.OpenPageAsync(idx, TestContext.Current.CancellationToken);
                 using var ms = new MemoryStream();
                 s.CopyTo(ms);
                 bytes.Add((int)ms.Length);
@@ -57,7 +57,7 @@ public class ArchiveBenchmarkTests
     public async Task Spread_Detection_And_Metadata()
     {
         await using var src = new ZipComicSource(SeriesA1);
-        var meta = src.ReadMetadataAsync().GetAwaiter().GetResult();
+        var meta = await src.ReadMetadataAsync(TestContext.Current.CancellationToken);
         Assert.NotNull(meta);
         Assert.Equal("TestSeriesA", meta!.Series);
         Assert.True(meta.MangaRightToLeft, "ComicInfo <Manga> 应为 YesAndRightToLeft");
@@ -66,7 +66,7 @@ public class ArchiveBenchmarkTests
         var refs = new List<PhysicalPageRef>(n);
         for (int i = 0; i < n; i++)
         {
-            var sz = src.GetPageSizeAsync(i).GetAwaiter().GetResult();
+            var sz = await src.GetPageSizeAsync(i, TestContext.Current.CancellationToken);
             refs.Add(new PhysicalPageRef(i, sz?.AspectRatio ?? 0));
         }
         var layout = PageLayouter.Layout(refs, new PageLayoutOptions { CoverSingle = true, SpreadThreshold = 1.6 });
@@ -103,9 +103,9 @@ public class ArchiveBenchmarkTests
             {
                 int idx = rng.Next(pageCount);
                 var s0 = System.Diagnostics.Stopwatch.StartNew();
-                using var stream = await src.OpenPageAsync(idx);
+                using var stream = await src.OpenPageAsync(idx, TestContext.Current.CancellationToken);
                 using var ms = new MemoryStream();
-                await stream.CopyToAsync(ms);
+                await stream.CopyToAsync(ms, TestContext.Current.CancellationToken);
                 samples.Add(s0.ElapsedMilliseconds);
             }
         }

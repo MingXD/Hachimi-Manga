@@ -12,7 +12,7 @@ public class LibraryScannerTests
     [Fact]
     public async Task Scans_Cbz_And_Folder_Books()
     {
-        var books = await LibraryScanner.ScanAsync(Fixtures);
+        var books = await LibraryScanner.ScanAsync(Fixtures, TestContext.Current.CancellationToken);
         Assert.True(books.Count >= 7, $"应找到 ≥7 本书，实际 {books.Count}");
         // 7 本 CBZ（3 系列 + 压力书）+ 1 个文件夹书
         var zips = books.Count(b => b.Kind == BookKind.Zip);
