@@ -9,10 +9,10 @@ namespace MangaAgent.App;
 public partial class App : Application
 {
     private static readonly string LogDir = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MangaAgent", "logs");
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "HachimiManga", "logs");
     private static readonly object LogLock = new();
 
-    /// <summary>写操作日志：按日期分文件（app-YYYY-MM-DD.log），保留最近 7 天（日志轮转）。
+    /// <summary>写操作日志：按日期分文件（hachimi-YYYY-MM-DD.log），保留最近 7 天（日志轮转）。
     /// 排查"操作类 bug"时提供完整轨迹（时间戳+线程+事件）。</summary>
     /// <summary>调试面板：最近事件环形缓冲（实时显示，诊断用）。</summary>
     public static readonly System.Collections.Concurrent.ConcurrentQueue<(DateTime Time, string Msg)> RecentEvents = new();
@@ -24,10 +24,10 @@ public partial class App : Application
             lock (LogLock)
             {
                 Directory.CreateDirectory(LogDir);
-                var file = Path.Combine(LogDir, $"app-{DateTime.Now:yyyy-MM-dd}.log");
+                var file = Path.Combine(LogDir, $"hachimi-{DateTime.Now:yyyy-MM-dd}.log");
                 File.AppendAllText(file, $"{DateTime.Now:HH:mm:ss.fff} [{Environment.CurrentManagedThreadId}] {msg}{Environment.NewLine}");
                 // 轮转：删除 7 天前的日志
-                foreach (var oldFile in Directory.GetFiles(LogDir, "app-*.log"))
+                foreach (var oldFile in Directory.GetFiles(LogDir, "hachimi-*.log"))
                 {
                     try
                     {
@@ -80,7 +80,7 @@ public partial class App : Application
                         isDir ? MangaAgent.Core.Library.BookKind.Folder : MangaAgent.Core.Library.BookKind.Zip,
                         lastWrite, 0);
                     var dbPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                        "MangaAgent", "reading.db");
+                        "HachimiManga", "reading.db");
                     desktop.MainWindow = new Views.ReaderWindow
                     {
                         DataContext = new ViewModels.ReaderViewModel(book, dbPath),

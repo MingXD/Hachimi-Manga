@@ -88,7 +88,7 @@ public class AppSettings
     }
 }
 
-/// <summary>设置存取：%LOCALAPPDATA%\MangaAgent\settings.json + guide\usage.md（用户可直接编辑）。</summary>
+/// <summary>设置存取：%LOCALAPPDATA%\HachimiManga\settings.json + guide\usage.md（用户可直接编辑）。</summary>
 public static class SettingsStore
 {
     /// <summary>按键 → 存储 token：修饰键(排序) + 主键（如 Ctrl+Shift+P）。</summary>
@@ -102,9 +102,9 @@ public static class SettingsStore
         return string.Join("+", parts);
     }
 
-    /// <summary>测试可覆盖的根目录（默认 %LOCALAPPDATA%\MangaAgent）。</summary>
+    /// <summary>测试可覆盖的根目录（默认 %LOCALAPPDATA%\HachimiManga）。</summary>
     public static string BaseDir { get; set; } = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MangaAgent");
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "HachimiManga");
 
     public static string SettingsPath => Path.Combine(BaseDir, "settings.json");
 
@@ -173,13 +173,13 @@ public static class SettingsStore
         catch { }
     }
 
-    /// <summary>默认使用介绍模板（用户可直接编辑；图片按"插图说明"节放入 guide\images）。</summary>
+    /// <summary>默认使用介绍模板（用户可直接编辑；插图：图片放入 guide\images，正文写 !img:images/文件名）。</summary>
     public static string DefaultGuide => """
-# MangaAgent 使用介绍
+# Hachimi Manga 使用介绍
 
 ## 阅读器基本操作
 
-- 滚轮：缩放（以鼠标为焦点，Ctrl 同样）；按住拖动：平移画面
+- 滚轮：缩放（以鼠标为焦点）；按住拖动：平移画面
 - 双击图片：放大 100% ↔ 恢复适应屏幕
 - 键盘翻页：分页模式 ←→ 翻页（RTL：← 下一页）；↑↓ 也可翻页
 - 适应按钮循环：适应宽度 / 适应高度 / 适应屏幕；复位回到默认视图
@@ -196,27 +196,40 @@ public static class SettingsStore
 - 鼠标移到右侧边缘唤出缩略图栏；点击缩略图跳页；▲▼ 整排换页；
   滚轮在缩略图上逐页浏览；当前页有高亮边框
 
-## 快捷键（默认）
+## 快捷键（默认，可在"设置 → 快捷键"中重新绑定）
 
-- 分页：←→/↑↓/PageUp/PageDown/Space 翻页
-- 滚动：← → 整页跳；↑↓ 滑动；PageDown/Space 整页跳
+- 分页：←→ / ↑↓ / PageUp / PageDown / Space 翻页
+- 滚动：← → 整页跳；↑↓ 滑动；PageDown / Space 整页跳
 - M 切换模式 / D 切换方向 / T 白天夜间 / G 跳页 / F12 调试面板
 - F 适应循环 / R 复位 / + − 缩放 / P 预览栏开关
-- 以上均可在"设置 → 快捷键"中按模式重新绑定
 
 ## 设置
 
 - 工具栏最前方"设置"按钮：阅读基准（缩放/滚动速度）、滚动手感、
   性能（解码宽度/缓存页数）、滚动方向反转、分页滚轮行为
-- 设置保存于 %LOCALAPPDATA%\MangaAgent\settings.json，可手动编辑
+- 设置保存于 %LOCALAPPDATA%\HachimiManga\settings.json，可手动编辑
+- 诊断日志（滚轮/滚动高频项）默认关闭；排查问题时把 settings.json
+  中的 "DebugLog" 改为 true 可开启
 
-## 插图说明
+## 数据与隐私
 
-- 把图片放到本目录的 images 子文件夹（guide\images\）
-- 在本文档需要插图的位置写一行：!img:images/你的图片文件名.png
-- 图片会等比缩放到介绍面板宽度；保存后重新打开设置窗口即可看到
+- 设置、阅读进度、书签、日志全部保存在本机 %LOCALAPPDATA%\HachimiManga，
+  程序不上传、不联网；删除该目录即可清空全部数据
 
 ---
-（本文件路径：%LOCALAPPDATA%\MangaAgent\guide\usage.md，直接编辑即可更新介绍）
+
+## 作者的话
+
+（此处留空，作者自填）
+
+---
+
+!img:images/example.png
+
+（示例图片：把想要展示的图放入本目录的 images 子文件夹，
+ 在正文需要的位置写一行 !img:images/你的图片文件名.png 即可）
+
+---
+（本文件路径：exe 旁 guide\usage.md（或 %LOCALAPPDATA%\HachimiManga\guide\usage.md），直接编辑即可更新介绍）
 """;
 }

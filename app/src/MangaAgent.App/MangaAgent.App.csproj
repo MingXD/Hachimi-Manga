@@ -1,10 +1,12 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net9.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- 对外名称：exe/dll/进程名/清单均显示 HachimiManga（内部命名空间保持 MangaAgent） -->
+    <AssemblyName>HachimiManga</AssemblyName>
   </PropertyGroup>
 
   <ItemGroup>

@@ -15,7 +15,7 @@ public enum GalleryMode { Large, Medium, Small, Detail }
 public partial class MainWindowViewModel : ViewModelBase
 {
     private static readonly string AppData = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MangaAgent");
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "HachimiManga");
     private static readonly string LibrariesFile = Path.Combine(AppData, "libraries.txt");
     private static readonly string LibraryDbPath = Path.Combine(AppData, "library.db");
     private static readonly string StateDbPath = Path.Combine(AppData, "reading.db");

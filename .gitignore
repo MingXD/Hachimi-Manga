@@ -10,6 +10,7 @@ artifacts/
 app/**/bin/
 app/**/obj/
 publish/
+dist/
 
 # Rider/VS Code
 .idea/

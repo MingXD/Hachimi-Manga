@@ -563,8 +563,28 @@
 
 ---
 
+## 九、对外发布：Hachimi Manga 命名 + 绿色版打包（2026-08-24）
+
+> 用户决策：①只改用户可见面（小风险小工作量）②zip 绿色版打包 ③重写 guide/usage.md（不含"插图说明"教程节，留作者的话 + 示例图），暂不写 README。
+
+| # | 改动 | 文件位置 | 风险点 |
+|---|---|---|---|
+| 9-1 | **对外命名 HachimiManga**：`<AssemblyName>` 改 HachimiManga / HachimiManga.Core → exe/dll/进程名/清单(deps.json/runtimeconfig.json)全部换名；内部命名空间/项目目录保持 MangaAgent 不动（用户不可感知） | MangaAgent.App.csproj / MangaAgent.Core.csproj | 发布目录 0 个 MangaAgent 残留文件（已核验） |
+| 9-2 | **数据目录改名**：`%LOCALAPPDATA%\MangaAgent` → `%LOCALAPPDATA%\HachimiManga`（设置/阅读状态 reading.db/日志 logs 共 4 处代码）；日志文件名 app-*.log → hachimi-*.log（文件名+轮转 glob） | App.axaml.cs / MainWindowViewModel.cs / SettingsStore.cs | 旧目录数据不迁移（新版本全新开始；分享场景无需迁移） |
+| 9-3 | **guide/usage.md 重写**（DefaultGuide 模板同步）：软件使用介绍（基本操作/三种模式/预览栏/快捷键/设置/数据与隐私）+ 作者的话（留空）+ 示例图 `!img:images/example.png`（示范插图语法）；移除"插图说明"教程节（用户指定：那是作者自定义插图用的，不是读者介绍） | SettingsStore.cs（DefaultGuide）/ app\guide\usage.md / app\guide\images\example.png（生成占位图） | 设置窗口"使用介绍"页签显示新内容 |
+| 9-4 | **绿色版打包**：`tools\pack-release.ps1`（publish → robocopy /MIR → staging+guide → Compress-Archive），产出 `app\dist\HachimiManga-v1.0-win-x64.zip`（72MB，含顶层 HachimiManga\ + guide\）；dist/ 加入 .gitignore；冒烟通过（解压运行 6s，进程名 HachimiManga） | tools\pack-release.ps1 / .gitignore / app\dist\ | zip 只含程序+guide，无任何用户数据（发布目录已核验纯净） |
+
+### 打包脚本踩坑备忘
+- **PS 5.1 无 BOM UTF-8 脚本中文注释会乱码污染解析**（`$dotnet` 变量被破坏 → "expression after '&' produced an object that was not valid"）→ pack-release.ps1 保持纯 ASCII 注释
+- **PS 5.1 反引号续行 + `-p:` 参数解析不稳** → publish 命令写单行
+- **PS 5.1 `$ErrorActionPreference='Stop'` 会把外部命令（dotnet）的 stderr 当异常中断执行** → 不用 EAP，靠 $LASTEXITCODE 判断
+- robocopy 退出码 0-7 均算成功（>7 才是失败），打包脚本按此判断
+
+---
+
 ## 七、验证状态
 
+- **对外发布（Hachimi Manga）：67/67 自动化测试通过，build 0 警告**（改名后全量回归；绿色版 HachimiManga-v1.0-win-x64.zip 72MB，冒烟通过）
 - **code-audit（P0–P3）：67/67 自动化测试通过，build 0 警告**（LoadSizes 异步化/Zip 线程安全/压力测试新增 2 项；发布版已更新，冒烟通过）
 - **v4（2.10）：62/62 自动化测试通过**（设置系统 + 快捷键查表 + 整页跳 + 基础修改；发布版已更新，冒烟通过）
 - **v3.2（2.8）：58/58 自动化测试通过**（滚轮按视口归一化一档≈80%屏、适应高度铺满视口高）
