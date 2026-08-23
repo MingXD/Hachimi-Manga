@@ -88,7 +88,14 @@ public class SettingsDialog : Window
         _doubleClick = new ComboBox { ItemsSource = new[] { "放大", "复位", "无动作" }, SelectedIndex = _copy.DoubleClickAction switch { "Reset" => 1, "None" => 2, _ => 0 }, Width = 120, HorizontalAlignment = HorizontalAlignment.Left };
         _defaultFit = new ComboBox { ItemsSource = new[] { "适应屏幕", "适应宽度" }, SelectedIndex = _copy.DefaultFitMode == "FitWidth" ? 1 : 0, Width = 120, HorizontalAlignment = HorizontalAlignment.Left };
         _pagedWheel = new ComboBox { ItemsSource = new[] { "缩放", "翻页" }, SelectedIndex = _copy.PagedWheelMode == "Page" ? 1 : 0, Width = 120, HorizontalAlignment = HorizontalAlignment.Left };
-        var tab1 = new ScrollViewer { Content = new StackPanel { Margin = new Thickness(14), Spacing = 10, HorizontalAlignment = HorizontalAlignment.Stretch, Children =
+        var tab1 = new ScrollViewer
+        {
+            Content = new StackPanel
+            {
+                Margin = new Thickness(14),
+                Spacing = 10,
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                Children =
         {
             Card("阅读基准",
                 SettingRow("缩放速度基准", _zoomBase, _zoomBaseT, "滚轮缩放每格幅度（0.2~4.0）"),
@@ -107,16 +114,27 @@ public class SettingsDialog : Window
                 SettingRow("缓存页数", _cacheCap, _cacheCapT, "位图缓存上限（流畅 vs 内存）"),
                 SettingRow("分页滚轮行为", _pagedWheel, null, "分页模式下滚轮 = 缩放 或 翻页"),
                 SettingRow("滚动方向反转", _invert, null, "自然滚动（滚轮方向反转）")),
-        } } };
+        }
+            }
+        };
 
         // —— 页签二：快捷键（四组竖排卡片）——
         RebuildHotkeyCards();
-        var tab2 = new ScrollViewer { Content = new StackPanel { Margin = new Thickness(14), Spacing = 8, HorizontalAlignment = HorizontalAlignment.Stretch, Children =
+        var tab2 = new ScrollViewer
+        {
+            Content = new StackPanel
+            {
+                Margin = new Thickness(14),
+                Spacing = 8,
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                Children =
         {
             new TextBlock { Text = "点击键块 = 替换该键；右键键块 = 删除；行尾 [+] = 新增一个键。支持组合键（如 Ctrl+Shift+P）。", Foreground = Brushes.Gray, FontSize = 11 },
             _captureHint,
             _hotkeyRoot,
-        } } };
+        }
+            }
+        };
 
         // —— 页签三：使用介绍（卡片包裹，内容/图片随窗口宽度自适应）——
         var (guideStack, guideImages) = RenderGuideContent();
@@ -307,15 +325,19 @@ public class SettingsDialog : Window
     {
         var slider = new Slider
         {
-            Minimum = min, Maximum = max, Value = value,
+            Minimum = min,
+            Maximum = max,
+            Value = value,
             HorizontalAlignment = HorizontalAlignment.Stretch,
             VerticalAlignment = VerticalAlignment.Center,
-            IsSnapToTickEnabled = true, TickFrequency = isInt ? 1 : 0.1,
+            IsSnapToTickEnabled = true,
+            TickFrequency = isInt ? 1 : 0.1,
         };
         var box = new TextBox
         {
             Text = isInt ? ((int)value).ToString() : value.ToString("0.0"),
-            VerticalAlignment = VerticalAlignment.Center, TextAlignment = TextAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            TextAlignment = TextAlignment.Center,
             Margin = new Thickness(8, 0, 0, 0),
         };
         slider.ValueChanged += (_, _) => { if (!box.IsFocused) box.Text = isInt ? ((int)slider.Value).ToString() : slider.Value.ToString("0.0"); };
@@ -442,16 +464,25 @@ public class SettingsDialog : Window
             var parts = token.Split('+');
             return string.Join("+", parts.Take(parts.Length - 1).Select(m => m switch
             {
-                "Ctrl" => "Ctrl", "Shift" => "Shift", "Alt" => "Alt", _ => m,
+                "Ctrl" => "Ctrl",
+                "Shift" => "Shift",
+                "Alt" => "Alt",
+                _ => m,
             })) + (parts.Length > 1 ? "+" : "") + parts[^1];
         }
         return token switch
         {
-            "OemPlus" => "+", "Add" => "Num+",
-            "OemMinus" => "−", "Subtract" => "Num−",
+            "OemPlus" => "+",
+            "Add" => "Num+",
+            "OemMinus" => "−",
+            "Subtract" => "Num−",
             "Space" => "空格",
-            "PageDown" => "PgDn", "PageUp" => "PgUp",
-            "Left" => "←", "Right" => "→", "Up" => "↑", "Down" => "↓",
+            "PageDown" => "PgDn",
+            "PageUp" => "PgUp",
+            "Left" => "←",
+            "Right" => "→",
+            "Up" => "↑",
+            "Down" => "↓",
             _ => token,
         };
     }

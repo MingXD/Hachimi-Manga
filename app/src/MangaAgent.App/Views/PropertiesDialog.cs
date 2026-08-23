@@ -10,9 +10,13 @@ public static class PropertiesDialog
     public static void Show(BookInfo book)
     {
         long size = 0;
-        try { size = Directory.Exists(book.Path)
+        try
+        {
+            size = Directory.Exists(book.Path)
             ? Directory.GetFiles(book.Path).Sum(f => new FileInfo(f).Length)
-            : new FileInfo(book.Path).Length; } catch { }
+            : new FileInfo(book.Path).Length;
+        }
+        catch { }
         var info = new TextBlock
         {
             Text = $"名称：{book.Title}\n路径：{book.Path}\n类型：{(book.Kind == BookKind.Zip ? "CBZ 压缩包" : "文件夹")}\n页数：{book.PageCount}\n大小：{size / 1024d / 1024d:F1} MB\n修改时间：{book.ModifiedAt:yyyy-MM-dd HH:mm}",
