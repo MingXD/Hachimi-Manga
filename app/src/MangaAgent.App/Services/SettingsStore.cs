@@ -173,7 +173,7 @@ public static class SettingsStore
         catch { }
     }
 
-    /// <summary>默认使用介绍模板（用户可直接编辑；插图：图片放入 guide\images，正文写 !img:images/文件名）。</summary>
+    /// <summary>默认使用介绍模板（用户可直接编辑）。</summary>
     public static string DefaultGuide => """
 # Hachimi Manga 使用介绍
 
@@ -216,20 +216,5 @@ public static class SettingsStore
 - 设置、阅读进度、书签、日志全部保存在本机 %LOCALAPPDATA%\HachimiManga，
   程序不上传、不联网；删除该目录即可清空全部数据
 
----
-
-## 作者的话
-
-（此处留空，作者自填）
-
----
-
-!img:images/example.png
-
-（示例图片：把想要展示的图放入本目录的 images 子文件夹，
- 在正文需要的位置写一行 !img:images/你的图片文件名.png 即可）
-
----
-（本文件路径：exe 旁 guide\usage.md（或 %LOCALAPPDATA%\HachimiManga\guide\usage.md），直接编辑即可更新介绍）
 """;
 }

@@ -39,18 +39,4 @@
 - 设置、阅读进度、书签、日志全部保存在本机 %LOCALAPPDATA%\HachimiManga，
   程序不上传、不联网；删除该目录即可清空全部数据
 
----
 
-## 作者的话
-
-（此处留空，作者自填）
-
----
-
-!img:images/example.png
-
-（示例图片：把想要展示的图放入本目录的 images 子文件夹，
- 在正文需要的位置写一行 !img:images/你的图片文件名.png 即可）
-
----
-（本文件路径：exe 旁 guide\usage.md（或 %LOCALAPPDATA%\HachimiManga\guide\usage.md），直接编辑即可更新介绍）
