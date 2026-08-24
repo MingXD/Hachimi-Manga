@@ -35,3 +35,6 @@ reference/fixtures/big/
 
 # User test comics
 /test-file/
+
+# Agent test screenshots
+reference/screenshots/
