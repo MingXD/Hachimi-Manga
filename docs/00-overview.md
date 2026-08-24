@@ -59,7 +59,7 @@
 | reference/ | 参考资料（links 链接存档、research-raw 原始抓取材料） |
 | app/ | 软件代码（Avalonia 12 / .NET 9，已实施） |
 | tools/ | 开发辅助脚本（make-fixtures.ps1 / run.ps1） |
-| test-file/ | 用户真实测试书（realbook 等） |
+| test-file/ | 本地测试书（不入库，已被 .gitignore 排除） |
 
 ## 决策流程约定
 调研 → 方案设计 → **用户审阅并决策** → 实施（用户明确批准后才开始写软件代码）→ 验证 → 记录归档。

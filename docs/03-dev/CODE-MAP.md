@@ -17,7 +17,7 @@ D:\MangaAgent\
 │  │  ├─ ViewModels\          # MVVM 视图模型
 │  │  └─ Services\            # 设置存储 / 缩略图服务
 │  ├─ src\MangaAgent.Tests\   # xUnit 测试（headless Avalonia）
-│  └─ publish\                # 发布版（自包含，双击运行）
+│  └─ publish\ / dist\        # 发布产物（可再生成，不入库，被 .gitignore 排除）
 ├─ docs\
 │  ├─ 01-research\            # 调研
 │  ├─ 02-design\              # 方案设计（settings-system, settings-dialog-v2 等）

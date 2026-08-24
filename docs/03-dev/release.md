@@ -11,13 +11,16 @@
 源码 → build(Debug 验证) → test(全量) → publish(Release+自包含) → robocopy 到 app\publish → 冒烟验证
 ```
 
-最终产物：**app\publish\MangaAgent.App.exe**（self-contained，~208MB / ~230 文件，双击运行）。
+最终产物：
+- **app\publish\HachimiManga.exe**（self-contained，~208MB / ~230 文件，双击运行）
+- **app\dist\HachimiManga-<ver>-win-x64.zip**（绿色版 zip，含 guide\，可直接分发）
+- 两者均为**可再生成产物，不入库**（`.gitignore` 排除 `publish/`、`dist/`、`bin/`、`obj/`）
 
 ## 二、完整流程（按顺序执行）
 
 ### 0. 前置：清理残留进程（防文件锁导致 publish 失败）
 ```powershell
-taskkill /F /IM MangaAgent.App.exe /T 2>$null
+taskkill /F /IM HachimiManga.exe /T 2>$null
 taskkill /F /IM testhost.exe /T 2>$null
 taskkill /F /IM dotnet.exe /T 2>$null
 ```
@@ -36,7 +39,7 @@ $env:DOTNET_CLI_USE_MSBUILD_SERVER = "0"
 ```powershell
 & "$env:LOCALAPPDATA\Microsoft\dotnet\dotnet.exe" test src\MangaAgent.Tests -m:1 -p:UseSharedCompilation=false
 ```
-期望：**37/37 通过**（基线随版本变化；改完代码后新增测试会 +N）。
+期望：**67/67 通过**（基线随版本变化；改完代码后新增测试会 +N，见 v2-changes-record.md 验证状态）。
 
 ### 3. Release 发布
 ```powershell
@@ -53,15 +56,22 @@ robocopy D:\MangaAgent\app\src\MangaAgent.App\bin\Release\net9.0\win-x64\publish
 
 ### 5. 冒烟验证（发布版能启动）
 ```powershell
-$p = Start-Process 'D:\MangaAgent\app\publish\MangaAgent.App.exe' -PassThru
+$p = Start-Process 'D:\MangaAgent\app\publish\HachimiManga.exe' -PassThru
 Start-Sleep -Seconds 5
 Get-Process -Id $p.Id   # 存活 = OK；退出 = 崩溃
 Stop-Process -Id $p.Id -Force
 ```
 
+### 5.5 一键打包绿色版 zip（可选，替代手工 3+4+5）
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File D:\MangaAgent\tools\pack-release.ps1
+```
+脚本 = publish → robocopy 到 app\publish → 组装 app\dist\HachimiManga\<ver>\（含 guide\）→ 打 zip 到 app\dist\。
+发版前在脚本头部 `$ver` 递增版本号。输出 zip 可上传 GitHub Releases 分发。
+
 ### 6. 记录
-- commit 提交信息注明功能 + 测试数（如 `37/37通过`）
-- 更新 docs/03-dev/v2-changes-record.md 验证状态 + README 版本历史
+- commit 提交信息注明功能 + 测试数（如 `67/67通过`）
+- 更新 docs/03-dev/v2-changes-record.md 验证状态 + docs/03-dev/README.md 测试基线 + README 版本历史
 
 ---
 
@@ -96,9 +106,10 @@ Debug 构建是框架依赖 + 未优化，且不含运行时；目标机无 .NET
 ## 五、验证清单（发布前确认）
 
 - [ ] build 0 错误
-- [ ] 全量测试通过（37/37 基线）
-- [ ] publish 输出目录存在且含 MangaAgent.App.exe
+- [ ] 全量测试通过（67/67 基线）
+- [ ] publish 输出目录存在且含 HachimiManga.exe
 - [ ] robocopy 后 app\publish 时间戳为最新
+- [ ] （可选）pack-release.ps1 生成的 zip 在 app\dist\ 且可解压运行
 - [ ] 发布版启动存活 ≥5 秒
 - [ ] git 无未提交改动（或已按需提交）
 
