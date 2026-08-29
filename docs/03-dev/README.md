@@ -17,6 +17,10 @@
 | [release.md](release.md) | **发布流程（Release 打包/原理/环境坑位，发布前必读）** |
 | [preview-strip-design.md](preview-strip-design.md) / [preview-strip-final.md](preview-strip-final.md) | 预览栏方案设计 / 最终方案（含实施后现状） |
 | [code-audit-optimization-plan.md](code-audit-optimization-plan.md) | 代码审计与优化计划（P0–P3） |
+| [process-recording.md](process-recording.md) | **长程任务过程记录约定（完成长程任务必写：问题/原因/解决/耗时/耗token/规避）** |
+
+## 过程记录（长程任务）
+→ [process-records/](process-records/)（按 `YYYY-MM-DD-<简述>.md` 命名；首个记录：2026-08-25-env-build-setup.md）
 
 ## Bug 跟踪
 → [bugs/README.md](bugs/README.md)（BUG-001~007，均 ✅ 已修复）

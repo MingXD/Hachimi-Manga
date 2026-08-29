@@ -177,6 +177,8 @@ D:\MangaAgent\
 - 提交信息风格：`类型(范围): 中文描述；测试数`（例：`feat(v5.2): 设置扩展 + 阅读页布局；65/65 通过`）
 - 代码规范：`docs/03-dev/conventions.md`（dotnet format 统一：4 空格/CRLF/UTF-8 去 BOM）
 - 测试要求：改阅读器 / 库 / 设置逻辑必须带回归测试（xUnit，headless Avalonia）
+- **长程任务过程记录**：完成长程任务（多轮/踩坑）后，除结果外必须写过程记录（过程简述/问题/原因/解决/最耗时/最耗 token/规避方案）→ `docs/03-dev/process-records/`，约定见 `docs/03-dev/process-recording.md`
+- **DSH 项目记忆**：根目录 `AGENTS.md` 由 DSH 自动加载（工作流要点 + 环境坑位），`.dsh/skills/` 为项目级技能（如 `process-record`），随仓库版本管理
 
 ---
 
