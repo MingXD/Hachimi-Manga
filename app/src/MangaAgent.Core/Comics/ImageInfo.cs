@@ -26,8 +26,12 @@ public static class ImageInfo
             posA = na.Index + na.Length; posB = nb.Index + nb.Length;
             ia++; ib++;
         }
-        if (ia < ma.Count) return 1;
-        if (ib < mb.Count) return -1;
+        // 一方数字块耗尽：剩余还有数字的一方排前（数字优先，与 Windows 资源管理器自然排序一致）。
+        // 修复（v3 #14）：原实现两个分支方向写反（return 1 / return -1 互换前），
+        // 导致"xy" vs "_1" 两个方向都返回 -1 → 比较器违反反对称性 → List.Sort 结果不可预测，
+        // 字母命名的后记页（如 xy）常排到数字正文页（_1、0002…）之前成为封面。
+        if (ia < ma.Count) return -1;   // a 还有数字块 → a 排前
+        if (ib < mb.Count) return 1;    // b 还有数字块 → b 排前
         return string.Compare(a, b, StringComparison.OrdinalIgnoreCase);
     }
 

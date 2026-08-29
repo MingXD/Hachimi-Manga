@@ -258,4 +258,41 @@ public class SettingsSystemTests
             try { File.Delete(db); } catch { }
         }
     }
+
+    /// <summary>v3 #2a 回归：滚动模式续读不再丢失（原实现 SaveState 把 Webtoon 存成 Single → 恢复成单页）。</summary>
+    [AvaloniaFact]
+    public async Task Resume_Webtoon_Mode_Preserved()
+    {
+        var db = Path.Combine(Path.GetTempPath(), $"manga_wtf23_{Guid.NewGuid():N}.db");
+        var oldMode = ReaderViewModel.DefaultMode;
+        var oldResume = ReaderViewModel.ResumePosition;
+        try
+        {
+            // 1) 打开 → 切到滚动模式 → 翻几页 → 保存（Dispose 触发 SaveState）
+            ReaderViewModel.ResumePosition = true;
+            ReaderViewModel.DefaultMode = ViewMode.Single;
+            var vm1 = new ReaderViewModel(StressBook, db);
+            await WaitUntilAsync(() => vm1.Image1 is not null);
+            vm1.ToggleModeCommand.Execute(null);   // Single -> Double
+            vm1.ToggleModeCommand.Execute(null);   // Double -> Webtoon
+            await WaitUntilAsync(() => vm1.ViewMode == ViewMode.Webtoon);
+            for (int i = 0; i < 10; i++) vm1.NextPageCommand.Execute(null);
+            await Task.Delay(300);
+            await vm1.DisposeAsync();
+
+            // 2) 重新打开（续读开）→ 应恢复 Webtoon 模式
+            ReaderViewModel.DefaultMode = ViewMode.Single;
+            ReaderViewModel.ResumePosition = true;
+            var vm2 = new ReaderViewModel(StressBook, db);
+            await WaitUntilAsync(() => vm2.ViewMode == ViewMode.Webtoon);
+            Assert.Equal(ViewMode.Webtoon, vm2.ViewMode);
+            await vm2.DisposeAsync();
+        }
+        finally
+        {
+            ReaderViewModel.DefaultMode = oldMode;
+            ReaderViewModel.ResumePosition = oldResume;
+            try { File.Delete(db); } catch { }
+        }
+    }
 }

@@ -351,7 +351,39 @@ public partial class ReaderWindow : Window
             case ReaderAction.TogglePreview:
                 TogglePreviewStrip();
                 break;
+            case ReaderAction.GoHome:
+                OnGoHomeClick(this, new RoutedEventArgs());
+                break;
+            case ReaderAction.GoEnd:
+                OnGoEndClick(this, new RoutedEventArgs());
+                break;
         }
+    }
+
+    /// <summary>一键首页（v3 #8）：滚动模式滚动到物理页 0；分页模式走 VM 命令。</summary>
+    private void OnGoHomeClick(object? sender, RoutedEventArgs e)
+    {
+        if (_vm is null) return;
+        App.SLog($"BTN 首页点击");
+        if (_vm.ViewMode == ViewMode.Webtoon)
+        {
+            _vm.JumpToPhysicalCommand.Execute(0);
+            ScrollWebtoonToPhysical(0);
+        }
+        else _vm.GoHomeCommand.Execute(null);
+    }
+
+    /// <summary>一键末页（v3 #8）：滚动模式滚动到最后一物理页；分页模式走 VM 命令。</summary>
+    private void OnGoEndClick(object? sender, RoutedEventArgs e)
+    {
+        if (_vm is null) return;
+        App.SLog($"BTN 末页点击");
+        if (_vm.ViewMode == ViewMode.Webtoon)
+        {
+            _vm.JumpToPhysicalCommand.Execute(_vm.PhysicalPageCount - 1);
+            ScrollWebtoonToPhysical(_vm.PhysicalPageCount - 1);
+        }
+        else _vm.GoEndCommand.Execute(null);
     }
 
 }

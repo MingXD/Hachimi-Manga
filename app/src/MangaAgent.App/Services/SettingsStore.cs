@@ -21,6 +21,8 @@ public enum ReaderAction
     ZoomIn,            // 放大
     ZoomOut,           // 缩小
     TogglePreview,     // 预览栏开关
+    GoHome,            // 一键首页（v3 #8）
+    GoEnd,             // 一键末页（v3 #8）
 }
 
 /// <summary>应用设置（settings.json 持久化；用户可直接编辑文件）。</summary>
@@ -63,6 +65,8 @@ public class AppSettings
             [nameof(ReaderAction.ZoomIn)] = new() { "OemPlus", "Add" },
             [nameof(ReaderAction.ZoomOut)] = new() { "OemMinus", "Subtract" },
             [nameof(ReaderAction.TogglePreview)] = new() { "P" },
+            [nameof(ReaderAction.GoHome)] = new() { "Home" },
+            [nameof(ReaderAction.GoEnd)] = new() { "End" },
         };
         return new()
         {

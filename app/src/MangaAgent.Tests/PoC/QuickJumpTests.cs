@@ -58,4 +58,46 @@ public class QuickJumpTests
         }
         finally { try { File.Delete(db); } catch { } }
     }
+
+    /// <summary>v3 #8 回归：一键首页/末页（单页=物理页边界，双页=逻辑页边界，滚动=物理页边界）。</summary>
+    [AvaloniaFact]
+    public async Task GoHome_GoEnd_Navigate_To_Boundaries()
+    {
+        var db = Path.Combine(Path.GetTempPath(), $"manga_home_{Guid.NewGuid():N}.db");
+        try
+        {
+            var vm = new ReaderViewModel(StressBook, db);
+            await WaitUntilAsync(() => vm.Image1 is not null);
+
+            // 单页模式：翻到中间 → GoHome 回物理页 0 → GoEnd 到最后一物理页
+            vm.NextPageCommand.Execute(null);
+            vm.NextPageCommand.Execute(null);
+            vm.GoHomeCommand.Execute(null);
+            await Task.Delay(200);
+            Assert.Equal(0, vm.CurrentPhysical);
+            vm.GoEndCommand.Execute(null);
+            await Task.Delay(200);
+            Assert.Equal(vm.PhysicalPageCount - 1, vm.CurrentPhysical);
+
+            // 双页模式：GoHome → 逻辑页 0（封面单页）；GoEnd → 最后逻辑页
+            vm.ToggleModeCommand.Execute(null);   // Single -> Double
+            await WaitUntilAsync(() => vm.ViewMode == ViewMode.Double);
+            vm.GoHomeCommand.Execute(null);
+            await Task.Delay(200);
+            Assert.Equal(0, vm.CurrentIndex);
+            vm.GoEndCommand.Execute(null);
+            await Task.Delay(200);
+            Assert.Equal(vm.TotalLogical - 1, vm.CurrentIndex);
+
+            // 滚动模式：GoHome → 物理页 0
+            vm.ToggleModeCommand.Execute(null);   // Double -> Webtoon
+            await WaitUntilAsync(() => vm.ViewMode == ViewMode.Webtoon);
+            vm.GoHomeCommand.Execute(null);
+            await Task.Delay(200);
+            Assert.Equal(0, vm.CurrentPhysical);
+
+            await vm.DisposeAsync();
+        }
+        finally { try { File.Delete(db); } catch { } }
+    }
 }

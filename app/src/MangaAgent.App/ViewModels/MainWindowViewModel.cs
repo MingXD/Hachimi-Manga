@@ -185,6 +185,61 @@ public partial class MainWindowViewModel : ViewModelBase
         if (CurrentFolder?.Parent is { } parent) ShowFolderContents(parent);
     }
 
+    /// <summary>新建文件夹（v3 #6）：弹对话框输入名称 → 在当前目录创建 → 刷新并保持位置。</summary>
+    [RelayCommand]
+    private void NewFolder()
+    {
+        if (CurrentFolder is null) return;
+        var name = MangaAgent.App.Views.NewFolderDialog.Show();
+        if (string.IsNullOrWhiteSpace(name)) return;
+        StatusText = NewFolderCore(CurrentFolder.Path, name);
+        if (StatusText.StartsWith("已创建"))
+            _ = RefreshTreeKeepFolderAsync();
+    }
+
+    /// <summary>新建文件夹纯逻辑（测试入口）：返回状态消息。</summary>
+    public string NewFolderCore(string parentDir, string name)
+    {
+        try
+        {
+            var target = Path.Combine(parentDir, name);
+            if (Directory.Exists(target) || File.Exists(target)) return $"同名条目已存在：{name}";
+            Directory.CreateDirectory(target);
+            App.SLog($"NEWFOLDER {target}");
+            return $"已创建：{name}";
+        }
+        catch (Exception ex)
+        {
+            App.SLog($"NEWFOLDER FAIL {parentDir}\\{name}: {ex.Message}");
+            return $"创建失败：{ex.Message}";
+        }
+    }
+
+    /// <summary>重建当前库树并保持当前目录位置（新建/删除文件夹后调用，避免跳到库根）。</summary>
+    private async Task RefreshTreeKeepFolderAsync()
+    {
+        if (SelectedLibrary is null || CurrentFolder is null) return;
+        try
+        {
+            var tree = await MangaAgent.Core.Library.FolderTreeScanner.ScanAsync(SelectedLibrary.Path);
+            FolderTree.Clear();
+            FolderTree.Add(tree);
+            // 沿当前路径（根后各级名称）找新节点
+            var names = CurrentFolder.PathChain.Select(n => n.Name).Skip(1).ToList();
+            var node = tree;
+            foreach (var n in names)
+            {
+                node = node.Children.FirstOrDefault(c => c.Name == n);
+                if (node is null) break;
+            }
+            if (node is not null) ShowFolderContents(node);
+        }
+        catch (Exception ex)
+        {
+            App.SLog($"REFRESH_TREE_KEEP FAIL: {ex.Message}");
+        }
+    }
+
     /// <summary>面包屑跳转。</summary>
     [RelayCommand]
     private void NavigateBreadcrumb(MangaAgent.Core.Library.FolderNode? folder)
@@ -227,6 +282,12 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             if (CurrentFolder is not null) ShowFolderContents(CurrentFolder);
         });
+        // v3 #3：复制/移动失败 → 弹窗 + 状态栏（不再静默）
+        item.NotifyError = msg =>
+        {
+            StatusText = msg;
+            Avalonia.Threading.Dispatcher.UIThread.Post(() => MangaAgent.App.Views.AlertDialog.Show(msg));
+        };
         item.PickTargetFolderAction = async () =>
         {
             var window = GetOwnerWindow?.Invoke();

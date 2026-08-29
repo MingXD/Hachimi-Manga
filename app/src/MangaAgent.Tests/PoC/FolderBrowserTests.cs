@@ -160,6 +160,35 @@ public class FolderBrowserTests
         }
     }
 
+    [Fact]
+    public void NewFolder_Creates_Directory_And_Reports_Errors()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"manga_newfolder_{Guid.NewGuid():N}");
+        try
+        {
+            Directory.CreateDirectory(Path.Combine(root, "existing"));
+            var vm = new MainWindowViewModel();
+
+            // 成功创建
+            var msg = vm.NewFolderCore(root, "NewDir");
+            Assert.Equal("已创建：NewDir", msg);
+            Assert.True(Directory.Exists(Path.Combine(root, "NewDir")));
+
+            // 同名已存在
+            var dup = vm.NewFolderCore(root, "existing");
+            Assert.Contains("同名条目已存在", dup);
+
+            // 非法文件名（Windows 保留字符）
+            var bad = vm.NewFolderCore(root, "bad<name");
+            Assert.Contains("创建失败", bad);
+            Assert.False(Directory.Exists(Path.Combine(root, "bad<name")));
+        }
+        finally
+        {
+            try { Directory.Delete(root, true); } catch { }
+        }
+    }
+
     [AvaloniaFact]
     public async Task Stats_MN_Direct_X_Recursive_And_Format_Branches()
     {

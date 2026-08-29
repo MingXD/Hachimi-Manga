@@ -54,8 +54,8 @@ public static class FileOps
             Process.Start("explorer.exe", $"/select,\"{path}\"");
     }
 
-    /// <summary>复制到目标目录（文件或文件夹递归）。目标已存在同名 → 追加后缀。</summary>
-    public static bool CopyTo(string path, string destDir)
+    /// <summary>复制到目标目录（文件或文件夹递归）。目标已存在同名 → 追加后缀。返回 (成功, 错误信息)。</summary>
+    public static (bool Ok, string? Error) CopyTo(string path, string destDir)
     {
         try
         {
@@ -72,34 +72,62 @@ public static class FileOps
             {
                 File.Copy(path, dest);
             }
-            else return false;
-            return true;
+            else return (false, "源路径不存在");
+            return (true, null);
         }
-        catch { return false; }
+        catch (Exception ex) { return (false, ex.Message); }
     }
 
-    /// <summary>移动到目标目录（同盘优先 rename，跨盘复制+删除）。</summary>
-    public static bool MoveTo(string path, string destDir)
+    /// <summary>移动到目标目录：同卷优先 Move；跨卷回退"复制+删除源"（复制成功才删源，防数据丢失）。
+    /// v3 #3 修复：原实现 File.Move/Directory.Move 跨卷必抛 IOException 且被静默吞掉 → 用户看到"没反应"；
+    /// 现返回错误信息、处理源=目标/子目录等异常。</summary>
+    public static (bool Ok, string? Error) MoveTo(string path, string destDir)
     {
         try
         {
             Directory.CreateDirectory(destDir);
+            // v3 #3：目标目录就是源所在目录 → 拒绝（否则 UniquePath 会把"移动到自己目录"意外变成重命名 (2)）
+            if ((Directory.Exists(path) || File.Exists(path)) &&
+                string.Equals(Path.GetDirectoryName(Path.GetFullPath(path.TrimEnd('\\'))),
+                    Path.GetFullPath(destDir).TrimEnd('\\'), StringComparison.OrdinalIgnoreCase))
+                return (false, "源与目标目录相同");
             var name = Path.GetFileName(path.TrimEnd('\\'));
             if (string.IsNullOrEmpty(name)) name = new DirectoryInfo(path).Name;
             var dest = Path.Combine(destDir, name);
             dest = UniquePath(dest);
             if (Directory.Exists(path))
             {
-                Directory.Move(path, dest);
+                if (Path.GetFullPath(path).Equals(Path.GetFullPath(dest), StringComparison.OrdinalIgnoreCase))
+                    return (false, "源与目标相同");
+                if (IsSubPath(dest, path))
+                    return (false, "目标不能是源文件夹的子目录");
+                if (SameVolume(path, dest)) Directory.Move(path, dest);
+                else { CopyDirectory(path, dest); Directory.Delete(path, true); }
             }
             else if (File.Exists(path))
             {
-                File.Move(path, dest);
+                if (Path.GetFullPath(path).Equals(Path.GetFullPath(dest), StringComparison.OrdinalIgnoreCase))
+                    return (false, "源与目标相同");
+                if (SameVolume(path, dest)) File.Move(path, dest);
+                else { File.Copy(path, dest); File.Delete(path); }
             }
-            else return false;
-            return true;
+            else return (false, "源路径不存在");
+            return (true, null);
         }
-        catch { return false; }
+        catch (Exception ex) { return (false, ex.Message); }
+    }
+
+    /// <summary>同卷判断（跨卷时 File.Move/Directory.Move 不支持，须回退复制+删源）。</summary>
+    public static bool SameVolume(string a, string b)
+        => string.Equals(Path.GetPathRoot(Path.GetFullPath(a)), Path.GetPathRoot(Path.GetFullPath(b)),
+            StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>child 是否位于 parent 目录之内（含同级子路径判定）。</summary>
+    private static bool IsSubPath(string child, string parent)
+    {
+        var fullChild = Path.GetFullPath(child).TrimEnd('\\') + "\\";
+        var fullParent = Path.GetFullPath(parent).TrimEnd('\\') + "\\";
+        return fullChild.StartsWith(fullParent, StringComparison.OrdinalIgnoreCase);
     }
 
     private static string UniquePath(string dest)

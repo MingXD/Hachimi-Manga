@@ -61,6 +61,7 @@
         <Border DockPanel.Dock="Top" Padding="10,5" Background="#14141A">
           <DockPanel>
             <Button DockPanel.Dock="Left" Content="⬆ 上级" Command="{Binding GoUpCommand}" Margin="0,0,8,0"/>
+            <Button DockPanel.Dock="Left" Content="＋新建文件夹" Command="{Binding NewFolderCommand}" Margin="0,0,8,0" ToolTip.Tip="在当前目录新建文件夹"/>
             <ItemsControl ItemsSource="{Binding Breadcrumbs}" Margin="8,0,0,0" VerticalAlignment="Center">
               <ItemsControl.ItemsPanel>
                 <ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate>

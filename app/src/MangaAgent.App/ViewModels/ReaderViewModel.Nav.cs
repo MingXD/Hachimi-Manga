@@ -195,4 +195,27 @@ public partial class ReaderViewModel
     {
         if (page >= 0 && page < TotalLogical) { CurrentIndex = page; SaveState(); }
     }
+
+    /// <summary>一键首页（v3 #8）：单页=物理页0；双页/滚动=逻辑页0（封面）。滚动模式的视图滚动由视图层负责。</summary>
+    [RelayCommand]
+    private void GoHome()
+    {
+        if (_logical.Count == 0) return;
+        if (ViewMode == ViewMode.Single || ViewMode == ViewMode.Webtoon) SetCurrentPhysical(0);
+        else JumpToPage(0);
+        App.SLog($"HOME -> phys {CurrentPhysical + 1}/{_source.PageCount}");
+        SaveState();
+    }
+
+    /// <summary>一键末页（v3 #8）：单页=最后一物理页；双页=最后逻辑页；滚动=最后一物理页。</summary>
+    [RelayCommand]
+    private void GoEnd()
+    {
+        if (_logical.Count == 0) return;
+        if (ViewMode == ViewMode.Single) SetCurrentPhysical(_source.PageCount - 1);
+        else if (ViewMode == ViewMode.Webtoon) SetCurrentPhysical(_source.PageCount - 1);
+        else JumpToPage(_logical.Count - 1);
+        App.SLog($"END -> phys {CurrentPhysical + 1}/{_source.PageCount}");
+        SaveState();
+    }
 }

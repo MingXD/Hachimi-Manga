@@ -25,6 +25,9 @@ public partial class FolderEntryItemViewModel : ViewModelBase
     /// <summary>操作后刷新（删除/重命名/复制/移动后重建列表）。</summary>
     public Action? RefreshAction { get; set; }
 
+    /// <summary>文件操作失败提示（v3 #3：复制/移动失败不再静默，注入弹窗/状态栏显示错误）。</summary>
+    public Action<string>? NotifyError { get; set; }
+
     /// <summary>源路径（文件夹或书）。</summary>
     public string SourcePath => IsFolder ? (Folder?.Path ?? "") : (Book?.Path ?? "");
 
@@ -185,9 +188,11 @@ public partial class FolderEntryItemViewModel : ViewModelBase
         if (SourcePath.Length == 0 || PickTargetFolderAction is null) return;
         var dest = await PickTargetFolderAction();
         if (string.IsNullOrEmpty(dest)) return;
-        var ok = MangaAgent.Core.Library.FileOps.CopyTo(SourcePath, dest);
+        // v3 #3：异步执行（原同步 File.Copy 大文件夹会卡 UI）+ 失败显示原因
+        var (ok, error) = await Task.Run(() => MangaAgent.Core.Library.FileOps.CopyTo(SourcePath, dest));
         if (ok) RefreshAction?.Invoke();
-        global::MangaAgent.App.App.SLog($"COPY {SourcePath} -> {dest} ok={ok}");
+        else NotifyError?.Invoke($"复制失败：{error}");
+        global::MangaAgent.App.App.SLog($"COPY {SourcePath} -> {dest} ok={ok} err={error}");
     }
 
     [RelayCommand]
@@ -196,8 +201,10 @@ public partial class FolderEntryItemViewModel : ViewModelBase
         if (SourcePath.Length == 0 || PickTargetFolderAction is null) return;
         var dest = await PickTargetFolderAction();
         if (string.IsNullOrEmpty(dest)) return;
-        var ok = MangaAgent.Core.Library.FileOps.MoveTo(SourcePath, dest);
+        // v3 #3：异步执行 + 跨卷回退复制删源（FileOps.MoveTo）+ 失败显示原因
+        var (ok, error) = await Task.Run(() => MangaAgent.Core.Library.FileOps.MoveTo(SourcePath, dest));
         if (ok) RefreshAction?.Invoke();
-        global::MangaAgent.App.App.SLog($"MOVE {SourcePath} -> {dest} ok={ok}");
+        else NotifyError?.Invoke($"移动失败：{error}");
+        global::MangaAgent.App.App.SLog($"MOVE {SourcePath} -> {dest} ok={ok} err={error}");
     }
 }

@@ -21,8 +21,14 @@ public partial class ReaderViewModel
         // v5.2：设置"续读"关 → 忽略保存状态（从第 1 页、用默认模式）
         if (!ResumePosition) saved = null;
         // 无保存状态 → 用设置"默认阅读模式"；有 → 尊重保存的模式（BUG-A v1.9：状态存物理页）
+        // v3 #2a 修复：完整映射三模式 —— 原实现把 Webtoon 降级为 Single，滚动模式续读丢失
         if (saved is null) _viewMode = DefaultMode;
-        else _viewMode = saved.Value.Mode == ReadingMode.Double ? ViewMode.Double : ViewMode.Single;
+        else _viewMode = saved.Value.Mode switch
+        {
+            ReadingMode.Double => ViewMode.Double,
+            ReadingMode.Webtoon => ViewMode.Webtoon,
+            _ => ViewMode.Single,
+        };
         _currentPhysical = Math.Clamp(saved?.LogicalPage ?? 0, 0, Math.Max(0, _source.PageCount - 1));
         _currentIndex = _logical.Count > 0 ? LogicalIndexOfPhysical(_currentPhysical) : 0;
         _direction = saved?.Direction ?? ReadingDirection2.Rtl;
@@ -90,9 +96,15 @@ public partial class ReaderViewModel
     public bool SizesLoaded => _sizes.Count >= _source.PageCount;
 
     private void SaveState() =>
-        // BUG-A v1.9：持久化物理页（跨模式稳定）——单页模式存物理页、双页存逻辑页首物理页
+        // BUG-A v1.9：持久化物理页（跨模式稳定）——单页存物理页、双页存逻辑页首物理页
+        // v3 #2a 修复：完整映射三模式（原实现 Webtoon 存成 Single → 续读丢滚动模式）
         _state.SaveState(Book.Path, CurrentPhysical,
-            ViewMode == ViewMode.Double ? ReadingMode.Double : ReadingMode.Single, Direction);
+            ViewMode switch
+            {
+                ViewMode.Double => ReadingMode.Double,
+                ViewMode.Webtoon => ReadingMode.Webtoon,
+                _ => ReadingMode.Single,
+            }, Direction);
 
     private int _disposeGuard;
     private bool _disposed;
