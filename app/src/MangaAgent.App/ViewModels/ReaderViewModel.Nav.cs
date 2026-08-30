@@ -6,11 +6,13 @@ namespace MangaAgent.App.ViewModels;
 /// <summary>ReaderViewModel：翻页/书签/跳转/模式切换（P1-2 拆分自 ReaderViewModel.cs，纯搬移，行为零变化）。</summary>
 public partial class ReaderViewModel
 {
-    /// <summary>当前物理页（0-based）：单页 = 直接物理页；双页/滚动 = 当前逻辑页首物理页。</summary>
+    /// <summary>当前物理页（0-based）：单页 = 直接物理页；双页/滚动 = 当前逻辑页首物理页。
+    /// v3 #17：滚动模式返回 SyncWebtoonPosition 同步的滚动位置（原返回逻辑页映射 → 续读/书签存旧页）。</summary>
     public int CurrentPhysical
     {
         get
         {
+            if (ViewMode == ViewMode.Webtoon) return _currentPhysical;
             if (ViewMode == ViewMode.Single) return _currentPhysical;
             if (_logical.Count == 0) return 0;
             return LogicalFirstPhysical(Math.Clamp(CurrentIndex, 0, _logical.Count - 1));

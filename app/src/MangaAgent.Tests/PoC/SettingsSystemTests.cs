@@ -329,4 +329,40 @@ public class SettingsSystemTests
             try { File.Delete(db); } catch { }
         }
     }
+
+    /// <summary>v3 #17 回归：滚动模式下滚动位置必须持久化（原实现只更新页码显示，续读/书签存旧页）。</summary>
+    [AvaloniaFact]
+    public async Task Webtoon_Scroll_Position_Persisted_On_Resume()
+    {
+        var db = Path.Combine(Path.GetTempPath(), $"manga_wtf25_{Guid.NewGuid():N}.db");
+        var oldMode = ReaderViewModel.DefaultMode;
+        var oldResume = ReaderViewModel.ResumePosition;
+        try
+        {
+            // 1) 打开 → 切滚动模式 → 模拟滚动到物理页 250 → 关闭（SaveState 存 250）
+            ReaderViewModel.ResumePosition = true;
+            ReaderViewModel.DefaultMode = ViewMode.Single;
+            var vm1 = new ReaderViewModel(StressBook, db);
+            await WaitUntilAsync(() => vm1.Image1 is not null);
+            vm1.ToggleModeCommand.Execute(null);   // Single -> Double
+            vm1.ToggleModeCommand.Execute(null);   // Double -> Webtoon
+            await WaitUntilAsync(() => vm1.ViewMode == ViewMode.Webtoon);
+            vm1.SyncWebtoonPosition(250);
+            await vm1.DisposeAsync();
+
+            // 2) 重新打开 → 恢复滚动模式 + 物理页 250
+            ReaderViewModel.DefaultMode = ViewMode.Single;
+            ReaderViewModel.ResumePosition = true;
+            var vm2 = new ReaderViewModel(StressBook, db);
+            Assert.Equal(ViewMode.Webtoon, vm2.ViewMode);
+            Assert.Equal(250, vm2.CurrentPhysical);
+            await vm2.DisposeAsync();
+        }
+        finally
+        {
+            ReaderViewModel.DefaultMode = oldMode;
+            ReaderViewModel.ResumePosition = oldResume;
+            try { File.Delete(db); } catch { }
+        }
+    }
 }

@@ -302,6 +302,8 @@ public partial class ReaderWindow : Window
         {
             _lastWebtoonPageText = curPhys;
             _vm.UpdateWebtoonPageText(curPhys);
+            // v3 #17：滚动位置变化即同步阅读位置（续读/书签存当前可见页，节流写库）
+            _vm.SyncWebtoonPosition(curPhys);
         }
         SyncPreviewStripToScroll();
     }

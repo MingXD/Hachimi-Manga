@@ -185,14 +185,27 @@ public partial class MainWindowViewModel : ViewModelBase
         if (CurrentFolder?.Parent is { } parent) ShowFolderContents(parent);
     }
 
-    /// <summary>新建文件夹（v3 #6）：弹对话框输入名称 → 在当前目录创建 → 刷新并保持位置。</summary>
+    /// <summary>新建文件夹（v3 #6）：弹对话框输入名称 → 在当前目录创建 → 刷新并保持位置。
+    /// v3 #16 修复：CurrentFolder 为 null（启动未进入目录/树未加载）时不再静默 return——
+    /// 有库则用库根作为创建目标，无库则明确提示。</summary>
     [RelayCommand]
     private void NewFolder()
     {
-        if (CurrentFolder is null) return;
+        var target = CurrentFolder;
+        if (target is null)
+        {
+            if (FolderTree.Count > 0 && FolderTree[0] is { } root)
+                target = root;   // 未进入目录：在库根创建
+            else
+            {
+                StatusText = "请先添加资料库";
+                App.SLog("NEWFOLDER no library");
+                return;
+            }
+        }
         var name = MangaAgent.App.Views.NewFolderDialog.Show();
         if (string.IsNullOrWhiteSpace(name)) return;
-        StatusText = NewFolderCore(CurrentFolder.Path, name);
+        StatusText = NewFolderCore(target.Path, name);
         if (StatusText.StartsWith("已创建"))
             _ = RefreshCurrentViewAsync();
     }

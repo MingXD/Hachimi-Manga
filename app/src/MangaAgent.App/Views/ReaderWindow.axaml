@@ -79,8 +79,8 @@
         <Button x:Name="NavNextButton" Content="▶" Click="OnNavNextClick" Foreground="{Binding ForegroundHex}"/>
         <Button Content="{Binding PageText}" Click="OnPageTextClick" ToolTip.Tip="点击跳转到指定页 (G)" Background="Transparent" Foreground="{Binding ForegroundHex}" Padding="6,2" Margin="8,0"/>
         <!-- v3：首页/末页按钮与页码块放在一起（右侧），快捷键 Home/End 见设置-快捷键 -->
-        <Button x:Name="GoHomeButton" Content="⏮" Click="OnGoHomeClick" ToolTip.Tip="首页 (Home)" Foreground="{Binding ForegroundHex}"/>
-        <Button x:Name="GoEndButton" Content="⏭" Click="OnGoEndClick" ToolTip.Tip="末页 (End)" Foreground="{Binding ForegroundHex}"/>
+        <Button x:Name="GoHomeButton" Content="Home" MinWidth="44" Click="OnGoHomeClick" ToolTip.Tip="首页 (Home)" Foreground="{Binding ForegroundHex}"/>
+        <Button x:Name="GoEndButton" Content="End" MinWidth="44" Click="OnGoEndClick" ToolTip.Tip="末页 (End)" Foreground="{Binding ForegroundHex}"/>
 
         <Button x:Name="ModeButton" Content="{Binding ModeText}" Click="OnModeMenuClick" Foreground="{Binding ForegroundHex}">
           <Button.ContextMenu>

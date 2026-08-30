@@ -112,6 +112,22 @@ public partial class ReaderViewModel
                 _ => ReadingMode.Single,
             }, Direction);
 
+    private long _lastWebtoonSaveMs;
+
+    /// <summary>滚动模式：同步当前可见物理页为阅读位置（v3 #17）。
+    /// 原实现滚动只更新页码显示，位置停在进入滚动模式时 → 续读/书签存旧页；
+    /// 现滚动位置变化即同步 _currentPhysical（书签/保存/预览栏统一），2 秒节流写库防频繁 IO。</summary>
+    public void SyncWebtoonPosition(int physical)
+    {
+        _currentPhysical = Math.Clamp(physical, 0, Math.Max(0, _source.PageCount - 1));
+        long now = Environment.TickCount64;
+        if (now - _lastWebtoonSaveMs > 2000)
+        {
+            _lastWebtoonSaveMs = now;
+            SaveState();
+        }
+    }
+
     private int _disposeGuard;
     private bool _disposed;
     public async ValueTask DisposeAsync()
