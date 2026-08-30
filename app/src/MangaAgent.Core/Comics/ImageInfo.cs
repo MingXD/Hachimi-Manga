@@ -21,7 +21,7 @@ public static class ImageInfo
             var preB = b.Substring(posB, nb.Index - posB);
             int cmp = string.Compare(preA, preB, StringComparison.OrdinalIgnoreCase);
             if (cmp != 0) return cmp;
-            cmp = long.Parse(na.Value).CompareTo(long.Parse(nb.Value));
+            cmp = CompareNumeric(na.Value, nb.Value);
             if (cmp != 0) return cmp;
             posA = na.Index + na.Length; posB = nb.Index + nb.Length;
             ia++; ib++;
@@ -33,6 +33,20 @@ public static class ImageInfo
         if (ia < ma.Count) return -1;   // a 还有数字块 → a 排前
         if (ib < mb.Count) return 1;    // b 还有数字块 → b 排前
         return string.Compare(a, b, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>数字串按数值比较（溢出安全，v3 修复）：去前导零后比长度，同长逐位比。
+    /// 原实现 long.Parse 遇超长数字串（&gt;long.MaxValue，如文件名含 32 位数字）抛 OverflowException →
+    /// List.Sort 报 "Failed to compare two elements in the array" → 整个目录树扫描失败。</summary>
+    private static int CompareNumeric(string x, string y)
+    {
+        string a = x.TrimStart('0');
+        string b = y.TrimStart('0');
+        // 全零视为 "0"
+        if (a.Length == 0) a = "0";
+        if (b.Length == 0) b = "0";
+        if (a.Length != b.Length) return a.Length.CompareTo(b.Length);
+        return string.CompareOrdinal(a, b);
     }
 
     /// <summary>从 PNG/JPEG 文件头解析尺寸；不支持返回 null。</summary>

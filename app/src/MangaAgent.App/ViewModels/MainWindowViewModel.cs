@@ -14,11 +14,12 @@ public enum GalleryMode { Large, Medium, Small, Detail }
 
 public partial class MainWindowViewModel : ViewModelBase
 {
-    private static readonly string AppData = Path.Combine(
+    /// <summary>数据根目录（v3 测试隔离：可覆盖，同 SettingsStore.BaseDir 模式）。</summary>
+    public static string AppData { get; set; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "HachimiManga");
-    private static readonly string LibrariesFile = Path.Combine(AppData, "libraries.txt");
-    private static readonly string LibraryDbPath = Path.Combine(AppData, "library.db");
-    private static readonly string StateDbPath = Path.Combine(AppData, "reading.db");
+    public static string LibrariesFile => Path.Combine(AppData, "libraries.txt");
+    public static string LibraryDbPath => Path.Combine(AppData, "library.db");
+    public static string StateDbPath => Path.Combine(AppData, "reading.db");
 
     public ObservableCollection<LibraryItemViewModel> Libraries { get; } = new();
     public ObservableCollection<BookItemViewModel> Books { get; } = new();

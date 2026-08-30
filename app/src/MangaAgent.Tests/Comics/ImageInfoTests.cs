@@ -52,4 +52,19 @@ public class ImageInfoTests
                 Assert.True(ab == -ba, $"不对称: Compare({cases[i]},{cases[j]})={ab} vs Compare({cases[j]},{cases[i]})={ba}");
             }
     }
+
+    [Fact]
+    public void Huge_Digit_Names_Do_Not_Overflow()
+    {
+        // v3 根因验证：文件名含超长数字串（>long.MaxValue）时 long.Parse 溢出 →
+        // List.Sort 抛 "Failed to compare two elements in the array" → 整个目录树扫描失败
+        var names = new[]
+        {
+            "abc99999999999999999999999999999999.jpg",   // 32 位数字，远超 long
+            "abc2.jpg",
+            "xyz.jpg",
+        };
+        Array.Sort(names, ImageInfo.CompareNatural);   // 当前实现抛 OverflowException → 测试红
+        Assert.Equal(new[] { "abc2.jpg", "abc99999999999999999999999999999999.jpg", "xyz.jpg" }, names);
+    }
 }

@@ -51,7 +51,16 @@
 | 3-21 | 测试基线 86 → **90/90** | — | — |
 | 3-22 | **顺带发现并修复**：历史回退显示旧树快照（GoBack/GoForward 现回退后重扫） | MainWindowViewModel.cs | 侧键/历史导航 |
 
-## 六、待办（下一批，见 v3-issues-plan.md §16）
+## 六、排查修复 2（2026-08-25，用户报错线索定位）
+
+| # | 修复/改动 | 根因 | 文件位置 |
+|---|---|---|---|
+| 3-23 | **目录扫描失败（"Failed to compare two elements in the array"）** | `ImageInfo.CompareNatural` 用 `long.Parse` 比较数字块——文件名含超长数字串（>long.MaxValue）时溢出抛异常 → `List.Sort` 崩溃 → 整个目录树扫描失败（bz 目录命中）；改用"去前导零比长度+逐位比"溢出安全比较 | Core/Comics/ImageInfo.cs + ImageInfoTests（Huge_Digit_Names_Do_Not_Overflow） |
+| 3-24 | **Enter 无效** | ① Avalonia 12 主推 `Key.Return`（兼容 `Key.Enter`）② 焦点在搜索框时 Enter 被 TextBox 拦截——用户点过搜索框后点条目，焦点不自动回列表；修复=列表选中/点击时自动聚焦（OnListSelectionChanged/OnListPointerPressed）+ Enter 兼容 Key.Return（主窗口+跳页框） | MainWindow.axaml(.cs)、ReaderWindow.Dialog.cs + FolderBrowserTests（Enter_Key_Opens_Selected_Or_Blocked_By_SearchBox） |
+| 3-25 | **测试基建隔离** | `new MainWindowViewModel()` 异步加载真实 `%LOCALAPPDATA%\HachimiManga\libraries.txt` 污染测试；`AppData` 改为可覆盖（同 SettingsStore.BaseDir 模式） | MainWindowViewModel.cs |
+| 3-26 | 测试基线 90 → **92/92** | — | — |
+
+## 七、待办（下一批，见 v3-issues-plan.md §16）
 - #4 多选版快捷键、#1 进度条+跨库刷新、#2b 默认方向设置、#9 中键滑动、#10 模糊优先、#11 清晰度三档
 - #13 配对（用户指示暂缓）、#5 其他文件、#7 图片信息
 

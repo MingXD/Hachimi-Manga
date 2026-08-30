@@ -72,7 +72,7 @@ public partial class ReaderWindow : Window
         dialog.Content = panel;
         text.KeyDown += (_, ke) =>
         {
-            if (ke.Key == Key.Enter)
+            if (ke.Key == Key.Enter || ke.Key == Key.Return)   // v3：兼容 Avalonia 12 Key.Return
             {
                 if (int.TryParse(text.Text?.Trim(), out int p) && p >= 1)
                 {

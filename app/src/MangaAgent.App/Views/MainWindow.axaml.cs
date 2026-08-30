@@ -56,8 +56,20 @@ public partial class MainWindow : Window
         else if (ctrl && e.Key == Key.A) { SelectAllEntries(); e.Handled = true; }
         else if (e.Key == Key.Delete) { DeleteSelected(); e.Handled = true; }
         else if (e.Key == Key.F2) { RenameSelected(); e.Handled = true; }
-        else if (e.Key == Key.Enter) { OpenSelected(); e.Handled = true; }
+        else if (e.Key == Key.Enter || e.Key == Key.Return) { OpenSelected(); e.Handled = true; }
         else if (e.Key == Key.Back || (alt && e.Key == Key.Up)) { _vm.GoUpCommand.Execute(null); e.Handled = true; }
+    }
+
+    /// <summary>v3 #4 修复：列表选中变化时把键盘焦点带到列表——点击条目后 Enter 不再被搜索框拦截（用户"Enter 无效"根因）。</summary>
+    private void OnListSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (sender is ListBox lb && lb.SelectedItems.Count > 0) lb.Focus();
+    }
+
+    /// <summary>v3 #4 补充：点击列表任意处（含已选中条目，选中不变不触发 SelectionChanged）也聚焦列表。</summary>
+    private void OnListPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (sender is ListBox lb) lb.Focus();
     }
 
     private List<FolderEntryItemViewModel> SelectedEntries()

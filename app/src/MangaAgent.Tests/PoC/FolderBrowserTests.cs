@@ -1,5 +1,9 @@
+using Avalonia.Controls;
+using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
+using Avalonia.VisualTree;
 using MangaAgent.App.ViewModels;
+using MangaAgent.App.Views;
 using MangaAgent.Core.Library;
 using Xunit;
 
@@ -355,4 +359,53 @@ public class FolderBrowserTests
 
     private static Task GoForwardAsync(MainWindowViewModel vm)
         => ((CommunityToolkit.Mvvm.Input.AsyncRelayCommand)vm.GoForwardCommand).ExecuteAsync(null);
+
+    /// <summary>v3 #4 排查：Enter 进入选中文件夹（默认链路）+ 搜索框聚焦时 Enter 被拦截（用户"Enter 无效"场景）。</summary>
+    [AvaloniaFact]
+    public async Task Enter_Key_Opens_Selected_Or_Blocked_By_SearchBox()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"manga_enter2_{Guid.NewGuid():N}");
+        var oldAppData = MainWindowViewModel.AppData;
+        var fakeAppData = Path.Combine(Path.GetTempPath(), $"manga_appdata_{Guid.NewGuid():N}");
+        try
+        {
+            Directory.CreateDirectory(root);
+            Directory.CreateDirectory(Path.Combine(root, "SubA"));
+            MainWindowViewModel.AppData = fakeAppData;   // 隔离真实 libraries.txt 污染
+            var tree = await FolderTreeScanner.ScanAsync(root);
+            var vm = new MainWindowViewModel();
+            vm.FolderTree.Add(tree);
+            vm.ShowFolderContents(tree);
+            var win = new MainWindow { DataContext = vm };
+            win.Show();
+            await Task.Delay(300);
+            var list = win.FindControl<ListBox>("BooksList");
+            Assert.NotNull(list);
+
+            // 场景 1：默认链路（窗口刚显示，焦点不在输入框）→ 选中 → Enter → 进入 SubA
+            list.SelectedIndex = 0;
+            await Task.Delay(200);
+            win.KeyPressQwerty(Avalonia.Input.PhysicalKey.Enter, Avalonia.Input.RawInputModifiers.None);
+            await Task.Delay(300);
+            Assert.Equal("SubA", vm.CurrentFolder!.Name);
+
+            // 场景 2：搜索框聚焦时按 Enter → 被 TextBox 拦截，不进入
+            vm.GoUpCommand.Execute(null);
+            var searchBox = win.GetVisualDescendants().OfType<TextBox>().First();
+            searchBox.Focus();
+            await Task.Delay(100);
+            list.SelectedIndex = 0;
+            await Task.Delay(100);
+            win.KeyPressQwerty(Avalonia.Input.PhysicalKey.Enter, Avalonia.Input.RawInputModifiers.None);
+            await Task.Delay(300);
+            Assert.NotEqual("SubA", vm.CurrentFolder!.Name);
+            win.Close();
+        }
+        finally
+        {
+            MainWindowViewModel.AppData = oldAppData;
+            try { Directory.Delete(root, true); } catch { }
+            try { Directory.Delete(fakeAppData, true); } catch { }
+        }
+    }
 }
