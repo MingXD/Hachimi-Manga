@@ -23,6 +23,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\pack-release.ps1
 ```
 
 ## 工作流规范
+- **★ 变更流程（用户明确要求，2026-08-25）**：**先排查 → 给方案（根因/改动点/影响/测试）→ 用户决策后 → 才实施**。用户说"先给方案/不要先实施"时必须遵守，即使改动很小；方案放回复或 docs/03-dev/ 下，等用户确认再动代码
 - Bug 处理：**先查原因 → 给方案 → 用户认可后修复 → 验证 → 归档**；新建 `docs/03-dev/bugs/BUG-xxx.md` 跟踪
 - git 三连：`git add .` → `git commit -m "..."` → `git push`；提交风格 `类型(范围): 中文描述；测试数`
 - 代码规范：`docs/03-dev/conventions.md`（dotnet format：4 空格/CRLF/UTF-8 去 BOM）

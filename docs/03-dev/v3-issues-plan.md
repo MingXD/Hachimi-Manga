@@ -192,3 +192,32 @@ if (ib < mb.Count) return -1;   // ← 反了：b 还有数字块，应排前
 
 ### 后续 / 暂缓
 - **#13 配对**（用户指示暂缓）、**#5 其他文件**、**#7 图片信息**
+
+## 17. 用户反馈 3 项（2026-08-25，方案待决策，未实施）
+
+> 流程要求（已写入 AGENTS.md）：先方案 → 用户决策 → 再实施。
+
+### #15 首页/末页按钮改为 Home/End 文本按钮
+- 现状：工具栏 `⏮` `⏭`（符号）；快捷键 Home/End 已绑定
+- 方案：`ReaderWindow.axaml` 两个按钮 Content 改为 "Home"/"End"（MinWidth 调大 ~44），点击逻辑不变
+- 影响：工具栏宽度；无测试（纯 UI）
+
+### #16 新建文件夹按钮无效
+- 排查：`MainWindowViewModel.NewFolder()` 第 192 行 `if (CurrentFolder is null) return;` —— **未进入任何目录时静默返回，无任何反馈**（启动后直接点按钮即此场景）
+- 方案：
+  1. `CurrentFolder` 为 null 时**不再静默**：若 `FolderTree.Count > 0` 用库根（`FolderTree[0]`）作为创建目标；否则状态栏提示"请先添加资料库"
+  2. 创建成功/失败反馈已有（StatusText）；命令入口补日志
+  3. 若仍无效需运行确认表现（无反应/对话框不弹/创建不刷新），加 CLICK_DOWN 诊断
+- 测试：`NewFolder` 命令 null 分支（CurrentFolder null + 无树 → StatusText 断言）
+
+### #17 滚动续读未恢复到上次页码
+- 根因（代码确认）：
+  1. `ReaderWindow.Webtoon.cs` 300-304 行：滚动时只调 `UpdateWebtoonPageText`（改页码显示），**不更新阅读位置**（`_currentPhysical`/`CurrentIndex` 停在进入滚动模式时的值）；只有整页跳（`JumpToPhysical`）才更新
+  2. `ReaderViewModel.Nav.cs` `CurrentPhysical` getter 在 Webtoon 下返回 `LogicalFirstPhysical(CurrentIndex)`（逻辑映射）→ `SaveState`/书签取的还是旧位置
+- 方案：
+  1. VM 加 `SyncWebtoonPosition(int physical)`：更新 `_currentPhysical` + 2 秒节流 `SaveState`
+  2. 视图 `UpdateWebtoonPages` 的 PageText 节流处（curPhys 变化）调用 `SyncWebtoonPosition(curPhys)`
+  3. `CurrentPhysical` getter 的 Webtoon 分支改返回 `_currentPhysical`（滚动位置即物理页；书签/保存/预览栏统一）
+  4. 窗口关闭走 DisposeAsync → SaveState 存最新值（无需额外保存点）
+- 影响：书签语义（滚动模式下书签=当前可见物理页，更符合直觉）、续读
+- 测试：VM 测试——Webtoon 模式 → `SyncWebtoonPosition(250)` → Dispose → 重开 → `CurrentPhysical==250`
