@@ -17,9 +17,40 @@ public partial class ReaderViewModel
     // 修复：被 UI 引用的位图延迟 Dispose，直到引用归零且不在缓存。
     private readonly Dictionary<Bitmap, int> _uiRefs = new();
 
-    /// <summary>解码目标宽度（按显示尺寸降采样，4K 扫描页从 104MB 降到 ~10MB）。</summary>
+    /// <summary>解码目标宽度（按显示尺寸降采样，4K 扫描页从 104MB 降到 ~10MB）。
+    /// v3：由视图按 ComputeTargetWidth 计算（档位化，上限=原图宽/限幅/原图全尺寸）。</summary>
     [ObservableProperty]
     private int _decodeTargetWidth = 2048;
+
+    /// <summary>v3：清晰度档位（设置注入）：Auto / Limit / Original。</summary>
+    public string DecodeQuality { get; set; } = "Auto";
+    /// <summary>v3：Limit 档上限（设置注入）。</summary>
+    public int DecodeLimit { get; set; } = 4096;
+    /// <summary>v3：预取范围 ±N 页（设置注入，默认 2）。</summary>
+    public int PrefetchRange { get; set; } = 2;
+
+    /// <summary>按档位计算某物理页的有效解码上限（v3）：
+    /// Auto = min(原图宽, 4096)（放大到原图级才解大图）；Limit = DecodeLimit；Original = 原图宽；原图宽未知回退 4096。</summary>
+    public int EffectiveDecodeLimit(int physical)
+    {
+        int origW = _sizes.TryGetValue(physical, out var sz) && sz.Width > 0 ? sz.Width : 0;
+        return DecodeQuality switch
+        {
+            "Original" when origW > 0 => origW,
+            "Original" => 4096,
+            "Limit" => Math.Max(1200, DecodeLimit),
+            _ => origW > 0 ? Math.Min(origW, 4096) : 4096,
+        };
+    }
+
+    /// <summary>目标解码宽度：显示需求 clamp 到 [minWidth, 档位上限]（v3）。分页默认 1200；滚动小屏 fit 传 400。
+    /// 边界：原图宽度小于 minWidth（小占位图）时 Math.Clamp(min&gt;max) 会抛异常——此时直接返回原图宽（解码不会超过原图）。</summary>
+    public int ComputeTargetWidth(int displayWidth, int physical, int minWidth = 1200)
+    {
+        int limit = EffectiveDecodeLimit(physical);
+        if (limit < minWidth) return Math.Min(displayWidth, limit);
+        return Math.Clamp(displayWidth, minWidth, limit);
+    }
 
     private int _loadSeq;
     private readonly Dictionary<int, int> _pageCacheWidth = new();
@@ -89,7 +120,8 @@ public partial class ReaderViewModel
         _ = PrefetchNeighborsAsync();
     }
 
-    /// <summary>预取相邻页：单页 ±1；双页 下一逻辑页两张。_prefetchSeq 只保留最新一次请求（防堆积）。</summary>
+    /// <summary>预取相邻页：单页 ±PrefetchRange；双页 后 N 个逻辑页。_prefetchSeq 只保留最新一次请求（防堆积）。
+    /// v3：范围可设置（默认 ±2）、并发限流 2。</summary>
     private async Task PrefetchNeighborsAsync()
     {
         if (_logical.Count == 0 || _disposed) return;
@@ -97,13 +129,23 @@ public partial class ReaderViewModel
         var targets = new List<int>();
         if (ViewMode == ViewMode.Single)
         {
-            if (CurrentPhysical > 0) targets.Add(CurrentPhysical - 1);
-            if (CurrentPhysical < _source.PageCount - 1) targets.Add(CurrentPhysical + 1);
+            for (int d = 1; d <= PrefetchRange; d++)
+            {
+                if (CurrentPhysical - d >= 0) targets.Add(CurrentPhysical - d);
+                if (CurrentPhysical + d < _source.PageCount) targets.Add(CurrentPhysical + d);
+            }
         }
-        else if (CurrentIndex + 1 < _logical.Count)
+        else
         {
-            targets.Add(_logical[CurrentIndex + 1].FirstIndex);
-            if (_logical[CurrentIndex + 1].IsDouble) targets.Add(_logical[CurrentIndex + 1].SecondIndex);
+            for (int d = 1; d <= PrefetchRange; d++)
+            {
+                int idx = CurrentIndex + d;
+                if (idx < _logical.Count)
+                {
+                    targets.Add(_logical[idx].FirstIndex);
+                    if (_logical[idx].IsDouble) targets.Add(_logical[idx].SecondIndex);
+                }
+            }
         }
         foreach (var p in targets)
         {
@@ -112,13 +154,31 @@ public partial class ReaderViewModel
         }
     }
 
-    /// <summary>预解码单页入缓存但不 Acquire（缓存持有；UI 取用时 LoadCurrentAsync 再 Acquire）。</summary>
+    /// <summary>v3 缩放联动：缩放/适应模式后按新宽度重预取邻页（延迟 300ms 防滚轮连发风暴）。
+    /// 现状短板：缩放只重解当前页，相邻页缓存旧宽度 → 放大后翻页又糊又卡。</summary>
+    private int _prefetchAfterZoomSeq;
+    public void SchedulePrefetchAfterZoom()
+    {
+        if (ViewMode == ViewMode.Webtoon) return;   // 滚动模式由视图虚拟化按需解码
+        int mySeq = ++_prefetchAfterZoomSeq;
+        _ = Task.Delay(300).ContinueWith(_ => Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            if (mySeq == _prefetchAfterZoomSeq && !_disposed)
+                _ = PrefetchNeighborsAsync();
+        }));
+    }
+
+    /// <summary>预解码单页入缓存但不 Acquire（缓存持有；UI 取用时 LoadCurrentAsync 再 Acquire）。
+    /// v3：并发限流 SemaphoreSlim(2)，防连翻/大范围预取解码风暴。</summary>
+    private readonly System.Threading.SemaphoreSlim _prefetchGate = new(2, 2);
+
     private async Task PrefetchDecodeAsync(int physical)
     {
         if (_disposed) return;   // P2-3：关闭后不再解码/入缓存
         int want = Math.Max(400, DecodeTargetWidth);
         if (_pageCache.TryGetValue(physical, out var c) &&
             _pageCacheWidth.TryGetValue(physical, out var w) && w >= want) return;
+        await _prefetchGate.WaitAsync();
         try
         {
             using var stream = await _source.OpenPageAsync(physical);
@@ -142,6 +202,7 @@ public partial class ReaderViewModel
             EvictCache();
         }
         catch { }
+        finally { _prefetchGate.Release(); }
     }
 
     private double RatioOf(int physical) => _sizes.TryGetValue(physical, out var sz) ? sz.AspectRatio : 0.7;

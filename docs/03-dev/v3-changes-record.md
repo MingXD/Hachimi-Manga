@@ -73,7 +73,17 @@
 | 3-29 | 顺带修 ListBox.SelectedItems 空引用警告 | MainWindow.axaml.cs |
 | 3-30 | 测试 93→92（删除 headless 无法复现的 ListBoxItem 容器测试；根因由真实日志证明） | FolderBrowserTests.cs |
 
-## 八、待办（下一批，见 v3-issues-plan.md §16）
+## 八、清晰度 × 缓存综合方案（2026-08-25，用户拍板后实施）
+
+| # | 修复/改动 | 文件位置 |
+|---|---|---|
+| 3-31 | **解码档位化**：`DecodeQuality`（Auto=min(原图宽,4096) / Limit=DecodeLimit / Original=原图宽）+ `DecodeLimit`；`ComputeTargetWidth/EffectiveDecodeLimit` 统一宽度决策（分页/滚动接入，替换旧 2048 硬钳制）——放大任意倍率按需解到原图级，根治"放大后模糊/不刷新" | ReaderViewModel.Decode.cs、ReaderWindow.Canvas.cs、ReaderWindow.Webtoon.cs |
+| 3-32 | **预取强化**：`PrefetchRange`（±1/2/3，默认 2）+ 并发限流 SemaphoreSlim(2) + **缩放联动**（`SchedulePrefetchAfterZoom`：缩放后 300ms 按新宽度重预取邻页，防"放大后翻页又糊"） | ReaderViewModel.Decode.cs、Canvas.cs |
+| 3-33 | **设置 UI**：性能预设三档（流畅=Limit2048/±1/缓存8、均衡=Auto/±2/12、清晰=Original/±3/16）+ 自定义微调（解码质量/限幅值/预取范围/缓存页数）+ **最坏内存估算提示** | SettingsDialog.cs、SettingsStore.cs（PresetValues/EstimateWorstMemoryMB） |
+| 3-34 | 边界修复：原图宽 < 解码下限时 `Math.Clamp(min>max)` 抛异常（小占位图）→ 直接解原图宽 | ReaderViewModel.Decode.cs |
+| 3-35 | 测试 92 → **95/95**（预设/内存估算、新字段往返、ComputeTargetWidth 档位） | SettingsSystemTests.cs |
+
+## 九、待办（下一批，见 v3-issues-plan.md §16）
 - #4 多选版快捷键、#1 进度条+跨库刷新、#2b 默认方向设置、#9 中键滑动、#10 模糊优先、#11 清晰度三档
 - #13 配对（用户指示暂缓）、#5 其他文件、#7 图片信息
 

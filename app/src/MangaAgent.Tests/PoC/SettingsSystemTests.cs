@@ -418,4 +418,80 @@ public class SettingsSystemTests
             try { Directory.Delete(baseDir, true); } catch { }
         }
     }
+
+    /// <summary>v3 清晰度×缓存：性能预设参数组合 + 最坏内存估算。</summary>
+    [Fact]
+    public void PerformancePreset_And_MemoryEstimate()
+    {
+        Assert.Equal(("Limit", 2048, 1, 8), AppSettings.PresetValues("Smooth"));
+        Assert.Equal(("Auto", 4096, 2, 12), AppSettings.PresetValues("Balanced"));
+        Assert.Equal(("Original", 0, 3, 16), AppSettings.PresetValues("Sharp"));
+
+        // 内存估算随档位/缓存变化
+        long smooth = AppSettings.EstimateWorstMemoryMB("Limit", 2048, 8);
+        long sharp = AppSettings.EstimateWorstMemoryMB("Original", 0, 16);
+        long auto = AppSettings.EstimateWorstMemoryMB("Auto", 4096, 12);
+        Assert.True(smooth < auto && auto < sharp, $"期望 smooth({smooth}) < auto({auto}) < sharp({sharp})");
+    }
+
+    /// <summary>v3 清晰度×缓存：解码宽度按档位计算（Auto/Limit/Original）。</summary>
+    [AvaloniaFact]
+    public async Task ComputeTargetWidth_Respects_Quality_Mode()
+    {
+        var db = Path.Combine(Path.GetTempPath(), $"manga_wtf26_{Guid.NewGuid():N}.db");
+        try
+        {
+            var vm = new ReaderViewModel(StressBook, db);
+            await WaitUntilAsync(() => vm.SizesLoaded);
+
+            // Auto：需求 3000 → 结果 ≤ min(原图宽, 4096)（压力书原图小可能 < 1200，无下限要求）
+            vm.DecodeQuality = "Auto";
+            int autoW = vm.ComputeTargetWidth(3000, 0);
+            Assert.True(autoW > 0 && autoW <= 4096, $"Auto 档宽度越界：{autoW}");
+
+            // Limit 2048：大需求钳到 2048
+            vm.DecodeQuality = "Limit";
+            vm.DecodeLimit = 2048;
+            Assert.Equal(2048, vm.ComputeTargetWidth(5000, 0));
+
+            // Original：至少不差于 Auto（=原图宽）
+            vm.DecodeQuality = "Original";
+            int origW = vm.ComputeTargetWidth(5000, 0);
+            Assert.True(origW >= autoW, $"Original({origW}) 应 >= Auto({autoW})");
+
+            await vm.DisposeAsync();
+        }
+        finally { try { File.Delete(db); } catch { } }
+    }
+
+    /// <summary>v3 清晰度×缓存：存取往返（新字段持久化）。</summary>
+    [Fact]
+    public void ClarityCache_Settings_RoundTrip()
+    {
+        var old = SettingsStore.BaseDir;
+        var baseDir = Path.Combine(Path.GetTempPath(), $"manga_set_{Guid.NewGuid():N}");
+        try
+        {
+            SettingsStore.BaseDir = baseDir;
+            var s = new AppSettings
+            {
+                DecodeQuality = "Original",
+                DecodeLimit = 4096,
+                PrefetchRange = 3,
+                PerformancePreset = "Sharp",
+                CacheCap = 16,
+            };
+            SettingsStore.Save(s);
+            var loaded = SettingsStore.Load();
+            Assert.Equal("Original", loaded.DecodeQuality);
+            Assert.Equal(3, loaded.PrefetchRange);
+            Assert.Equal("Sharp", loaded.PerformancePreset);
+            Assert.Equal(16, loaded.CacheCap);
+        }
+        finally
+        {
+            SettingsStore.BaseDir = old;
+            try { Directory.Delete(baseDir, true); } catch { }
+        }
+    }
 }

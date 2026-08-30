@@ -203,11 +203,13 @@ public partial class ReaderWindow : Window
         if (_vm is not null)
         {
             _vm.SyncScaleFromView(_scale / CurrentFitScale());
-            // 按需高清：解码目标宽度随显示尺寸增长（上限 4096）
+            // v3：按档位计算解码目标宽度（自动=放大到原图级才解大图，无 2048 钳制）
             double dpr = RenderScaling > 0 ? RenderScaling : 1.0;
-            _vm.DecodeTargetWidth = (int)Math.Clamp(ComputeBaseW() * _scale * dpr, 1200, _maxDecodeWidth);
+            _vm.DecodeTargetWidth = _vm.ComputeTargetWidth((int)(ComputeBaseW() * _scale * dpr), _vm.CurrentPhysical);
             // v3 防放大模糊：当前页缓存宽度不足 → 立即重解码（分页模式）
             if (_vm.CurrentPageNeedsRedecode(_vm.DecodeTargetWidth)) _vm.RefreshCurrentPage();
+            // v3 缩放联动：放大后按新宽度重预取邻页（防"放大后翻页又糊"）
+            _vm.SchedulePrefetchAfterZoom();
         }
         UpdateZoomPercent();
     }
@@ -277,9 +279,11 @@ public partial class ReaderWindow : Window
         {
             _vm.SyncScaleFromView(_scale / CurrentFitScale());
             double dpr = RenderScaling > 0 ? RenderScaling : 1.0;
-            _vm.DecodeTargetWidth = (int)Math.Clamp(ComputeBaseW() * _scale * dpr, 1200, _maxDecodeWidth);
+            _vm.DecodeTargetWidth = _vm.ComputeTargetWidth((int)(ComputeBaseW() * _scale * dpr), _vm.CurrentPhysical);
             // v3 防放大模糊：当前页缓存宽度不足 → 立即重解码（分页模式）
             if (_vm.CurrentPageNeedsRedecode(_vm.DecodeTargetWidth)) _vm.RefreshCurrentPage();
+            // v3 缩放联动
+            _vm.SchedulePrefetchAfterZoom();
         }
         UpdateZoomPercent();
     }

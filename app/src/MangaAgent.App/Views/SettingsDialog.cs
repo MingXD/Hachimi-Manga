@@ -29,8 +29,10 @@ public class SettingsDialog : Window
     private Button? _captureCell;
 
     // 阅读页控件
-    private readonly Slider _zoomBase, _scrollBase, _friction, _flingThreshold, _flingMax, _decodeCap, _cacheCap;
-    private readonly TextBox _zoomBaseT, _scrollBaseT, _frictionT, _flingThresholdT, _flingMaxT, _decodeCapT, _cacheCapT;
+    private readonly Slider _zoomBase, _scrollBase, _friction, _flingThreshold, _flingMax, _decodeLimit, _cacheCap;
+    private readonly TextBox _zoomBaseT, _scrollBaseT, _frictionT, _flingThresholdT, _flingMaxT, _decodeLimitT, _cacheCapT;
+    private readonly ComboBox _preset, _decodeQuality, _prefetchRange;
+    private readonly TextBlock _memEstimate;
     private readonly CheckBox _invert, _resume;
     private readonly ComboBox _pagedWheel, _defaultMode, _defaultDir, _doubleClick, _defaultFit;
 
@@ -81,8 +83,36 @@ public class SettingsDialog : Window
         (_friction, _frictionT) = MakeSliderRow(3, 12, _copy.ScrollFriction, false);
         (_flingThreshold, _flingThresholdT) = MakeSliderRow(50, 400, _copy.DragFlingThreshold, false);
         (_flingMax, _flingMaxT) = MakeSliderRow(1000, 6000, _copy.DragFlingMax, false);
-        (_decodeCap, _decodeCapT) = MakeSliderRow(1200, 4096, _copy.MaxDecodeWidth, true);
+        (_decodeLimit, _decodeLimitT) = MakeSliderRow(2048, 8192, _copy.DecodeLimit, true);
         (_cacheCap, _cacheCapT) = MakeSliderRow(4, 20, _copy.CacheCap, true);
+        // v3：性能预设 + 解码质量 + 预取范围
+        _preset = new ComboBox
+        {
+            ItemsSource = new[] { "流畅优先", "均衡（推荐）", "清晰优先", "自定义" },
+            SelectedIndex = _copy.PerformancePreset switch { "Smooth" => 0, "Sharp" => 2, "Custom" => 3, _ => 1 },
+            Width = 150,
+            HorizontalAlignment = HorizontalAlignment.Left,
+        };
+        _decodeQuality = new ComboBox
+        {
+            ItemsSource = new[] { "自动（按需解到原图）", "限幅", "原图全尺寸" },
+            SelectedIndex = _copy.DecodeQuality switch { "Limit" => 1, "Original" => 2, _ => 0 },
+            Width = 170,
+            HorizontalAlignment = HorizontalAlignment.Left,
+        };
+        _prefetchRange = new ComboBox
+        {
+            ItemsSource = new[] { "±1 页", "±2 页", "±3 页" },
+            SelectedIndex = Math.Clamp(_copy.PrefetchRange - 1, 0, 2),
+            Width = 100,
+            HorizontalAlignment = HorizontalAlignment.Left,
+        };
+        _memEstimate = new TextBlock { FontSize = 11, Foreground = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#D8A24A")) };
+        _preset.SelectionChanged += (_, _) => ApplyPresetToControls();
+        _decodeQuality.SelectionChanged += (_, _) => UpdateMemEstimate();
+        _decodeLimit.ValueChanged += (_, _) => { SetSlider(_decodeLimit, _decodeLimitT, _decodeLimit.Value, true); UpdateMemEstimate(); };
+        _cacheCap.ValueChanged += (_, _) => { SetSlider(_cacheCap, _cacheCapT, _cacheCap.Value, true); UpdateMemEstimate(); };
+        UpdateMemEstimate();
         _invert = new CheckBox { IsChecked = _copy.InvertScroll, VerticalAlignment = VerticalAlignment.Center };
         _resume = new CheckBox { IsChecked = _copy.ResumePosition, VerticalAlignment = VerticalAlignment.Center };
         _defaultMode = new ComboBox { ItemsSource = new[] { "单页", "双页", "滚动" }, SelectedIndex = _copy.DefaultMode switch { "Double" => 1, "Webtoon" => 2, _ => 0 }, Width = 120, HorizontalAlignment = HorizontalAlignment.Left };
@@ -113,10 +143,14 @@ public class SettingsDialog : Window
                 SettingRow("甩动触发阈值", _flingThreshold, _flingThresholdT, "拖拽释放多快才算甩动（px/s）"),
                 SettingRow("甩动限幅", _flingMax, _flingMaxT, "甩动最大速度（px/s）")),
             Card("性能与行为",
-                SettingRow("解码宽度上限", _decodeCap, _decodeCapT, "大图解码分辨率上限（清晰度 vs 速度/内存）"),
+                SettingRow("性能预设", _preset, null, "一键组合：解码清晰度 / 预取范围 / 缓存页数（选择后可继续微调）"),
+                SettingRow("解码质量", _decodeQuality, null, "自动=平时小图、放大按需解到原图；限幅=固定上限；原图=始终最清晰（内存大）"),
+                SettingRow("限幅上限", _decodeLimit, _decodeLimitT, "限幅档的解码宽度上限"),
+                SettingRow("预取范围", _prefetchRange, null, "翻页前预解码相邻页数（越大越流畅、越耗内存）"),
                 SettingRow("缓存页数", _cacheCap, _cacheCapT, "位图缓存上限（流畅 vs 内存）"),
                 SettingRow("分页滚轮行为", _pagedWheel, null, "分页模式下滚轮 = 缩放 或 翻页"),
-                SettingRow("滚动方向反转", _invert, null, "自然滚动（滚轮方向反转）")),
+                SettingRow("滚动方向反转", _invert, null, "自然滚动（滚轮方向反转）"),
+                new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { new TextBlock { Text = "最坏内存估算：", FontSize = 11, Foreground = Avalonia.Media.Brushes.Gray, VerticalAlignment = VerticalAlignment.Center }, _memEstimate } }),
         }
             }
         };
@@ -299,6 +333,29 @@ public class SettingsDialog : Window
 
     // ================= 阅读页 =================
 
+    /// <summary>v3：性能预设一键应用到控件（解码质量/限幅/预取/缓存）。自定义=保留当前微调。</summary>
+    private void ApplyPresetToControls()
+    {
+        var preset = _preset.SelectedIndex switch { 0 => "Smooth", 2 => "Sharp", 3 => "Custom", _ => "Balanced" };
+        if (preset == "Custom") { UpdateMemEstimate(); return; }
+        var (q, limit, pref, cache) = AppSettings.PresetValues(preset);
+        _decodeQuality.SelectedIndex = q switch { "Limit" => 1, "Original" => 2, _ => 0 };
+        _decodeLimit.Value = limit > 0 ? limit : 4096;
+        _prefetchRange.SelectedIndex = Math.Clamp(pref - 1, 0, 2);
+        _cacheCap.Value = cache;
+        UpdateMemEstimate();
+    }
+
+    /// <summary>v3：按当前控件值刷新"最坏内存估算"提示。</summary>
+    private void UpdateMemEstimate()
+    {
+        var quality = _decodeQuality.SelectedIndex switch { 1 => "Limit", 2 => "Original", _ => "Auto" };
+        int limit = (int)_decodeLimit.Value;
+        int cache = (int)_cacheCap.Value;
+        long mb = AppSettings.EstimateWorstMemoryMB(quality, limit, cache);
+        _memEstimate.Text = $"约 {mb} MB（按典型 4000×3000 页估算，实际随书而定）";
+    }
+
     private void RestoreReadingDefaults()
     {
         var d = new AppSettings();
@@ -307,7 +364,7 @@ public class SettingsDialog : Window
         SetSlider(_friction, _frictionT, d.ScrollFriction, false);
         SetSlider(_flingThreshold, _flingThresholdT, d.DragFlingThreshold, false);
         SetSlider(_flingMax, _flingMaxT, d.DragFlingMax, false);
-        SetSlider(_decodeCap, _decodeCapT, d.MaxDecodeWidth, true);
+        SetSlider(_decodeLimit, _decodeLimitT, d.DecodeLimit, true);
         SetSlider(_cacheCap, _cacheCapT, d.CacheCap, true);
         _invert.IsChecked = d.InvertScroll;
         _resume.IsChecked = d.ResumePosition;
@@ -315,6 +372,10 @@ public class SettingsDialog : Window
         _doubleClick.SelectedIndex = 0;
         _defaultFit.SelectedIndex = 0;
         _pagedWheel.SelectedIndex = 0;
+        _preset.SelectedIndex = 1;          // 均衡
+        _decodeQuality.SelectedIndex = 0;   // 自动
+        _prefetchRange.SelectedIndex = 1;   // ±2
+        UpdateMemEstimate();
     }
 
     private static void SetSlider(Slider s, TextBox t, double v, bool isInt)
@@ -415,7 +476,10 @@ public class SettingsDialog : Window
         _copy.ScrollFriction = _friction.Value;
         _copy.DragFlingThreshold = _flingThreshold.Value;
         _copy.DragFlingMax = _flingMax.Value;
-        _copy.MaxDecodeWidth = (int)_decodeCap.Value;
+        _copy.DecodeQuality = _decodeQuality.SelectedIndex switch { 1 => "Limit", 2 => "Original", _ => "Auto" };
+        _copy.DecodeLimit = (int)_decodeLimit.Value;
+        _copy.PrefetchRange = _prefetchRange.SelectedIndex + 1;
+        _copy.PerformancePreset = _preset.SelectedIndex switch { 0 => "Smooth", 2 => "Sharp", 3 => "Custom", _ => "Balanced" };
         _copy.CacheCap = (int)_cacheCap.Value;
         _copy.InvertScroll = _invert.IsChecked == true;
         _copy.PagedWheelMode = _pagedWheel.SelectedIndex == 1 ? "Page" : "Zoom";
@@ -435,6 +499,10 @@ public class SettingsDialog : Window
         DragFlingThreshold = s.DragFlingThreshold,
         DragFlingMax = s.DragFlingMax,
         MaxDecodeWidth = s.MaxDecodeWidth,
+        DecodeQuality = s.DecodeQuality,
+        DecodeLimit = s.DecodeLimit,
+        PrefetchRange = s.PrefetchRange,
+        PerformancePreset = s.PerformancePreset,
         CacheCap = s.CacheCap,
         InvertScroll = s.InvertScroll,
         PagedWheelMode = s.PagedWheelMode,

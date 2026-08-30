@@ -42,11 +42,37 @@ public class AppSettings
     public double DragFlingThreshold { get; set; } = 150.0; // 甩动触发阈值（px/s）
     public double DragFlingMax { get; set; } = 3000.0;   // 甩动限幅
     // —— 性能与行为 ——
-    public int MaxDecodeWidth { get; set; } = 2048;      // 解码宽度上限
-    public int CacheCap { get; set; } = 10;              // 位图缓存页数
+    public int MaxDecodeWidth { get; set; } = 2048;      // 旧字段（v3 前上限；保留兼容，UI 改用 DecodeQuality/DecodeLimit）
+    public string DecodeQuality { get; set; } = "Auto";  // 解码清晰度档位：Auto=min(原图宽,4096) / Limit=DecodeLimit / Original=原图全尺寸（v3）
+    public int DecodeLimit { get; set; } = 4096;         // Limit 档的解码宽度上限
+    public int PrefetchRange { get; set; } = 2;          // 预取范围 ±N 页（1~3，v3）
+    public string PerformancePreset { get; set; } = "Balanced"; // 性能预设：Smooth/Balanced/Sharp/Custom（快捷填值，v3）
+    public int CacheCap { get; set; } = 12;              // 位图缓存页数（默认 12，均衡档）
     public bool InvertScroll { get; set; }               // 滚动方向反转（自然滚动）
     public string PagedWheelMode { get; set; } = "Zoom"; // 分页滚轮：Zoom | Page
     public bool DebugLog { get; set; }                   // 诊断日志：WHEEL/SCROLL 高频项（默认关，性能；关键事件始终记）
+
+    /// <summary>性能预设 → 参数组合（v3）。Custom 无固定组合，用户自定义。</summary>
+    public static (string Quality, int Limit, int Prefetch, int Cache) PresetValues(string preset) => preset switch
+    {
+        "Smooth" => ("Limit", 2048, 1, 8),    // 流畅优先：低配/只看默认视图
+        "Sharp" => ("Original", 0, 3, 16),    // 清晰优先：高配/重度放大阅读
+        _ => ("Auto", 4096, 2, 12),           // 均衡（默认）
+    };
+
+    /// <summary>最坏内存估算（MB）：按档位典型位图宽 × 缓存页数 × 4 字节（v3，设置界面提示用）。</summary>
+    public static long EstimateWorstMemoryMB(string quality, int limit, int cacheCap)
+    {
+        int width = quality switch
+        {
+            "Original" => 4000,                       // 4K 扫描页全尺寸
+            "Limit" => Math.Clamp(limit, 2048, 4000), // 限幅上限（典型）
+            _ => 4096,                                // 自动档安全上限
+        };
+        int height = (int)(width / 0.7);              // 竖版典型比例
+        long bytes = (long)width * height * 4 * Math.Max(1, cacheCap);
+        return bytes / 1024 / 1024;
+    }
     // —— 快捷键：组 → 动作 → 按键列表（组：General 通用 / PagedLtr 分页·左到右 / PagedRtl 分页·右到左 / Webtoon 滚动；
     // 键 token = Key 枚举名，组合键 = 修饰键+主键，如 "Ctrl+Shift+P"）——
     public Dictionary<string, Dictionary<string, List<string>>> Hotkeys { get; set; } = DefaultHotkeys();

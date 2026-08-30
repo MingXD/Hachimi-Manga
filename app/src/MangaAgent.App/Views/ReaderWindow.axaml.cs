@@ -353,11 +353,18 @@ public partial class ReaderWindow : Window
         _scrollFriction = Math.Clamp(_settings.ScrollFriction, 2.0, 15.0);
         _dragFlingThreshold = Math.Clamp(_settings.DragFlingThreshold, 30, 800);
         _dragFlingMax = Math.Clamp(_settings.DragFlingMax, 500, 9000);
-        _maxDecodeWidth = Math.Clamp(_settings.MaxDecodeWidth, 1200, 4096);
+        _maxDecodeWidth = Math.Clamp(_settings.MaxDecodeWidth, 1200, 4096);   // 旧字段保留（不再用于 want 钳制）
         _invertScroll = _settings.InvertScroll;
         _pagedWheelMode = _settings.PagedWheelMode == "Page" ? "Page" : "Zoom";
         _doubleClickAction = _settings.DoubleClickAction is "Reset" or "None" ? _settings.DoubleClickAction : "Zoom";
-        if (_vm is not null) _vm.CacheCap = Math.Clamp(_settings.CacheCap, 4, 30);
+        if (_vm is not null)
+        {
+            _vm.CacheCap = Math.Clamp(_settings.CacheCap, 4, 30);
+            // v3：清晰度档位 + 预取范围注入
+            _vm.DecodeQuality = _settings.DecodeQuality is "Limit" or "Original" ? _settings.DecodeQuality : "Auto";
+            _vm.DecodeLimit = Math.Clamp(_settings.DecodeLimit, 2048, 8192);
+            _vm.PrefetchRange = Math.Clamp(_settings.PrefetchRange, 1, 3);
+        }
         if (SensitivityButton is not null) SensitivityButton.Content = $"缩放速度×{SensLevels[_sensIdx]:0.#}";
         if (WebtoonSpeedButton is not null) WebtoonSpeedButton.Content = $"滚动速度×{SensLevels[_wsIdx]:0.#}";
     }

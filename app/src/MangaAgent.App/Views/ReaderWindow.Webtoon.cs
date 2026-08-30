@@ -312,7 +312,8 @@ public partial class ReaderWindow : Window
     {
         if (_vm is null) return;
         double dpr = RenderScaling > 0 ? RenderScaling : 1.0;
-        int want = (int)Math.Clamp(Math.Ceiling(_webtoonWidth * _scale * dpr), 400, Math.Max(1200, _maxDecodeWidth));
+        // v3：按档位计算目标宽度（滚动小屏 fit 下限 400）
+        int want = _vm.ComputeTargetWidth((int)Math.Ceiling(_webtoonWidth * _scale * dpr), physical, 400);
         if (_vm.HasCachedWidth(physical, want)) return;   // 已够清晰
         RemoveWebtoonImage(physical);            // 先移出画布再释放旧位图
         EnsureWebtoonPlaceholder(physical);      // 占位防黑
@@ -345,8 +346,9 @@ public partial class ReaderWindow : Window
             try
             {
                 // 按显示宽度解码（scroll-mode-fix v2）：fit 时 4299px 大图只解 ~540px → 提速 4-8 倍
+                // v3：档位化（自动=放大到原图级才解大图；滚动小屏 fit 下限 400）
                 double dpr = RenderScaling > 0 ? RenderScaling : 1.0;
-                int want = (int)Math.Clamp(Math.Ceiling(_webtoonWidth * _scale * dpr), 400, Math.Max(1200, _maxDecodeWidth));
+                int want = _vm.ComputeTargetWidth((int)Math.Ceiling(_webtoonWidth * _scale * dpr), physical, 400);
                 var bmp = await _vm.GetPageBitmapAsync(physical, want);
                 if (bmp is null)
                 {
