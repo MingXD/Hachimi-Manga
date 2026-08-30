@@ -365,4 +365,36 @@ public class SettingsSystemTests
             try { File.Delete(db); } catch { }
         }
     }
+
+    /// <summary>v3 #1 回归：旧配置文件（缺新动作）加载时自动补齐默认动作（GoHome/GoEnd），不重置用户绑定。</summary>
+    [Fact]
+    public void Load_Merges_Missing_Default_Actions()
+    {
+        var old = SettingsStore.BaseDir;
+        var baseDir = Path.Combine(Path.GetTempPath(), $"manga_set_{Guid.NewGuid():N}");
+        try
+        {
+            SettingsStore.BaseDir = baseDir;
+            var s = new AppSettings();
+            // 模拟旧配置：General 组缺 GoHome/GoEnd，且用户自定义了 ToggleTheme 的键
+            s.Hotkeys["General"].Remove("GoHome");
+            s.Hotkeys["General"].Remove("GoEnd");
+            s.Hotkeys["General"]["ToggleTheme"] = new() { "X" };
+            SettingsStore.Save(s);
+
+            var loaded = SettingsStore.Load();
+            // 缺失动作补齐 + 默认键 Home/End
+            Assert.True(loaded.Hotkeys["General"].ContainsKey("GoHome"));
+            Assert.True(loaded.Hotkeys["General"].ContainsKey("GoEnd"));
+            Assert.Contains("Home", loaded.Hotkeys["General"]["GoHome"]);
+            Assert.Contains("End", loaded.Hotkeys["General"]["GoEnd"]);
+            // 用户自定义保留
+            Assert.Equal(new[] { "X" }, loaded.Hotkeys["General"]["ToggleTheme"]);
+        }
+        finally
+        {
+            SettingsStore.BaseDir = old;
+            try { Directory.Delete(baseDir, true); } catch { }
+        }
+    }
 }

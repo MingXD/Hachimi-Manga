@@ -146,6 +146,22 @@ public static class SettingsStore
                     // v2 迁移：旧版三模式/DirNext 结构 → 重置为四组默认（旧结构无法映射）
                     if (s.Hotkeys is not { } h || !h.ContainsKey("PagedLtr") || !h.ContainsKey("General"))
                         s.Hotkeys = AppSettings.DefaultHotkeys();
+                    else
+                    {
+                        // v3 #1：旧配置升级 —— 补齐每个组缺失的默认动作（如新增的 GoHome/GoEnd），
+                        // 不重置用户已有的自定义绑定；保证 Home/End 出现在"快捷键-通用"且默认绑定生效
+                        foreach (var (group, actions) in AppSettings.DefaultHotkeys())
+                        {
+                            if (!h.TryGetValue(group, out var existing))
+                            {
+                                h[group] = actions;
+                                continue;
+                            }
+                            foreach (var (action, keys) in actions)
+                                if (!existing.ContainsKey(action))
+                                    existing[action] = keys;
+                        }
+                    }
                     return s;
                 }
             }
