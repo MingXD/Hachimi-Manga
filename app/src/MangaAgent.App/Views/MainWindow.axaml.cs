@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using MangaAgent.App.ViewModels;
 using MangaAgent.Core.Library;
 
@@ -28,7 +29,79 @@ public partial class MainWindow : Window
             Dispatcher.UIThread.Post(LoadVisibleThumbnails);
             // F12 调试面板
             KeyDown += (_, ke) => { if (ke.Key == Avalonia.Input.Key.F12) ToggleMainDebug(); };
+            // v3 #4：文件管理器式快捷键（Ctrl+C/X/V、Delete、F2、Enter、Ctrl+A、Backspace/Alt+↑）
+            KeyDown += OnMainKeyDown;
+            // v3 #4：鼠标侧键前进/后退（历史栈）
+            this.AddHandler(PointerPressedEvent, (_, pe) =>
+            {
+                var props = pe.GetCurrentPoint(this).Properties;
+                if (props.IsXButton1Pressed) _vm?.GoBackCommand.Execute(null);
+                else if (props.IsXButton2Pressed) _vm?.GoForwardCommand.Execute(null);
+            }, Avalonia.Interactivity.RoutingStrategies.Bubble);
         }
+    }
+
+    /// <summary>v3 #4：资源管理器式快捷键分发（焦点在文本框时不劫持——搜索框内 Ctrl+C/V 是文本操作）。</summary>
+    private void OnMainKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Handled || _vm is null) return;
+        // 焦点在搜索框时不劫持（Ctrl+C/V 等留给文本编辑）：键盘事件源即焦点控件，沿可视树找 TextBox
+        for (var v = e.Source as Visual; v is not null; v = v.GetVisualParent())
+            if (v is TextBox) return;
+        bool ctrl = e.KeyModifiers.HasFlag(KeyModifiers.Control);
+        bool alt = e.KeyModifiers.HasFlag(KeyModifiers.Alt);
+        if (ctrl && e.Key == Key.C) { CopySelected(false); e.Handled = true; }
+        else if (ctrl && e.Key == Key.X) { CopySelected(true); e.Handled = true; }
+        else if (ctrl && e.Key == Key.V) { _ = _vm.PasteClipboardAsync(); e.Handled = true; }
+        else if (ctrl && e.Key == Key.A) { SelectAllEntries(); e.Handled = true; }
+        else if (e.Key == Key.Delete) { DeleteSelected(); e.Handled = true; }
+        else if (e.Key == Key.F2) { RenameSelected(); e.Handled = true; }
+        else if (e.Key == Key.Enter) { OpenSelected(); e.Handled = true; }
+        else if (e.Key == Key.Back || (alt && e.Key == Key.Up)) { _vm.GoUpCommand.Execute(null); e.Handled = true; }
+    }
+
+    private List<FolderEntryItemViewModel> SelectedEntries()
+    {
+        if (_vm is null) return new();
+        var sel = _vm.IsDetailView ? DetailList.SelectedItems : BooksList.SelectedItems;
+        return sel?.OfType<FolderEntryItemViewModel>().ToList() ?? new();
+    }
+
+    private void CopySelected(bool cut)
+    {
+        var paths = SelectedEntries().Select(x => x.SourcePath).ToList();
+        if (paths.Count == 0) return;
+        if (cut) _vm?.CutToClipboard(paths);
+        else _vm?.CopyToClipboard(paths);
+    }
+
+    private void DeleteSelected()
+    {
+        var paths = SelectedEntries().Select(x => x.SourcePath).ToList();
+        if (paths.Count > 0) _vm?.DeletePaths(paths);
+    }
+
+    private void SelectAllEntries()
+    {
+        if (_vm is null) return;
+        if (_vm.IsDetailView) DetailList?.SelectAll();
+        else BooksList?.SelectAll();
+    }
+
+    private void RenameSelected()
+    {
+        var sel = SelectedEntries();
+        if (sel.Count == 1) sel[0].RenameCommand.Execute(null);
+    }
+
+    private void OpenSelected()
+    {
+        if (_vm is null) return;
+        var sel = SelectedEntries();
+        if (sel.Count != 1) return;
+        var entry = sel[0];
+        if (entry.IsFolder) _vm.EnterFolderCommand.Execute(entry.Folder);
+        else if (entry.Book is { } book) _vm.OpenBookCommand.Execute(new BookItemViewModel(book));
     }
 
     private Views.DebugWindow? _mainDebugWindow;

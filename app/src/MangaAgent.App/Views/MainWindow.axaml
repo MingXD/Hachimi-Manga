@@ -82,6 +82,7 @@
           <ScrollViewer x:Name="CoverScroller" Margin="14" ScrollChanged="OnCoverScrollChanged" IsVisible="{Binding !IsDetailView}">
             <ListBox x:Name="BooksList" ItemsSource="{Binding FolderEntries}" IsVisible="{Binding !IsDetailView}"
                      Background="Transparent" HorizontalAlignment="Left"
+                     SelectionMode="Multiple"
                      DoubleTapped="OnBookDoubleTapped">
               <ListBox.ItemsPanel>
                 <ItemsPanelTemplate>
@@ -139,7 +140,7 @@
             <!-- 窗口过窄：行 MinWidth=440 不再变短，应用窗口右缘裁剪（ScrollViewer 水平不滚动） -->
           </ScrollViewer>
             <ListBox x:Name="DetailList" IsVisible="{Binding IsDetailView}" ItemsSource="{Binding FolderEntries}" Margin="14" Padding="0,0,12,0"
-                     Background="Transparent" DoubleTapped="OnBookDoubleTapped">
+                     Background="Transparent" SelectionMode="Multiple" DoubleTapped="OnBookDoubleTapped">
               <ListBox.Styles>
                 <Style Selector="TextBlock.subtitleCover">
                   <Setter Property="Background" Value="#1E1E26"/>

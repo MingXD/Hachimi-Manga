@@ -32,13 +32,16 @@ public partial class ReaderViewModel
         };
         _currentPhysical = Math.Clamp(saved?.LogicalPage ?? 0, 0, Math.Max(0, _source.PageCount - 1));
         _currentIndex = _logical.Count > 0 ? LogicalIndexOfPhysical(_currentPhysical) : 0;
-        _direction = saved?.Direction ?? ReadingDirection2.Rtl;
+        _direction = saved?.Direction ?? DefaultDirection;   // v3 #2b：无保存状态用设置默认方向
         LoadBookmarks();
         _ = LoadCurrentAsync();
     }
 
     /// <summary>打开书且无保存状态时的默认模式（设置注入，打开书前设置）。</summary>
     public static ViewMode DefaultMode { get; set; } = ViewMode.Single;
+
+    /// <summary>打开书且无保存状态时的默认方向（设置注入，打开书前设置；v3 #2b）。</summary>
+    public static ReadingDirection2 DefaultDirection { get; set; } = ReadingDirection2.Rtl;
 
     /// <summary>是否恢复上次阅读位置（设置注入，打开书前设置）。</summary>
     public static bool ResumePosition { get; set; } = true;

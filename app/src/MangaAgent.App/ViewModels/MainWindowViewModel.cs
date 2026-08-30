@@ -171,18 +171,104 @@ public partial class MainWindowViewModel : ViewModelBase
     /// <summary>全库搜索激活中（目录浏览被搜索结果替换；清空搜索或点文件夹条目时退出）。</summary>
     private bool _searchActive;
 
-    /// <summary>进入子文件夹（双击文件夹条目）。</summary>
-    [RelayCommand]
-    private void EnterFolder(MangaAgent.Core.Library.FolderNode? folder)
-    {
-        if (folder is not null) ShowFolderContents(folder);
-    }
-
     /// <summary>返回上级文件夹（面包屑 ⬆ 按钮）。</summary>
     [RelayCommand]
     private void GoUp()
     {
-        if (CurrentFolder?.Parent is { } parent) ShowFolderContents(parent);
+        if (CurrentFolder?.Parent is { } parent) { PushHistory(); _forwardStack.Clear(); ShowFolderContents(parent); }
+    }
+
+    // ---------- v3 #4：多选快捷键（复制/剪切/粘贴/删除 + 鼠标侧键导航历史） ----------
+    private readonly Stack<MangaAgent.Core.Library.FolderNode> _backStack = new();
+    private readonly Stack<MangaAgent.Core.Library.FolderNode> _forwardStack = new();
+    private List<string> _clipboardPaths = new();
+    private bool _clipboardCut;
+
+    [RelayCommand]
+    private void EnterFolder(MangaAgent.Core.Library.FolderNode? folder)
+    {
+        if (folder is null) return;
+        if (!ReferenceEquals(folder, CurrentFolder)) { PushHistory(); _forwardStack.Clear(); }
+        ShowFolderContents(folder);
+    }
+
+    private void PushHistory()
+    {
+        if (CurrentFolder is { } cur)
+        {
+            _backStack.Push(cur);
+            if (_backStack.Count > 200) _backStack.Pop();
+        }
+    }
+
+    /// <summary>后退（鼠标侧键/快捷键）。历史节点可能是旧树快照 → 回退后重扫反映最新文件系统。</summary>
+    [RelayCommand]
+    private async Task GoBack()
+    {
+        if (_backStack.Count == 0 || CurrentFolder is null) return;
+        _forwardStack.Push(CurrentFolder);
+        ShowFolderContents(_backStack.Pop());
+        await RefreshCurrentViewAsync();
+    }
+
+    /// <summary>前进（鼠标侧键/快捷键）。同上，回退/前进后重扫。</summary>
+    [RelayCommand]
+    private async Task GoForward()
+    {
+        if (_forwardStack.Count == 0 || CurrentFolder is null) return;
+        _backStack.Push(CurrentFolder);
+        ShowFolderContents(_forwardStack.Pop());
+        await RefreshCurrentViewAsync();
+    }
+
+    /// <summary>复制选中项到内部剪贴板（路径列表，粘贴时复制）。</summary>
+    public void CopyToClipboard(IEnumerable<string> paths)
+    {
+        _clipboardPaths = paths.Where(p => File.Exists(p) || Directory.Exists(p)).ToList();
+        _clipboardCut = false;
+        StatusText = $"已复制 {_clipboardPaths.Count} 项";
+        App.SLog($"CLIPBOARD COPY {_clipboardPaths.Count} items");
+    }
+
+    /// <summary>剪切选中项（粘贴时移动）。</summary>
+    public void CutToClipboard(IEnumerable<string> paths)
+    {
+        _clipboardPaths = paths.Where(p => File.Exists(p) || Directory.Exists(p)).ToList();
+        _clipboardCut = true;
+        StatusText = $"已剪切 {_clipboardPaths.Count} 项";
+        App.SLog($"CLIPBOARD CUT {_clipboardPaths.Count} items");
+    }
+
+    /// <summary>粘贴到当前目录（复制或移动，UniquePath 防覆盖）。返回成功数。</summary>
+    public async Task<int> PasteClipboardAsync()
+    {
+        if (CurrentFolder is null || _clipboardPaths.Count == 0) return 0;
+        int total = _clipboardPaths.Count, done = 0;
+        foreach (var p in _clipboardPaths.ToList())
+        {
+            var (ok, error) = await Task.Run(() => _clipboardCut
+                ? MangaAgent.Core.Library.FileOps.MoveTo(p, CurrentFolder.Path)
+                : MangaAgent.Core.Library.FileOps.CopyTo(p, CurrentFolder.Path));
+            if (ok) done++;
+            else App.SLog($"PASTE FAIL {p}: {error}");
+        }
+        if (done > 0) await RefreshCurrentViewAsync();
+        StatusText = $"粘贴完成：{done}/{total} 项";
+        _clipboardPaths.Clear();
+        _clipboardCut = false;
+        return done;
+    }
+
+    /// <summary>批量删除到回收站。返回成功数。</summary>
+    public int DeletePaths(IEnumerable<string> paths)
+    {
+        var list = paths.Where(p => File.Exists(p) || Directory.Exists(p)).ToList();
+        int done = 0;
+        foreach (var p in list)
+            if (MangaAgent.Core.Library.FileOps.DeleteToRecycleBin(p)) done++;
+        if (done > 0) _ = RefreshCurrentViewAsync();
+        StatusText = $"已删除 {done}/{list.Count} 项（回收站）";
+        return done;
     }
 
     /// <summary>新建文件夹（v3 #6）：弹对话框输入名称 → 在当前目录创建 → 刷新并保持位置。
@@ -308,6 +394,8 @@ public partial class MainWindowViewModel : ViewModelBase
             StatusText = msg;
             Avalonia.Threading.Dispatcher.UIThread.Post(() => MangaAgent.App.Views.AlertDialog.Show(msg));
         };
+        // v3 #1：复制/移动进度 → 状态栏文本（Progress.Report 已回 UI 线程）
+        item.ProgressAction = msg => StatusText = msg;
         item.PickTargetFolderAction = async () =>
         {
             var window = GetOwnerWindow?.Invoke();
@@ -536,6 +624,10 @@ public partial class MainWindowViewModel : ViewModelBase
                 "Webtoon" => ViewMode.Webtoon,
                 _ => ViewMode.Single,
             };
+            // v3 #2b：默认方向（无保存状态时生效）
+            ReaderViewModel.DefaultDirection = s.DefaultDirection == "Ltr"
+                ? MangaAgent.Core.Storage.ReadingDirection2.Ltr
+                : MangaAgent.Core.Storage.ReadingDirection2.Rtl;
             ReaderViewModel.ResumePosition = s.ResumePosition;
             var vm = new ReaderViewModel(book.Book, StateDbPath);
             new ReaderWindow { DataContext = vm }.Show();

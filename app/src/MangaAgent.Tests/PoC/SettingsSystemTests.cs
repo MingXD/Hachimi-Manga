@@ -397,4 +397,25 @@ public class SettingsSystemTests
             try { Directory.Delete(baseDir, true); } catch { }
         }
     }
+
+    /// <summary>v3 #2b 回归：默认方向设置存取 + 打开书生效（无保存状态时用设置的默认方向）。</summary>
+    [Fact]
+    public void DefaultDirection_RoundTrip_And_Apply()
+    {
+        var old = SettingsStore.BaseDir;
+        var baseDir = Path.Combine(Path.GetTempPath(), $"manga_set_{Guid.NewGuid():N}");
+        try
+        {
+            SettingsStore.BaseDir = baseDir;
+            var s = new AppSettings { DefaultDirection = "Ltr" };
+            SettingsStore.Save(s);
+            var loaded = SettingsStore.Load();
+            Assert.Equal("Ltr", loaded.DefaultDirection);
+        }
+        finally
+        {
+            SettingsStore.BaseDir = old;
+            try { Directory.Delete(baseDir, true); } catch { }
+        }
+    }
 }

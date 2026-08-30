@@ -117,4 +117,46 @@ public class FileOpsTests
         var b = Path.Combine(Path.GetTempPath(), "sub", "b.txt");
         Assert.True(FileOps.SameVolume(a, b));
     }
+
+    [Fact]
+    public async Task CopyToAsync_Reports_Progress_And_Completes()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"manga_fops_{Guid.NewGuid():N}");
+        try
+        {
+            var src = Path.Combine(root, "src");
+            var dst = Path.Combine(root, "dst");
+            Directory.CreateDirectory(Path.Combine(src, "sub"));
+            File.WriteAllText(Path.Combine(src, "a.txt"), "a");
+            File.WriteAllText(Path.Combine(src, "b.txt"), "b");
+            File.WriteAllText(Path.Combine(src, "sub", "c.txt"), "c");
+
+            var reports = new List<(int Done, int Total)>();
+            var progress = new Progress<(int Done, int Total)>(p => reports.Add(p));
+            var (ok, err) = await FileOps.CopyToAsync(src, dst, progress);
+            Assert.True(ok, err);
+            Assert.Equal(3, reports.Count);                 // 3 个文件逐个报告
+            Assert.Equal((3, 3), reports[^1]);              // 最后报告 = 完成
+            Assert.True(File.Exists(Path.Combine(dst, "src", "sub", "c.txt")));
+        }
+        finally { try { Directory.Delete(root, true); } catch { } }
+    }
+
+    [Fact]
+    public async Task MoveToAsync_SameVolume_No_Progress_Needed()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"manga_fops_{Guid.NewGuid():N}");
+        try
+        {
+            var src = Path.Combine(root, "src");
+            var dst = Path.Combine(root, "dst");
+            Directory.CreateDirectory(src);
+            File.WriteAllText(Path.Combine(src, "a.txt"), "a");
+            var (ok, err) = await FileOps.MoveToAsync(src, dst);   // 同卷 Move，无进度
+            Assert.True(ok, err);
+            Assert.False(Directory.Exists(src));
+            Assert.True(File.Exists(Path.Combine(dst, "src", "a.txt")));
+        }
+        finally { try { Directory.Delete(root, true); } catch { } }
+    }
 }

@@ -28,6 +28,9 @@ public partial class FolderEntryItemViewModel : ViewModelBase
     /// <summary>文件操作失败提示（v3 #3：复制/移动失败不再静默，注入弹窗/状态栏显示错误）。</summary>
     public Action<string>? NotifyError { get; set; }
 
+    /// <summary>文件操作进度/状态提示（v3 #1：状态栏显示"正在复制 x/y…"，MainWindow 注入 StatusText）。</summary>
+    public Action<string>? ProgressAction { get; set; }
+
     /// <summary>源路径（文件夹或书）。</summary>
     public string SourcePath => IsFolder ? (Folder?.Path ?? "") : (Book?.Path ?? "");
 
@@ -189,9 +192,11 @@ public partial class FolderEntryItemViewModel : ViewModelBase
         if (SourcePath.Length == 0 || PickTargetFolderAction is null) return;
         var dest = await PickTargetFolderAction();
         if (string.IsNullOrEmpty(dest)) return;
-        // v3 #3：异步执行（原同步 File.Copy 大文件夹会卡 UI）+ 失败显示原因
-        var (ok, error) = await Task.Run(() => MangaAgent.Core.Library.FileOps.CopyTo(SourcePath, dest));
-        if (ok) RefreshAction?.Invoke();
+        // v3 #1：进度版异步复制（状态栏"正在复制 x/y…"）+ 失败显示原因
+        var progress = new Progress<(int Done, int Total)>(p =>
+            ProgressAction?.Invoke($"正在复制 {p.Done}/{p.Total}…"));
+        var (ok, error) = await Task.Run(() => MangaAgent.Core.Library.FileOps.CopyToAsync(SourcePath, dest, progress));
+        if (ok) { RefreshAction?.Invoke(); ProgressAction?.Invoke("复制完成"); }
         else NotifyError?.Invoke($"复制失败：{error}");
         global::MangaAgent.App.App.SLog($"COPY {SourcePath} -> {dest} ok={ok} err={error}");
     }
@@ -202,9 +207,11 @@ public partial class FolderEntryItemViewModel : ViewModelBase
         if (SourcePath.Length == 0 || PickTargetFolderAction is null) return;
         var dest = await PickTargetFolderAction();
         if (string.IsNullOrEmpty(dest)) return;
-        // v3 #3：异步执行 + 跨卷回退复制删源（FileOps.MoveTo）+ 失败显示原因
-        var (ok, error) = await Task.Run(() => MangaAgent.Core.Library.FileOps.MoveTo(SourcePath, dest));
-        if (ok) RefreshAction?.Invoke();
+        // v3 #1：进度版异步移动（跨卷复制时显示进度）+ 失败显示原因
+        var progress = new Progress<(int Done, int Total)>(p =>
+            ProgressAction?.Invoke($"正在移动 {p.Done}/{p.Total}…"));
+        var (ok, error) = await Task.Run(() => MangaAgent.Core.Library.FileOps.MoveToAsync(SourcePath, dest, progress));
+        if (ok) { RefreshAction?.Invoke(); ProgressAction?.Invoke("移动完成"); }
         else NotifyError?.Invoke($"移动失败：{error}");
         global::MangaAgent.App.App.SLog($"MOVE {SourcePath} -> {dest} ok={ok} err={error}");
     }

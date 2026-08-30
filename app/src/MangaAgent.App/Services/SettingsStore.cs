@@ -33,6 +33,7 @@ public class AppSettings
     public double WebtoonSpeed { get; set; } = 1.0;      // 滚动速度基准（滚动模式一档距离，0.2~4.0）
     // —— 打开书行为 ——
     public string DefaultMode { get; set; } = "Single";  // 无保存状态时的默认模式：Single/Double/Webtoon
+    public string DefaultDirection { get; set; } = "Rtl"; // 无保存状态时的默认方向：Rtl/Ltr（v3 #2b）
     public bool ResumePosition { get; set; } = true;     // 续读：打开书恢复上次位置
     public string DoubleClickAction { get; set; } = "Zoom"; // 双击行为：Zoom/Reset/None
     public string DefaultFitMode { get; set; } = "FitScreen"; // 分页默认适应：FitScreen/FitWidth

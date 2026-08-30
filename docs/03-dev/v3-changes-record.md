@@ -41,7 +41,17 @@
 | 3-16 | **#2 新建文件夹/重命名"完全无效"根治**：根因=`Window.ShowDialog()` 异步不阻塞，同步写法"调用后立即返回 null"→ 命令从未执行；NewFolderDialog/RenameDialog 改 `await ShowAsync`（tcs 模式，同 ConfirmDialog），调用方（NewFolder/Rename ×2）改 async | Views/NewFolderDialog.cs、RenameDialog.cs、ViewModels/MainWindowViewModel.cs、FolderEntryItemViewModel.cs、BookItemViewModel.cs | 新建文件夹、右键重命名（目录条目+封面墙/搜索条目） |
 | 3-17 | 坑位记录：AGENTS.md 环境坑位新增"ShowDialog 异步不阻塞" | AGENTS.md | 后续对话框开发必看 |
 
-## 五、待办（第二批，见 v3-issues-plan.md §16）
+## 五、批次 A（2026-08-25，用户确认后实施）
+
+| # | 修复/改动 | 文件位置 | 可能影响的功能（风险点） |
+|---|---|---|---|
+| 3-18 | **#2b 默认阅读方向**：`AppSettings.DefaultDirection`（Rtl/Ltr）+ 设置窗口"打开书行为"加下拉 + OpenBook 注入 `ReaderViewModel.DefaultDirection` + State.cs 无状态时使用 | SettingsStore.cs、SettingsDialog.cs、MainWindowViewModel.cs、ReaderViewModel.State.cs + SettingsSystemTests（DefaultDirection_RoundTrip） | 设置界面布局、打开书方向 |
+| 3-19 | **#1 复制/移动进度条（状态栏文本）**：`FileOps.CopyToAsync/MoveToAsync`（IProgress 逐个报告，跨卷移动=进度复制+成功后删源）；条目 ProgressAction 注入状态栏"正在复制 x/y…"；粘贴等刷新 | FileOps.cs、FolderEntryItemViewModel.cs、MainWindowViewModel.cs + FileOpsTests（CopyToAsync_Reports_Progress、MoveToAsync） | 复制/移动右键菜单、UI 响应性 |
+| 3-20 | **#4 多选版资源管理器快捷键**：两列表 SelectionMode=Multiple；Ctrl+C/X 复制/剪切（内部剪贴板）、Ctrl+V 粘贴（UniquePath 防覆盖）、Delete 批量回收站、Ctrl+A 全选、F2 重命名（单选）、Enter 打开/进入、Backspace/Alt+↑ 上级；鼠标侧键 XButton1/XButton2 前进/后退（导航历史栈，回退后重扫防旧快照）；搜索框聚焦时不劫持 | MainWindow.axaml、MainWindow.axaml.cs、MainWindowViewModel.cs + FolderBrowserTests（Clipboard_CopyPaste_And_NavHistory） | 主窗口键盘/鼠标交互、导航历史、搜索框文本编辑不受影响 |
+| 3-21 | 测试基线 86 → **90/90** | — | — |
+| 3-22 | **顺带发现并修复**：历史回退显示旧树快照（GoBack/GoForward 现回退后重扫） | MainWindowViewModel.cs | 侧键/历史导航 |
+
+## 六、待办（下一批，见 v3-issues-plan.md §16）
 - #4 多选版快捷键、#1 进度条+跨库刷新、#2b 默认方向设置、#9 中键滑动、#10 模糊优先、#11 清晰度三档
 - #13 配对（用户指示暂缓）、#5 其他文件、#7 图片信息
 

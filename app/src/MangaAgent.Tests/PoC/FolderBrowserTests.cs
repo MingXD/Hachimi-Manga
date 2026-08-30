@@ -298,4 +298,61 @@ public class FolderBrowserTests
             try { Directory.Delete(root, true); } catch { }
         }
     }
+
+    /// <summary>v3 #4 回归：复制/剪切粘贴（UniquePath 防覆盖）+ 导航历史栈（Back/Forward，回退后重扫）。</summary>
+    [AvaloniaFact]
+    public async Task Clipboard_CopyPaste_And_NavHistory()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"manga_clip_{Guid.NewGuid():N}");
+        try
+        {
+            // 根/Extra（1 图） 根/Book（1 图）
+            var extraDir = Path.Combine(root, "Extra");
+            Directory.CreateDirectory(extraDir);
+            File.WriteAllBytes(Path.Combine(extraDir, "p1.jpg"), new byte[8]);
+            var bookDir = Path.Combine(root, "Book");
+            Directory.CreateDirectory(bookDir);
+            File.WriteAllBytes(Path.Combine(bookDir, "p1.jpg"), new byte[8]);
+
+            var tree = await FolderTreeScanner.ScanAsync(root);
+            var vm = new MainWindowViewModel();
+            vm.FolderTree.Add(tree);
+            vm.ShowFolderContents(tree);   // 根：2 条目
+            var bookNode = tree.Children.First(c => c.Name == "Book");
+
+            // 导航历史：进入 Book → Back 回根 → Forward 回 Book
+            vm.EnterFolderCommand.Execute(bookNode);
+            Assert.Equal("Book", vm.CurrentFolder!.Name);
+            await GoBackAsync(vm);
+            Assert.Equal(tree.Name, vm.CurrentFolder!.Name);
+            await GoForwardAsync(vm);
+            Assert.Equal("Book", vm.CurrentFolder!.Name);
+
+            // 复制粘贴：回根 → 复制 Extra → 粘贴到根（同名 → UniquePath 生成 "Extra (2)"）
+            await GoBackAsync(vm);
+            vm.CopyToClipboard(new[] { extraDir });
+            await vm.PasteClipboardAsync();
+            Assert.Contains(vm.FolderEntries, e => e.DisplayName == "Extra (2)");
+
+            // 剪切粘贴：剪切 Extra (2) → 进入 Book → 粘贴 → Book 里有，回根后根里消失
+            vm.CutToClipboard(new[] { Path.Combine(root, "Extra (2)") });
+            vm.EnterFolderCommand.Execute(bookNode);
+            // 等封面缩略图异步加载释放文件句柄（否则移动被占用目录失败 —— 真实时序问题）
+            await Task.Delay(600);
+            await vm.PasteClipboardAsync();
+            Assert.Contains(vm.FolderEntries, e => e.DisplayName == "Extra (2)");
+            await GoBackAsync(vm);
+            Assert.DoesNotContain(vm.FolderEntries, e => e.DisplayName == "Extra (2)");
+        }
+        finally
+        {
+            try { Directory.Delete(root, true); } catch { }
+        }
+    }
+
+    private static Task GoBackAsync(MainWindowViewModel vm)
+        => ((CommunityToolkit.Mvvm.Input.AsyncRelayCommand)vm.GoBackCommand).ExecuteAsync(null);
+
+    private static Task GoForwardAsync(MainWindowViewModel vm)
+        => ((CommunityToolkit.Mvvm.Input.AsyncRelayCommand)vm.GoForwardCommand).ExecuteAsync(null);
 }

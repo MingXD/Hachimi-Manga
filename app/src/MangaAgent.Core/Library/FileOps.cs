@@ -117,6 +117,107 @@ public static class FileOps
         catch (Exception ex) { return (false, ex.Message); }
     }
 
+    /// <summary>递归枚举目录下所有文件（进度统计用）。</summary>
+    private static List<string> EnumerateFilesRecursive(string dir)
+    {
+        var list = new List<string>();
+        foreach (var f in Directory.GetFiles(dir)) list.Add(f);
+        foreach (var d in Directory.GetDirectories(dir)) list.AddRange(EnumerateFilesRecursive(d));
+        return list;
+    }
+
+    /// <summary>异步复制（带进度，v3 #1）：先枚举源文件总数，逐个复制并报告 (done,total)。
+    /// 同步语义与 CopyTo 一致（UniquePath 防覆盖、错误返回）；供 UI 显示"正在复制 x/y…"。</summary>
+    public static async Task<(bool Ok, string? Error)> CopyToAsync(string path, string destDir,
+        IProgress<(int Done, int Total)>? progress = null, CancellationToken ct = default)
+    {
+        try
+        {
+            Directory.CreateDirectory(destDir);
+            var name = Path.GetFileName(path.TrimEnd('\\'));
+            if (string.IsNullOrEmpty(name)) name = new DirectoryInfo(path).Name;
+            var dest = Path.Combine(destDir, name);
+            dest = UniquePath(dest);
+            await Task.Yield();   // 让出一次（调用方通常已 Task.Run；此处避免同步路径完全占住调用线程）
+            if (Directory.Exists(path))
+            {
+                var files = EnumerateFilesRecursive(path);
+                int total = files.Count, done = 0;
+                foreach (var f in files)
+                {
+                    ct.ThrowIfCancellationRequested();
+                    var rel = Path.GetRelativePath(path, f);
+                    var target = Path.Combine(dest, rel);
+                    Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+                    File.Copy(f, target, true);
+                    progress?.Report((++done, total));
+                }
+            }
+            else if (File.Exists(path))
+            {
+                File.Copy(path, dest);
+                progress?.Report((1, 1));
+            }
+            else return (false, "源路径不存在");
+            return (true, null);
+        }
+        catch (Exception ex) { return (false, ex.Message); }
+    }
+
+    /// <summary>异步移动（带进度，v3 #1）：同卷 Move（秒级，无进度）；跨卷 = CopyToAsync 进度复制 + 成功后删源（防数据丢失）。</summary>
+    public static async Task<(bool Ok, string? Error)> MoveToAsync(string path, string destDir,
+        IProgress<(int Done, int Total)>? progress = null, CancellationToken ct = default)
+    {
+        try
+        {
+            Directory.CreateDirectory(destDir);
+            // v3 #3：目标目录就是源所在目录 → 拒绝（否则 UniquePath 会把"移动到自己目录"意外变成重命名 (2)）
+            if ((Directory.Exists(path) || File.Exists(path)) &&
+                string.Equals(Path.GetDirectoryName(Path.GetFullPath(path.TrimEnd('\\'))),
+                    Path.GetFullPath(destDir).TrimEnd('\\'), StringComparison.OrdinalIgnoreCase))
+                return (false, "源与目标目录相同");
+            var name = Path.GetFileName(path.TrimEnd('\\'));
+            if (string.IsNullOrEmpty(name)) name = new DirectoryInfo(path).Name;
+            var dest = Path.Combine(destDir, name);
+            dest = UniquePath(dest);
+            if (Directory.Exists(path))
+            {
+                if (Path.GetFullPath(path).Equals(Path.GetFullPath(dest), StringComparison.OrdinalIgnoreCase))
+                    return (false, "源与目标相同");
+                if (IsSubPath(dest, path))
+                    return (false, "目标不能是源文件夹的子目录");
+                if (SameVolume(path, dest))
+                {
+                    Directory.Move(path, dest);
+                }
+                else
+                {
+                    var (ok, err) = await CopyToAsync(path, destDir, progress, ct);   // 同输入 → 同 UniquePath 结果
+                    if (!ok) return (false, err);
+                    Directory.Delete(path, true);
+                }
+            }
+            else if (File.Exists(path))
+            {
+                if (Path.GetFullPath(path).Equals(Path.GetFullPath(dest), StringComparison.OrdinalIgnoreCase))
+                    return (false, "源与目标相同");
+                if (SameVolume(path, dest))
+                {
+                    File.Move(path, dest);
+                }
+                else
+                {
+                    File.Copy(path, dest);
+                    progress?.Report((1, 1));
+                    File.Delete(path);
+                }
+            }
+            else return (false, "源路径不存在");
+            return (true, null);
+        }
+        catch (Exception ex) { return (false, ex.Message); }
+    }
+
     /// <summary>同卷判断（跨卷时 File.Move/Directory.Move 不支持，须回退复制+删源）。</summary>
     public static bool SameVolume(string a, string b)
         => string.Equals(Path.GetPathRoot(Path.GetFullPath(a)), Path.GetPathRoot(Path.GetFullPath(b)),

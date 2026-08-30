@@ -32,7 +32,7 @@ public class SettingsDialog : Window
     private readonly Slider _zoomBase, _scrollBase, _friction, _flingThreshold, _flingMax, _decodeCap, _cacheCap;
     private readonly TextBox _zoomBaseT, _scrollBaseT, _frictionT, _flingThresholdT, _flingMaxT, _decodeCapT, _cacheCapT;
     private readonly CheckBox _invert, _resume;
-    private readonly ComboBox _pagedWheel, _defaultMode, _doubleClick, _defaultFit;
+    private readonly ComboBox _pagedWheel, _defaultMode, _defaultDir, _doubleClick, _defaultFit;
 
     private static readonly (string Group, string Label)[] Groups =
     {
@@ -86,6 +86,7 @@ public class SettingsDialog : Window
         _invert = new CheckBox { IsChecked = _copy.InvertScroll, VerticalAlignment = VerticalAlignment.Center };
         _resume = new CheckBox { IsChecked = _copy.ResumePosition, VerticalAlignment = VerticalAlignment.Center };
         _defaultMode = new ComboBox { ItemsSource = new[] { "单页", "双页", "滚动" }, SelectedIndex = _copy.DefaultMode switch { "Double" => 1, "Webtoon" => 2, _ => 0 }, Width = 120, HorizontalAlignment = HorizontalAlignment.Left };
+        _defaultDir = new ComboBox { ItemsSource = new[] { "右→左", "左→右" }, SelectedIndex = _copy.DefaultDirection == "Ltr" ? 1 : 0, Width = 120, HorizontalAlignment = HorizontalAlignment.Left };
         _doubleClick = new ComboBox { ItemsSource = new[] { "放大", "复位", "无动作" }, SelectedIndex = _copy.DoubleClickAction switch { "Reset" => 1, "None" => 2, _ => 0 }, Width = 120, HorizontalAlignment = HorizontalAlignment.Left };
         _defaultFit = new ComboBox { ItemsSource = new[] { "适应屏幕", "适应宽度" }, SelectedIndex = _copy.DefaultFitMode == "FitWidth" ? 1 : 0, Width = 120, HorizontalAlignment = HorizontalAlignment.Left };
         _pagedWheel = new ComboBox { ItemsSource = new[] { "缩放", "翻页" }, SelectedIndex = _copy.PagedWheelMode == "Page" ? 1 : 0, Width = 120, HorizontalAlignment = HorizontalAlignment.Left };
@@ -103,6 +104,7 @@ public class SettingsDialog : Window
                 SettingRow("滚动速度基准", _scrollBase, _scrollBaseT, "滚动模式一档距离（0.2~4.0）")),
             Card("打开书行为",
                 SettingRow("默认阅读模式", _defaultMode, null, "打开书且无保存状态时进入的模式"),
+                SettingRow("默认阅读顺序", _defaultDir, null, "打开书且无保存状态时的方向：右→左（日漫）/ 左→右"),
                 SettingRow("恢复上次位置", _resume, null, "打开书是否跳到上次阅读页；关 = 总是从第 1 页"),
                 SettingRow("双击行为", _doubleClick, null, "双击图片：放大 / 复位 / 无动作"),
                 SettingRow("默认适应模式", _defaultFit, null, "分页打开默认视图：适应屏幕 / 适应宽度")),
@@ -406,6 +408,7 @@ public class SettingsDialog : Window
         _copy.ZoomSensitivity = _zoomBase.Value;
         _copy.WebtoonSpeed = _scrollBase.Value;
         _copy.DefaultMode = _defaultMode.SelectedIndex switch { 1 => "Double", 2 => "Webtoon", _ => "Single" };
+        _copy.DefaultDirection = _defaultDir.SelectedIndex == 1 ? "Ltr" : "Rtl";
         _copy.ResumePosition = _resume.IsChecked == true;
         _copy.DoubleClickAction = _doubleClick.SelectedIndex switch { 1 => "Reset", 2 => "None", _ => "Zoom" };
         _copy.DefaultFitMode = _defaultFit.SelectedIndex == 1 ? "FitWidth" : "FitScreen";
@@ -424,6 +427,7 @@ public class SettingsDialog : Window
         ZoomSensitivity = s.ZoomSensitivity,
         WebtoonSpeed = s.WebtoonSpeed,
         DefaultMode = s.DefaultMode,
+        DefaultDirection = s.DefaultDirection,
         ResumePosition = s.ResumePosition,
         DoubleClickAction = s.DoubleClickAction,
         DefaultFitMode = s.DefaultFitMode,
