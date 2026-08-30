@@ -50,6 +50,7 @@ public class SettingsDialog : Window
             nameof(ReaderAction.JumpDialog), nameof(ReaderAction.DebugPanel), nameof(ReaderAction.CycleFit),
             nameof(ReaderAction.ResetView), nameof(ReaderAction.ZoomIn), nameof(ReaderAction.ZoomOut),
             nameof(ReaderAction.TogglePreview),
+            nameof(ReaderAction.GoHome), nameof(ReaderAction.GoEnd),
         }),
         ("PagedLtr", new[] { nameof(ReaderAction.NextPage), nameof(ReaderAction.PrevPage) }),
         ("PagedRtl", new[] { nameof(ReaderAction.NextPage), nameof(ReaderAction.PrevPage) }),
@@ -454,6 +455,8 @@ public class SettingsDialog : Window
         nameof(ReaderAction.ZoomIn) => "放大",
         nameof(ReaderAction.ZoomOut) => "缩小",
         nameof(ReaderAction.TogglePreview) => "预览栏开关",
+        nameof(ReaderAction.GoHome) => "一键首页",
+        nameof(ReaderAction.GoEnd) => "一键末页",
         _ => action,
     };
 
