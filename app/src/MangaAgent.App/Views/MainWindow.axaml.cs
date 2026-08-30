@@ -45,9 +45,14 @@ public partial class MainWindow : Window
     private void OnMainKeyDown(object? sender, KeyEventArgs e)
     {
         if (e.Handled || _vm is null) return;
+        // 诊断（v3，定位"Enter 无效"）：记录每个到达的键——键名/修饰/事件源类型/Handled
+        LastKeyDiag = $"key={e.Key} mods={e.KeyModifiers} src={(e.Source as Visual)?.GetType().Name ?? "null"} handled={e.Handled}";
+        App.SLog($"KEY_DIAG {LastKeyDiag}");
         // 焦点在搜索框时不劫持（Ctrl+C/V 等留给文本编辑）：键盘事件源即焦点控件，沿可视树找 TextBox
+        bool inTextBox = false;
         for (var v = e.Source as Visual; v is not null; v = v.GetVisualParent())
-            if (v is TextBox) return;
+            if (v is TextBox) { inTextBox = true; break; }
+        if (inTextBox) { App.SLog("KEY_DIAG -> blocked-by-textbox"); return; }
         bool ctrl = e.KeyModifiers.HasFlag(KeyModifiers.Control);
         bool alt = e.KeyModifiers.HasFlag(KeyModifiers.Alt);
         if (ctrl && e.Key == Key.C) { CopySelected(false); e.Handled = true; }
@@ -56,9 +61,17 @@ public partial class MainWindow : Window
         else if (ctrl && e.Key == Key.A) { SelectAllEntries(); e.Handled = true; }
         else if (e.Key == Key.Delete) { DeleteSelected(); e.Handled = true; }
         else if (e.Key == Key.F2) { RenameSelected(); e.Handled = true; }
-        else if (e.Key == Key.Enter || e.Key == Key.Return) { OpenSelected(); e.Handled = true; }
+        else if (e.Key == Key.Enter || e.Key == Key.Return)
+        {
+            App.SLog("KEY_DIAG -> enter-branch, calling OpenSelected");
+            OpenSelected();
+            e.Handled = true;
+        }
         else if (e.Key == Key.Back || (alt && e.Key == Key.Up)) { _vm.GoUpCommand.Execute(null); e.Handled = true; }
     }
+
+    /// <summary>v3 诊断：最近按键分发结果（F12 面板状态显示）。</summary>
+    public string LastKeyDiag { get; private set; } = "（未按键）";
 
     /// <summary>v3 #4 修复：列表选中变化时把键盘焦点带到列表——点击条目后 Enter 不再被搜索框拦截（用户"Enter 无效"根因）。</summary>
     private void OnListSelectionChanged(object? sender, SelectionChangedEventArgs e)
@@ -110,10 +123,21 @@ public partial class MainWindow : Window
     {
         if (_vm is null) return;
         var sel = SelectedEntries();
-        if (sel.Count != 1) return;
+        App.SLog($"KEY_OPEN sel={sel.Count} view={(_vm.IsDetailView ? "Detail" : "Cards")}");
+        if (sel.Count != 1) { App.SLog("KEY_OPEN -> sel!=1, return"); return; }
         var entry = sel[0];
-        if (entry.IsFolder) _vm.EnterFolderCommand.Execute(entry.Folder);
-        else if (entry.Book is { } book) _vm.OpenBookCommand.Execute(new BookItemViewModel(book));
+        App.SLog($"KEY_OPEN -> {(entry.IsFolder ? "Folder" : "Book")} '{entry.DisplayName}'");
+        if (entry.IsFolder)
+        {
+            _vm.EnterFolderCommand.Execute(entry.Folder);
+            App.SLog("KEY_OPEN -> EnterFolderCommand executed");
+        }
+        else if (entry.Book is { } book)
+        {
+            _vm.OpenBookCommand.Execute(new BookItemViewModel(book));
+            App.SLog("KEY_OPEN -> OpenBookCommand executed");
+        }
+        else App.SLog("KEY_OPEN -> no folder/book");
     }
 
     private Views.DebugWindow? _mainDebugWindow;
@@ -128,7 +152,8 @@ public partial class MainWindow : Window
                 if (_vm is null) return "vm=null";
                 return $"库:{_vm.Libraries.Count} | 扫描中:{_vm.IsScanning} | 状态:{_vm.StatusText}\n" +
                        $"当前目录:{_vm.CurrentFolder?.Path ?? "无"} | 条目:{_vm.FolderEntries.Count}\n" +
-                       $"展示模式:{_vm.GalleryModeText}";
+                       $"展示模式:{_vm.GalleryModeText} | 选中:{SelectedEntries().Count}\n" +
+                       $"按键诊断:{LastKeyDiag}";
             };
             _mainDebugWindow.Start(_mainDebugWindow.StatusProvider);
         }
