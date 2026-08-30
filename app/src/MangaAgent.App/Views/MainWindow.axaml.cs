@@ -30,7 +30,9 @@ public partial class MainWindow : Window
             // F12 调试面板
             KeyDown += (_, ke) => { if (ke.Key == Avalonia.Input.Key.F12) ToggleMainDebug(); };
             // v3 #4：文件管理器式快捷键（Ctrl+C/X/V、Delete、F2、Enter、Ctrl+A、Backspace/Alt+↑）
-            KeyDown += OnMainKeyDown;
+            // 用隧道阶段（Tunnel = PreviewKeyDown）：焦点在 ListBoxItem 时 Enter 会被 Avalonia 类处理吞掉、
+            // 冒泡到不了窗口 KeyDown（用户"Enter 无效"根因）；隧道先于一切类处理，必然到达
+            this.AddHandler(Avalonia.Input.InputElement.KeyDownEvent, OnMainKeyDown, Avalonia.Interactivity.RoutingStrategies.Tunnel);
             // v3 #4：鼠标侧键前进/后退（历史栈）
             this.AddHandler(PointerPressedEvent, (_, pe) =>
             {
@@ -76,7 +78,7 @@ public partial class MainWindow : Window
     /// <summary>v3 #4 修复：列表选中变化时把键盘焦点带到列表——点击条目后 Enter 不再被搜索框拦截（用户"Enter 无效"根因）。</summary>
     private void OnListSelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
-        if (sender is ListBox lb && lb.SelectedItems.Count > 0) lb.Focus();
+        if (sender is ListBox lb && lb.SelectedItems is { Count: > 0 }) lb.Focus();
     }
 
     /// <summary>v3 #4 补充：点击列表任意处（含已选中条目，选中不变不触发 SelectionChanged）也聚焦列表。</summary>

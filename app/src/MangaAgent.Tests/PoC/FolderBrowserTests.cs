@@ -408,4 +408,7 @@ public class FolderBrowserTests
             try { Directory.Delete(fakeAppData, true); } catch { }
         }
     }
+
+    // 注：headless 无法生成 ListBoxItem 容器，"焦点在条目上 Enter 被类处理吞掉"的根因
+    // 由用户真实日志证明（KEY_DIAG 无 Enter 记录、焦点 src=ListBoxItem）；修复=隧道阶段处理快捷键。
 }

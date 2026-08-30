@@ -60,7 +60,20 @@
 | 3-25 | **测试基建隔离** | `new MainWindowViewModel()` 异步加载真实 `%LOCALAPPDATA%\HachimiManga\libraries.txt` 污染测试；`AppData` 改为可覆盖（同 SettingsStore.BaseDir 模式） | MainWindowViewModel.cs |
 | 3-26 | 测试基线 90 → **92/92** | — | — |
 
-## 七、待办（下一批，见 v3-issues-plan.md §16）
+## 七、Enter 根因最终定位（2026-08-25，用户 F12 日志铁证）
+
+**根因**：焦点在 `ListBoxItem`（条目）时，**Avalonia 类处理把 Enter 吞掉（标记 Handled），事件冒泡不到窗口 KeyDown**——用户日志证明：F12/Ctrl/Alt 都有 `KEY_DIAG` 记录（src=ListBoxItem 也能到达），唯独 **Enter 无任何日志**（根本没到窗口）。Ctrl/Alt 不被列表关心所以能冒泡，Enter 被列表消费。
+
+**修复**：主窗口快捷键处理从 `KeyDown`（冒泡，会被拦截）改到 **隧道阶段**（`AddHandler(KeyDownEvent, Tunnel)` = PreviewKeyDown）——隧道先于一切类处理，Enter 必然到达。
+
+| # | 修复/改动 | 文件位置 |
+|---|---|---|
+| 3-27 | 快捷键处理改隧道阶段（PreviewKeyDown）；保留 KEY_DIAG 诊断日志（F12 面板可复核） | MainWindow.axaml.cs |
+| 3-28 | **F12 弹"Developer Tools Not Installed"**：Program.cs 的 `WithDeveloperTools()`（DEBUG 下启用 Avalonia DevTools，未装包时 F12 弹提示）→ 移除，保留项目自己的 F12 面板 | Program.cs |
+| 3-29 | 顺带修 ListBox.SelectedItems 空引用警告 | MainWindow.axaml.cs |
+| 3-30 | 测试 93→92（删除 headless 无法复现的 ListBoxItem 容器测试；根因由真实日志证明） | FolderBrowserTests.cs |
+
+## 八、待办（下一批，见 v3-issues-plan.md §16）
 - #4 多选版快捷键、#1 进度条+跨库刷新、#2b 默认方向设置、#9 中键滑动、#10 模糊优先、#11 清晰度三档
 - #13 配对（用户指示暂缓）、#5 其他文件、#7 图片信息
 
