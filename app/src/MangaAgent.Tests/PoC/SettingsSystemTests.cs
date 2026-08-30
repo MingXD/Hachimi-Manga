@@ -295,4 +295,38 @@ public class SettingsSystemTests
             try { File.Delete(db); } catch { }
         }
     }
+
+    /// <summary>v3 #4 回归：续读恢复页尺寸必须同步加载（滚动模式 fit 用真实比例，否则 0.7 占位 → 页面"缩小但显示 100%"）。</summary>
+    [AvaloniaFact]
+    public async Task Resume_Webtoon_RestorePage_Size_Loaded_Sync()
+    {
+        var db = Path.Combine(Path.GetTempPath(), $"manga_wtf24_{Guid.NewGuid():N}.db");
+        var oldMode = ReaderViewModel.DefaultMode;
+        var oldResume = ReaderViewModel.ResumePosition;
+        try
+        {
+            // 1) 翻到后半段（如物理页 200）并保存
+            ReaderViewModel.ResumePosition = true;
+            ReaderViewModel.DefaultMode = ViewMode.Single;
+            var vm1 = new ReaderViewModel(StressBook, db);
+            await WaitUntilAsync(() => vm1.Image1 is not null);
+            for (int i = 0; i < 200; i++) vm1.NextPageCommand.Execute(null);
+            await Task.Delay(300);
+            await vm1.DisposeAsync();
+
+            // 2) 重新打开：恢复物理页应在 200 附近，且其尺寸已同步加载（RatioOfPage != 0.7 占位）
+            var vm2 = new ReaderViewModel(StressBook, db);
+            int phys = vm2.CurrentPhysical;
+            Assert.True(phys >= 190, $"恢复物理页应在 200 附近（实际 {phys}）");
+            Assert.True(Math.Abs(vm2.RatioOfPage(phys) - 0.7) > 0.01,
+                $"恢复页尺寸应已同步加载（RatioOfPage={vm2.RatioOfPage(phys):F3}，不应是 0.7 占位）");
+            await vm2.DisposeAsync();
+        }
+        finally
+        {
+            ReaderViewModel.DefaultMode = oldMode;
+            ReaderViewModel.ResumePosition = oldResume;
+            try { File.Delete(db); } catch { }
+        }
+    }
 }

@@ -14,7 +14,17 @@
 | 3-4 | **#6 新建文件夹**：`NewFolderDialog`（输入名称）+ `MainWindowViewModel.NewFolder` 命令 + `NewFolderCore`（可测纯逻辑，同名/非法名报错）+ 重建树并保持当前位置（RefreshTreeKeepFolderAsync）+ 面包屑区"＋新建文件夹"按钮 | 新增 Views/NewFolderDialog.cs、MainWindowViewModel.cs、MainWindow.axaml + FolderBrowserTests.cs（NewFolder_Creates） | 目录浏览刷新、面包屑 |
 | 3-5 | **#3 跨库/跨盘移动修复**：`FileOps.MoveTo/CopyTo` 返回 `(bool, string?)`（原跨卷必失败且静默吞异常）；跨卷回退"复制成功后才删源"；拒绝源=目标/目标=源所在目录/目标在源内部；`FolderEntryItemViewModel` 复制/移动改异步执行 + 失败弹窗（新增 AlertDialog） | Core/Library/FileOps.cs、ViewModels/FolderEntryItemViewModel.cs、MainWindowViewModel.cs（NotifyError 注入）、新增 Views/AlertDialog.cs + Tests/Library/FileOpsTests.cs（7 测试） | 文件操作右键菜单、UI 响应性（不再卡界面） |
 
-## 二、待办（第二批，见 v3-issues-plan.md §16）
+## 二、本次小改（2026-08-25，第一批后用户反馈 4 项）
+
+| # | 修复/改动 | 文件位置 | 可能影响的功能（风险点） |
+|---|---|---|---|
+| 3-6 | **首页/末页按钮移到页码块右侧**（◀ ▶ 页码 ⏮ ⏭ 连排）；快捷键 Home/End 保持不变（已在设置-快捷键默认绑定） | ReaderWindow.axaml | 工具栏布局 |
+| 3-7 | **属性对话框文本可复制**：TextBlock → SelectableTextBlock | Views/PropertiesDialog.cs | 属性框样式 |
+| 3-8 | **删除/移动/复制/新建后自动刷新**：原 RefreshAction 用旧树快照重建列表（文件系统已变但 FolderNode 快照不变 → 界面"不刷新"）；统一改为 `RefreshCurrentViewAsync`（重建库树 + 保持当前目录/搜索态），WireEntry/BookItem Wire 共用 | ViewModels/MainWindowViewModel.cs + FolderBrowserTests（RefreshCurrentView_After_Delete） | 目录浏览刷新、封面墙 |
+| 3-9 | **滚动续读 fit 修复**：根因=LoadSizes 只同步读前 2 页，续读恢复页（如第 200 页）比例未加载 → `FitWebtoonToPage` 用 0.7 占位比例 → 页面显示偏小但显示 100%；修复=①构造时同步读恢复页尺寸 ②新增 `WebtoonLayoutChanged` 事件，LoadSizes 后台补全后 RebuildLayout 触发 → 视图 FitWebtoonToPage 重建（真实比例） | ReaderViewModel.State.cs / ReaderViewModel.cs（事件+RebuildLayout）、ReaderWindow.axaml.cs（订阅/退订）+ SettingsSystemTests（Resume_Webtoon_RestorePage_Size_Loaded_Sync） | 滚动模式进入/续读 fit、模式切换（RebuildLayout 路径） |
+| 3-10 | 测试基线 82 → **84/84** | — | — |
+
+## 三、待办（第二批，见 v3-issues-plan.md §16）
 - #4 多选版快捷键、#1 进度条+跨库刷新、#2b 默认方向设置、#9 中键滑动、#10 模糊优先、#11 清晰度三档
 - #13 配对（用户指示暂缓）、#5 其他文件、#7 图片信息
 

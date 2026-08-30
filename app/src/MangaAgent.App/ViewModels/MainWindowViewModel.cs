@@ -194,7 +194,7 @@ public partial class MainWindowViewModel : ViewModelBase
         if (string.IsNullOrWhiteSpace(name)) return;
         StatusText = NewFolderCore(CurrentFolder.Path, name);
         if (StatusText.StartsWith("已创建"))
-            _ = RefreshTreeKeepFolderAsync();
+            _ = RefreshCurrentViewAsync();
     }
 
     /// <summary>新建文件夹纯逻辑（测试入口）：返回状态消息。</summary>
@@ -215,15 +215,24 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
-    /// <summary>重建当前库树并保持当前目录位置（新建/删除文件夹后调用，避免跳到库根）。</summary>
-    private async Task RefreshTreeKeepFolderAsync()
+    /// <summary>重建当前库树并保持当前目录位置（新建/删除文件夹后调用，避免跳到库根）。
+    /// v3 小改：公开为 RefreshCurrentViewAsync，供删除/移动/复制/新建统一自动刷新（原 RefreshAction 用旧树快照重建 → 文件系统已变但节点不变，界面"不刷新"）。
+    /// 库根取 CurrentFolder.PathChain[0]，不依赖 SelectedLibrary（测试/未选库场景也可用）。</summary>
+    public async Task RefreshCurrentViewAsync()
     {
-        if (SelectedLibrary is null || CurrentFolder is null) return;
+        if (CurrentFolder is null) return;
         try
         {
-            var tree = await MangaAgent.Core.Library.FolderTreeScanner.ScanAsync(SelectedLibrary.Path);
+            var libRoot = CurrentFolder.PathChain[0].Path;
+            var tree = await MangaAgent.Core.Library.FolderTreeScanner.ScanAsync(libRoot);
             FolderTree.Clear();
             FolderTree.Add(tree);
+            if (_searchActive)
+            {
+                // 搜索态：基于新树重算命中
+                ApplyFilter();
+                return;
+            }
             // 沿当前路径（根后各级名称）找新节点
             var names = CurrentFolder.PathChain.Select(n => n.Name).Skip(1).ToList();
             var node = tree;
@@ -278,10 +287,7 @@ public partial class MainWindowViewModel : ViewModelBase
             }
             else if (e.Book is { } book) OpenBookCommand.Execute(new BookItemViewModel(book));
         };
-        item.RefreshAction = () => Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-        {
-            if (CurrentFolder is not null) ShowFolderContents(CurrentFolder);
-        });
+        item.RefreshAction = () => _ = RefreshCurrentViewAsync();
         // v3 #3：复制/移动失败 → 弹窗 + 状态栏（不再静默）
         item.NotifyError = msg =>
         {
@@ -452,11 +458,8 @@ public partial class MainWindowViewModel : ViewModelBase
     private BookItemViewModel Wire(BookItemViewModel item)
     {
         item.OpenAction = b => OpenBookCommand.Execute(b);
-        item.RefreshAction = () => Dispatcher.UIThread.Post(() =>
-        {
-            if (SelectedFolder is not null) SelectedFolder = SelectedFolder;   // 触发刷新
-            else RescanCommand.Execute(null);
-        });
+        // v3：封面墙/库视图操作后同样重建树刷新（原 hack：SelectedFolder=SelectedFolder 不触发真实重扫）
+        item.RefreshAction = () => _ = RefreshCurrentViewAsync();
         return item;
     }
 

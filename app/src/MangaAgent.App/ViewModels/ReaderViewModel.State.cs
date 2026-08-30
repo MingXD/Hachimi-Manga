@@ -14,12 +14,13 @@ public partial class ReaderViewModel
         Book = book;
         _state = new ReadingStateStore(stateDbPath);
         _source = ComicSourceFactory.Open(book.Path);
-        LoadSizes();
-        RebuildLayout();
-
         var saved = _state.LoadState(book.Path);
         // v5.2：设置"续读"关 → 忽略保存状态（从第 1 页、用默认模式）
         if (!ResumePosition) saved = null;
+        // v3 #4：恢复页尺寸同步加载 —— 原实现 LoadSizes 只同步读前 2 页，
+        // 滚动模式续读 fit 用 0.7 占位比例 → 恢复页显示尺寸错误（"缩小但显示 100%"）
+        LoadSizes(saved?.LogicalPage);
+        RebuildLayout();
         // 无保存状态 → 用设置"默认阅读模式"；有 → 尊重保存的模式（BUG-A v1.9：状态存物理页）
         // v3 #2a 修复：完整映射三模式 —— 原实现把 Webtoon 降级为 Single，滚动模式续读丢失
         if (saved is null) _viewMode = DefaultMode;
@@ -42,15 +43,20 @@ public partial class ReaderViewModel
     /// <summary>是否恢复上次阅读位置（设置注入，打开书前设置）。</summary>
     public static bool ResumePosition { get; set; } = true;
 
-    private void LoadSizes()
+    /// <summary>滚动模式布局/比例变化（LoadSizes 补全后等）→ 视图重建当前页 fit（v3 #4：补全后比例生效，修复续读页"缩小"）。</summary>
+    public event Action? WebtoonLayoutChanged;
+
+    private void LoadSizes(int? restorePhysical = null)
     {
         // P2-1（性能）：大书打开提速 —— 构造只同步读前 2 页尺寸（布局/封面立即可用），
         // 其余页由后台任务补全（每 64 页让出一次，防独占线程池线程）；补全完成后
         // RebuildLayout 应用真实比例（双页拼接/高度匹配依赖真实 AspectRatio，不能一直用 0.7）。
+        // v3 #4：额外同步读"续读恢复页"尺寸 —— 滚动模式进入 fit 需要该页真实比例。
         // 线程安全：_sizes 为 ConcurrentDictionary（后台写、UI 读）。
         int total = _source.PageCount;
         int syncCount = Math.Min(2, total);
         for (int i = 0; i < syncCount; i++) TryReadSize(i);
+        if (restorePhysical is { } rp && rp >= syncCount && rp < total) TryReadSize(rp);
         if (total <= syncCount) return;
 
         _ = Task.Run(async () =>

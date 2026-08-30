@@ -17,7 +17,8 @@ public static class PropertiesDialog
             : new FileInfo(book.Path).Length;
         }
         catch { }
-        var info = new TextBlock
+        // v3：SelectableTextBlock —— 属性文本可选择复制（原 TextBlock 不可选）
+        var info = new SelectableTextBlock
         {
             Text = $"名称：{book.Title}\n路径：{book.Path}\n类型：{(book.Kind == BookKind.Zip ? "CBZ 压缩包" : "文件夹")}\n页数：{book.PageCount}\n大小：{size / 1024d / 1024d:F1} MB\n修改时间：{book.ModifiedAt:yyyy-MM-dd HH:mm}",
             TextWrapping = Avalonia.Media.TextWrapping.Wrap,

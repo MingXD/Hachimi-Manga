@@ -256,4 +256,46 @@ public class FolderBrowserTests
             try { Directory.Delete(root, true); } catch { }
         }
     }
+
+    /// <summary>v3 小改：删除文件后自动刷新（原 RefreshAction 用旧树快照重建 → 文件系统变了但节点不变，界面不刷新）。</summary>
+    [AvaloniaFact]
+    public async Task RefreshCurrentView_After_Delete_Updates_Entries()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"manga_refresh_{Guid.NewGuid():N}");
+        try
+        {
+            // 根/Book（2 图=1 漫画） 根/Extra（1 图=1 漫画）
+            var bookDir = Path.Combine(root, "Book");
+            Directory.CreateDirectory(bookDir);
+            File.WriteAllBytes(Path.Combine(bookDir, "p1.jpg"), new byte[8]);
+            File.WriteAllBytes(Path.Combine(bookDir, "p2.jpg"), new byte[8]);
+            var extraDir = Path.Combine(root, "Extra");
+            Directory.CreateDirectory(extraDir);
+            File.WriteAllBytes(Path.Combine(extraDir, "p1.jpg"), new byte[8]);
+
+            var tree = await FolderTreeScanner.ScanAsync(root);
+            var vm = new MainWindowViewModel();
+            vm.FolderTree.Add(tree);
+            vm.ShowFolderContents(tree);
+            Assert.Equal(2, vm.FolderEntries.Count);
+
+            // 文件系统删除 Extra（模拟删除/移动操作）→ 自动刷新后条目消失
+            // 先等封面缩略图异步加载完成释放文件句柄（否则删除被占用文件失败——真实时序问题）
+            await Task.Delay(600);
+            Directory.Delete(extraDir, true);
+            await vm.RefreshCurrentViewAsync();
+            Assert.Single(vm.FolderEntries);
+            Assert.Equal("Book", vm.FolderEntries[0].DisplayName);
+
+            // 再删 Book → 空目录（刷新后 Book 封面可能又在加载，同样等待）
+            await Task.Delay(600);
+            Directory.Delete(bookDir, true);
+            await vm.RefreshCurrentViewAsync();
+            Assert.Empty(vm.FolderEntries);
+        }
+        finally
+        {
+            try { Directory.Delete(root, true); } catch { }
+        }
+    }
 }

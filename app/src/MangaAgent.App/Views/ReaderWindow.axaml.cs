@@ -145,8 +145,16 @@ public partial class ReaderWindow : Window
                 }
             };
             vm.PropertyChanged += _vmPropertyChanged;
+            // v3 #4：滚动模式布局/比例补全后重建当前页 fit（续读恢复页用真实比例，不再 0.7 占位"缩小"）
+            vm.WebtoonLayoutChanged += OnWebtoonLayoutChanged;
             Relayout();
         }
+    }
+
+    private void OnWebtoonLayoutChanged()
+    {
+        if (_vm?.ViewMode == ViewMode.Webtoon)
+            FitWebtoonToPage(_vm.CurrentFirstPhysical);
     }
 
     protected override void OnOpened(EventArgs e)
@@ -173,6 +181,7 @@ public partial class ReaderWindow : Window
             // P1-4：退订 VM PropertyChanged（与订阅对称，防窗口/VM 互相引用）
             if (_vm is not null && _vmPropertyChanged is not null)
                 _vm.PropertyChanged -= _vmPropertyChanged;
+            if (_vm is not null) _vm.WebtoonLayoutChanged -= OnWebtoonLayoutChanged;
             _vmPropertyChanged = null;
             // 释放分页 Image 的 Source（否则 Close 后布局访问已 Dispose 位图 → headless Cleanup 崩溃）
             if (PageImage1 is not null) PageImage1.Source = null;

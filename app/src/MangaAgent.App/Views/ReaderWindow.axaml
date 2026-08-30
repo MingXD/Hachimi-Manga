@@ -75,11 +75,12 @@
         <!-- 设置按钮放最前，与操作按钮以竖线分隔（书名已显示在窗口标题栏，不再占工具栏） -->
         <Button Content="⚙ 设置" Click="OnSettingsClick" ToolTip.Tip="阅读设置（基准/手感/快捷键/使用介绍）" Foreground="{Binding ForegroundHex}" MinWidth="64"/>
         <Border Width="1" Background="#666666" Margin="2,2" VerticalAlignment="Stretch"/>
-        <Button x:Name="GoHomeButton" Content="⏮" Click="OnGoHomeClick" ToolTip.Tip="首页 (Home)" Foreground="{Binding ForegroundHex}"/>
         <Button x:Name="NavPrevButton" Content="◀" Click="OnNavPrevClick" Foreground="{Binding ForegroundHex}"/>
         <Button x:Name="NavNextButton" Content="▶" Click="OnNavNextClick" Foreground="{Binding ForegroundHex}"/>
-        <Button x:Name="GoEndButton" Content="⏭" Click="OnGoEndClick" ToolTip.Tip="末页 (End)" Foreground="{Binding ForegroundHex}"/>
         <Button Content="{Binding PageText}" Click="OnPageTextClick" ToolTip.Tip="点击跳转到指定页 (G)" Background="Transparent" Foreground="{Binding ForegroundHex}" Padding="6,2" Margin="8,0"/>
+        <!-- v3：首页/末页按钮与页码块放在一起（右侧），快捷键 Home/End 见设置-快捷键 -->
+        <Button x:Name="GoHomeButton" Content="⏮" Click="OnGoHomeClick" ToolTip.Tip="首页 (Home)" Foreground="{Binding ForegroundHex}"/>
+        <Button x:Name="GoEndButton" Content="⏭" Click="OnGoEndClick" ToolTip.Tip="末页 (End)" Foreground="{Binding ForegroundHex}"/>
 
         <Button x:Name="ModeButton" Content="{Binding ModeText}" Click="OnModeMenuClick" Foreground="{Binding ForegroundHex}">
           <Button.ContextMenu>

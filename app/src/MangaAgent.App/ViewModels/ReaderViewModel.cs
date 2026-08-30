@@ -111,6 +111,8 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
         TotalLogical = Math.Max(1, _logical.Count);
         if (CurrentIndex >= _logical.Count) CurrentIndex = Math.Max(0, _logical.Count - 1);
         _ = LoadCurrentAsync();
+        // v3 #4：滚动模式下比例/布局变化（LoadSizes 补全后）→ 通知视图重建当前页 fit（真实比例）
+        if (ViewMode == ViewMode.Webtoon) WebtoonLayoutChanged?.Invoke();
     }
 
     partial void OnPairOffsetChanged(int value)
