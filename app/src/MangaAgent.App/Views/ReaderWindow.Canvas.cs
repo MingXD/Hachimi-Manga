@@ -149,9 +149,9 @@ public partial class ReaderWindow : Window
             PageImage2.Height = BaseH;
         }
 
+        // Fit 模式（分页）：计算 scale + 居中 translate
         if (_vm.FitMode != FitMode.Custom && _vm.ViewMode != ViewMode.Webtoon)
         {
-            // Fit 模式（分页）：计算 scale + 居中 translate
             _scale = CurrentFitScale();
             _tx = (vpW - baseW * _scale) / 2;
             _ty = (vpH - BaseH * _scale) / 2;
@@ -159,6 +159,14 @@ public partial class ReaderWindow : Window
         }
         // Webtoon 模式：scale 由 EnterWebtoon/ZoomWebtoon 管理（等宽 FitScreen 语义），Relayout 不重置
         // Custom 模式：scale/translate 由画布交互管理，Relayout 不重置
+        // v3 修复：实时显示需求（解码宽度输入）——Relayout 在翻页/尺寸/模式变化后都会跑（此处 _scale 已是最终值），
+        // 使后续解码/预取立即按当前显示需求算宽度（根治"缩小过视图后翻页模糊且不升级"）
+        if (_vm is not null)
+        {
+            double dpr = RenderScaling > 0 ? RenderScaling : 1.0;
+            _vm.DisplayWidth = (int)(ComputeBaseW() * _scale * dpr);
+            _vm.DecodeTargetWidth = _vm.ComputeTargetWidth(_vm.DisplayWidth, _vm.CurrentPhysical);
+        }
         ApplyTransform();
         if (_vm.ViewMode == ViewMode.Webtoon)
         {
@@ -205,7 +213,8 @@ public partial class ReaderWindow : Window
             _vm.SyncScaleFromView(_scale / CurrentFitScale());
             // v3：按档位计算解码目标宽度（自动=放大到原图级才解大图，无 2048 钳制）
             double dpr = RenderScaling > 0 ? RenderScaling : 1.0;
-            _vm.DecodeTargetWidth = _vm.ComputeTargetWidth((int)(ComputeBaseW() * _scale * dpr), _vm.CurrentPhysical);
+            _vm.DisplayWidth = (int)(ComputeBaseW() * _scale * dpr);
+            _vm.DecodeTargetWidth = _vm.ComputeTargetWidth(_vm.DisplayWidth, _vm.CurrentPhysical);
             // v3 防放大模糊：当前页缓存宽度不足 → 立即重解码（分页模式）
             if (_vm.CurrentPageNeedsRedecode(_vm.DecodeTargetWidth)) _vm.RefreshCurrentPage();
             // v3 缩放联动：放大后按新宽度重预取邻页（防"放大后翻页又糊"）
@@ -279,7 +288,8 @@ public partial class ReaderWindow : Window
         {
             _vm.SyncScaleFromView(_scale / CurrentFitScale());
             double dpr = RenderScaling > 0 ? RenderScaling : 1.0;
-            _vm.DecodeTargetWidth = _vm.ComputeTargetWidth((int)(ComputeBaseW() * _scale * dpr), _vm.CurrentPhysical);
+            _vm.DisplayWidth = (int)(ComputeBaseW() * _scale * dpr);
+            _vm.DecodeTargetWidth = _vm.ComputeTargetWidth(_vm.DisplayWidth, _vm.CurrentPhysical);
             // v3 防放大模糊：当前页缓存宽度不足 → 立即重解码（分页模式）
             if (_vm.CurrentPageNeedsRedecode(_vm.DecodeTargetWidth)) _vm.RefreshCurrentPage();
             // v3 缩放联动

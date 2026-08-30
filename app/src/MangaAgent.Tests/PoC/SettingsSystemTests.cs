@@ -494,4 +494,37 @@ public class SettingsSystemTests
             try { Directory.Delete(baseDir, true); } catch { }
         }
     }
+
+    /// <summary>v3 修复回归：翻页/显示需求变化后，解码宽度跟随实时 DisplayWidth（不再用旧 DecodeTargetWidth）。
+    /// 旧代码缩小过视图后翻页会用旧宽度 → 放大/高分屏下模糊且不升级。</summary>
+    [AvaloniaFact]
+    public async Task DecodeWidth_Follows_DisplayWidth_On_Page_Turn()
+    {
+        var db = Path.Combine(Path.GetTempPath(), $"manga_wtf27_{Guid.NewGuid():N}.db");
+        try
+        {
+            var vm = new ReaderViewModel(StressBook, db);
+            await WaitUntilAsync(() => vm.Image1 is not null);
+            int firstPage = vm.CurrentPhysical;
+
+            // 模拟"放大"：DisplayWidth 变大 → 翻页（不缩放）后新页按新宽度解码
+            vm.DisplayWidth = 3000;
+            vm.NextPageCommand.Execute(null);
+            await WaitUntilAsync(() => vm.CurrentPhysical != firstPage);
+            int expect = vm.ComputeTargetWidth(3000, vm.CurrentPhysical);
+            await WaitUntilAsync(() => vm.CachedDecodeWidth(vm.CurrentPhysical) == expect);
+            Assert.Equal(expect, vm.CachedDecodeWidth(vm.CurrentPhysical));
+
+            // 模拟"缩小"：DisplayWidth 小 → 缓存已有大图则直接满足（大图缩小显示更清晰），无需重解
+            vm.DisplayWidth = 600;
+            vm.RefreshCurrentPage();
+            await Task.Delay(400);
+            int expectSmall = vm.ComputeTargetWidth(600, vm.CurrentPhysical);
+            Assert.True(vm.CachedDecodeWidth(vm.CurrentPhysical) >= expectSmall,
+                $"缩小后缓存宽度 {vm.CachedDecodeWidth(vm.CurrentPhysical)} 应满足需求 {expectSmall}");
+
+            await vm.DisposeAsync();
+        }
+        finally { try { File.Delete(db); } catch { } }
+    }
 }

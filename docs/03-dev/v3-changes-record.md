@@ -83,7 +83,19 @@
 | 3-34 | 边界修复：原图宽 < 解码下限时 `Math.Clamp(min>max)` 抛异常（小占位图）→ 直接解原图宽 | ReaderViewModel.Decode.cs |
 | 3-35 | 测试 92 → **95/95**（预设/内存估算、新字段往返、ComputeTargetWidth 档位） | SettingsSystemTests.cs |
 
-## 九、待办（下一批，见 v3-issues-plan.md §16）
+## 九、翻页模糊且不升级——根因修复（2026-08-25）
+
+**根因（更正）**：先排除"并发写缓存"（所有缓存操作经 await 回 UI 线程，无并发）。真根因=**解码宽度用"上次缩放时的旧值"**：`DecodeTargetWidth` 只在缩放动作时更新；翻页/窗口变化不更新 → 之前缩小过视图（降到 1200）后翻页，新页按旧宽度解码——显示需求超过它（放大状态/大窗口/高分屏）就糊；且翻页不触发清晰度重检（`CurrentPageNeedsRedecode` 只在缩放时跑）→ 糊图永不升级。
+
+**修复**：新增 `ReaderViewModel.DisplayWidth`（视图在 Relayout/缩放处实时维护 = 显示内容宽 × DPI）；`DecodeAsync`/`PrefetchDecodeAsync` 分页路径改用 `ComputeTargetWidth(DisplayWidth, physical)`（实时需求）取代旧 `DecodeTargetWidth`——翻页/窗口变化后立即按当前需求解码与预取，模糊自动升级。加 DECODE/SHOW 诊断日志（F12 面板可见）。
+
+| # | 修复/改动 | 文件位置 |
+|---|---|---|
+| 3-36 | DisplayWidth 实时驱动解码/预取宽度（根治"缩小过视图后翻页模糊且不升级"） | ReaderViewModel.Decode.cs、ReaderWindow.Canvas.cs |
+| 3-37 | DECODE/SHOW 诊断日志 | ReaderViewModel.Decode.cs |
+| 3-38 | 测试 95 → **96/96**（DecodeWidth_Follows_DisplayWidth_On_Page_Turn） | SettingsSystemTests.cs |
+
+## 十、待办（下一批，见 v3-issues-plan.md §16）
 - #4 多选版快捷键、#1 进度条+跨库刷新、#2b 默认方向设置、#9 中键滑动、#10 模糊优先、#11 清晰度三档
 - #13 配对（用户指示暂缓）、#5 其他文件、#7 图片信息
 

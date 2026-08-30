@@ -112,6 +112,7 @@ public partial class ReaderViewModel
         Image2 = img2;
         ReleaseUiBitmap(old1);
         ReleaseUiBitmap(old2);
+        App.SLog($"SHOW phys={firstPhys} w={(_pageCacheWidth.TryGetValue(firstPhys, out var sw) ? sw : 0)} mode={ViewMode}");
         // BUG-A v1.9：单页显示物理页号；双页显示逻辑页号
         PageText = ViewMode == ViewMode.Single
             ? $"{_currentPhysical + 1} / {_source.PageCount}"
@@ -175,7 +176,8 @@ public partial class ReaderViewModel
     private async Task PrefetchDecodeAsync(int physical)
     {
         if (_disposed) return;   // P2-3：关闭后不再解码/入缓存
-        int want = Math.Max(400, DecodeTargetWidth);
+        // v3：预取宽度 = 实时显示需求（不再用上次缩放的 DecodeTargetWidth）
+        int want = ComputeTargetWidth(DisplayWidth, physical);
         if (_pageCache.TryGetValue(physical, out var c) &&
             _pageCacheWidth.TryGetValue(physical, out var w) && w >= want) return;
         await _prefetchGate.WaitAsync();
@@ -290,10 +292,18 @@ public partial class ReaderViewModel
         PageText = $"{Math.Clamp(physical + 1, 1, _source.PageCount)} / {_source.PageCount}";
     }
 
+    /// <summary>v3：当前显示内容宽 × DPI（视图实时维护 = 解码需求输入；翻页/缩放/窗口变化都更新，
+    /// 根治"翻页用旧解码宽度 → 放大/高分屏下模糊且不升级"）。</summary>
+    public int DisplayWidth { get; set; } = 1200;
+
     private async Task<Bitmap?> DecodeAsync(int physical, int requestedWidth = 0)
     {
         if (_disposed) return null;   // P2-3：关闭后不再解码/入缓存
-        int want = requestedWidth > 0 ? Math.Max(400, requestedWidth) : Math.Max(400, DecodeTargetWidth);
+        // v3 修复：分页路径不再用"上次缩放的 DecodeTargetWidth"，而是用实时 DisplayWidth 计算目标宽度
+        // （翻页/窗口变化后立刻按当前显示需求解码；Webtoon 走 requestedWidth 显式宽度）
+        int want = requestedWidth > 0 ? Math.Max(400, requestedWidth) : ComputeTargetWidth(DisplayWidth, physical);
+        int origW = _sizes.TryGetValue(physical, out var sz0) ? sz0.Width : 0;
+        App.SLog($"DECODE p={physical} want={want} displayW={DisplayWidth} origW={origW}");
         if (_pageCache.TryGetValue(physical, out var cached))
         {
             // 按需高清：放大超过当前解码宽度时重新解码更大（C 阶段）
