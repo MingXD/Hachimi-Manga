@@ -155,10 +155,11 @@ public partial class FolderEntryItemViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private void Rename()
+    private async Task Rename()
     {
         if (SourcePath.Length == 0) return;
-        var newName = MangaAgent.App.Views.RenameDialog.Show(DisplayName);
+        // v3 #2：await 对话框（ShowDialog 异步不阻塞，原同步写法拿不到新名称 → 重命名无效）
+        var newName = await MangaAgent.App.Views.RenameDialog.ShowAsync(DisplayName);
         if (string.IsNullOrWhiteSpace(newName)) return;
         try
         {

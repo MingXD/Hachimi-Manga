@@ -40,3 +40,4 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\pack-release.ps1
 3. **验证命令输出用 `*> 文件` 重定向**再读文件；控制台/后台 job 回显可能为空（管道受限）
 4. **还原失败会污染 `obj/project.assets.json`**（targets 空 = 坏壳），删除 obj 重来；`xunit.runner.visualstudio` 已钉 `[4.0.0]`
 5. 行尾 CRLF：axaml/cs 为 CRLF，脚本批量替换用 `\r\n`；Avalonia 12 可视树遍历用 `GetVisualParent()` 扩展
+6. **Avalonia 对话框坑（2026-08-25 新建/重命名"完全无效"根因）**：`Window.ShowDialog()` 是**异步**的（返回 Task，不阻塞调用线程）——同步写法 `ShowDialog(); return result;` 会**调用后立即返回 null**，对话框照常弹出但取值永远拿不到。需要返回值必须 `await ShowDialog` 或 tcs 模式（参考 ConfirmDialog/NewFolderDialog）；仅展示不需要返回值的窗口（如 PropertiesDialog）可 fire-and-forget

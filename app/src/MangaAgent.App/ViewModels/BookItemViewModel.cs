@@ -44,9 +44,10 @@ public partial class BookItemViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private void Rename()
+    private async Task Rename()
     {
-        var newName = MangaAgent.App.Views.RenameDialog.Show(Book.DisplayName);
+        // v3 #2：await 对话框（ShowDialog 异步不阻塞，原同步写法拿不到新名称 → 重命名无效）
+        var newName = await MangaAgent.App.Views.RenameDialog.ShowAsync(Book.DisplayName);
         if (string.IsNullOrWhiteSpace(newName)) return;
         try
         {

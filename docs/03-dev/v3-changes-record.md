@@ -33,7 +33,15 @@
 | 3-13 | **#17 滚动续读页码修复**：根因=滚动只更新页码显示（UpdateWebtoonPageText）不更新位置 + CurrentPhysical 在滚动模式返回逻辑映射 → 续读/书签存旧页；修复=①新增 `SyncWebtoonPosition`（更新 _currentPhysical + 2s 节流保存）②视图滚动位置变化时调用 ③CurrentPhysical 滚动模式返回滚动位置 ④关闭时 SaveState 存最新值 | ReaderViewModel.State.cs / Nav.cs、ReaderWindow.Webtoon.cs + SettingsSystemTests（Webtoon_Scroll_Position_Persisted_On_Resume） | 续读、书签语义（滚动模式=当前可见页）、预览栏当前页 |
 | 3-14 | 测试基线 84 → **85/85** | — | — |
 
-## 四、待办（第二批，见 v3-issues-plan.md §16）
+## 四、本次小改 3（2026-08-25，用户确认后实施）
+
+| # | 修复/改动 | 文件位置 | 可能影响的功能（风险点） |
+|---|---|---|---|
+| 3-15 | **#1 Home/End 快捷键进通用组**：`SettingsStore.Load` 补齐旧配置缺失的默认动作（原只校验组存在 → 旧 settings.json 无 GoHome/GoEnd，设置界面不显示、快捷键不生效）；不重置用户自定义绑定 | Services/SettingsStore.cs + SettingsSystemTests（Load_Merges_Missing_Default_Actions） | 快捷键表迁移 |
+| 3-16 | **#2 新建文件夹/重命名"完全无效"根治**：根因=`Window.ShowDialog()` 异步不阻塞，同步写法"调用后立即返回 null"→ 命令从未执行；NewFolderDialog/RenameDialog 改 `await ShowAsync`（tcs 模式，同 ConfirmDialog），调用方（NewFolder/Rename ×2）改 async | Views/NewFolderDialog.cs、RenameDialog.cs、ViewModels/MainWindowViewModel.cs、FolderEntryItemViewModel.cs、BookItemViewModel.cs | 新建文件夹、右键重命名（目录条目+封面墙/搜索条目） |
+| 3-17 | 坑位记录：AGENTS.md 环境坑位新增"ShowDialog 异步不阻塞" | AGENTS.md | 后续对话框开发必看 |
+
+## 五、待办（第二批，见 v3-issues-plan.md §16）
 - #4 多选版快捷键、#1 进度条+跨库刷新、#2b 默认方向设置、#9 中键滑动、#10 模糊优先、#11 清晰度三档
 - #13 配对（用户指示暂缓）、#5 其他文件、#7 图片信息
 

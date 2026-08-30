@@ -187,9 +187,10 @@ public partial class MainWindowViewModel : ViewModelBase
 
     /// <summary>新建文件夹（v3 #6）：弹对话框输入名称 → 在当前目录创建 → 刷新并保持位置。
     /// v3 #16 修复：CurrentFolder 为 null（启动未进入目录/树未加载）时不再静默 return——
-    /// 有库则用库根作为创建目标，无库则明确提示。</summary>
+    /// 有库则用库根作为创建目标，无库则明确提示。
+    /// v3 #2 修复：await 对话框（ShowDialog 异步不阻塞，原同步写法拿不到输入 → 从未创建）。</summary>
     [RelayCommand]
-    private void NewFolder()
+    private async Task NewFolder()
     {
         var target = CurrentFolder;
         if (target is null)
@@ -203,7 +204,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 return;
             }
         }
-        var name = MangaAgent.App.Views.NewFolderDialog.Show();
+        var name = await MangaAgent.App.Views.NewFolderDialog.ShowAsync();
         if (string.IsNullOrWhiteSpace(name)) return;
         StatusText = NewFolderCore(target.Path, name);
         if (StatusText.StartsWith("已创建"))
