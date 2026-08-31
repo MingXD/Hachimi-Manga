@@ -146,9 +146,11 @@ public partial class MainWindow : Window
 
     private void ToggleMainDebug()
     {
+        // v3 修复：窗口被 X 关闭后置空引用，下次 F12 重建（原保留已关闭窗口 → Show() 抛 Cannot re-show）
         if (_mainDebugWindow is null)
         {
             _mainDebugWindow = new Views.DebugWindow();
+            _mainDebugWindow.Closed += (_, _) => _mainDebugWindow = null;
             _mainDebugWindow.StatusProvider = () =>
             {
                 if (_vm is null) return "vm=null";

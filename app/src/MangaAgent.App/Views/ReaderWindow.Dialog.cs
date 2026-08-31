@@ -17,9 +17,11 @@ public partial class ReaderWindow : Window
     private void ToggleDebugPanel()
     {
         // 调试面板独立窗口（v1.9.6）：不占阅读器空间、不干扰按钮点击
+        // v3 修复：窗口被 X 关闭后置空引用，下次 F12 重建（原保留已关闭窗口 → Show() 抛 Cannot re-show）
         if (_debugWindow is null)
         {
             _debugWindow = new Views.DebugWindow();
+            _debugWindow.Closed += (_, _) => _debugWindow = null;
             _debugWindow.StatusProvider = () =>
             {
                 if (_vm is null) return "vm=null";

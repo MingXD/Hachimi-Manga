@@ -95,7 +95,17 @@
 | 3-37 | DECODE/SHOW 诊断日志 | ReaderViewModel.Decode.cs |
 | 3-38 | 测试 95 → **96/96**（DecodeWidth_Follows_DisplayWidth_On_Page_Turn） | SettingsSystemTests.cs |
 
-## 十、待办（下一批，见 v3-issues-plan.md §16）
+## 十、模糊根因根治——ParseHeader 重写 + F12 崩溃（2026-08-25）
+
+**根因（单测实锤）**：`ImageInfo.ParseHeader` 的 JPEG 解析**逐字节扫描**找 `0xFFC0-0xCF`，未按 JPEG 段结构跳过段数据——**APP1/EXIF 内嵌缩略图**（JPEG 规范允许，扫描导出常见）里的假 `0xFFC0` 被误判为尺寸段 → 返回**缩略图尺寸**（用户遇到的 113/1200 即此类）。Auto 清晰度档信任错误 origW → 主动降采样到缩略图宽 → 翻页模糊且不升级。单测构造"APP1 含 16×16 缩略图 + 真实 3000×3000"复现：修复前返回 16。
+
+| # | 修复/改动 | 文件位置 |
+|---|---|---|
+| 3-39 | **ParseHeader 重写**：JPEG 按段结构解析（SOI→逐段读长度跳过→真 SOF 读宽高→SOS 停止），新增 **GIF/BMP/WebP**（VP8/VP8L/VP8X）尺寸解析；AVIF 保持 fallback | Core/Comics/ImageInfo.cs + ParseHeaderTests（JPEG EXIF 复现/GIF/BMP/WebP） |
+| 3-40 | **F12 调试面板崩溃**（Cannot re-show a closed window）：面板被 X 关闭后引用未清 → 下次 F12 又 Show 已关闭窗口；修复=Closed 时置空引用下次重建（阅读器+主窗口两处） | ReaderWindow.Dialog.cs、MainWindow.axaml.cs |
+| 3-41 | 测试 96 → **100/100** | ParseHeaderTests.cs |
+
+## 十一、待办（下一批，见 v3-issues-plan.md §16）
 - #4 多选版快捷键、#1 进度条+跨库刷新、#2b 默认方向设置、#9 中键滑动、#10 模糊优先、#11 清晰度三档
 - #13 配对（用户指示暂缓）、#5 其他文件、#7 图片信息
 

@@ -49,27 +49,123 @@ public static class ImageInfo
         return string.CompareOrdinal(a, b);
     }
 
-    /// <summary>从 PNG/JPEG 文件头解析尺寸；不支持返回 null。</summary>
+    /// <summary>从文件头解析图片尺寸（PNG/JPEG/GIF/BMP/WebP，避免完整解码）。
+    /// v3 重写：JPEG 改按段结构解析（原逐字节扫描会被 EXIF 内嵌缩略图的 0xFFC0 误匹配 → 返回缩略图尺寸）；新增 GIF/BMP/WebP。</summary>
     public static PageSize? ParseHeader(ReadOnlySpan<byte> head)
     {
-        if (head.Length >= 24 && head[0] == 0x89 && head[1] == 0x50 && head[2] == 0x4E && head[3] == 0x47)
+        if (head.Length < 4) return null;
+        if (head[0] == 0x89 && head[1] == 0x50 && head[2] == 0x4E && head[3] == 0x47)   // PNG
         {
-            int w = (head[16] << 24) | (head[17] << 16) | (head[18] << 8) | head[19];
-            int h = (head[20] << 24) | (head[21] << 16) | (head[22] << 8) | head[23];
-            return new PageSize(w, h);
-        }
-        if (head.Length >= 4 && head[0] == 0xFF && head[1] == 0xD8)
-        {
-            for (int i = 2; i + 9 < head.Length; i++)
+            if (head.Length >= 24)
             {
-                if (head[i] == 0xFF && head[i + 1] >= 0xC0 && head[i + 1] <= 0xCF &&
-                    head[i + 1] != 0xC4 && head[i + 1] != 0xC8 && head[i + 1] != 0xCC)
+                int w = (head[16] << 24) | (head[17] << 16) | (head[18] << 8) | head[19];
+                int h = (head[20] << 24) | (head[21] << 16) | (head[22] << 8) | head[23];
+                return new PageSize(w, h);
+            }
+            return null;
+        }
+        if (head[0] == 0xFF && head[1] == 0xD8) return ParseJpeg(head);                 // JPEG
+        if (head[0] == 'G' && head[1] == 'I' && head[2] == 'F' && head[3] == '8'
+            && (head[4] == '7' || head[4] == '9') && head[5] == 'a') return ParseGif(head);
+        if (head[0] == 'B' && head[1] == 'M') return ParseBmp(head);
+        if (head[0] == 'R' && head[1] == 'I' && head[2] == 'F' && head[3] == 'F'
+            && head.Length >= 12 && head[8] == 'W' && head[9] == 'E' && head[10] == 'B' && head[11] == 'P')
+            return ParseWebp(head);
+        return null;
+    }
+
+    /// <summary>JPEG：按段结构从 SOI 逐段解析——普通段（APP/DQT/DHT/COM）读长度跳过，真正 SOF 段读宽高，SOS 停止。
+    /// 原逐字节扫描会被 APP1/EXIF 内嵌缩略图的 0xFFC0 误匹配 → 返回缩略图尺寸（v3 模糊根因）。</summary>
+    private static PageSize? ParseJpeg(ReadOnlySpan<byte> head)
+    {
+        int i = 2;   // 跳过 SOI
+        while (i + 9 < head.Length)
+        {
+            if (head[i] != 0xFF) { i++; continue; }   // 段间填充
+            byte marker = head[i + 1];
+            if (marker == 0xFF) { i += 2; continue; }
+            if (marker == 0xDA) return null;          // SOS：图像数据开始，SOF 必在其前
+            if (marker == 0x01 || (marker >= 0xD0 && marker <= 0xD9)) { i += 2; continue; }  // 无长度段
+            if (i + 4 > head.Length) return null;
+            int segLen = (head[i + 2] << 8) | head[i + 3];
+            if (segLen < 2) return null;
+            // SOF 段（含精度/高/宽）
+            if (marker >= 0xC0 && marker <= 0xCF && marker != 0xC4 && marker != 0xC8 && marker != 0xCC)
+            {
+                if (segLen >= 7 && i + 9 < head.Length)
                 {
                     int h = (head[i + 5] << 8) | head[i + 6];
                     int w = (head[i + 7] << 8) | head[i + 8];
                     return new PageSize(w, h);
                 }
+                return null;
             }
+            i += 2 + segLen;
+        }
+        return null;
+    }
+
+    private static PageSize? ParseGif(ReadOnlySpan<byte> head)
+    {
+        if (head.Length < 10) return null;
+        int w = head[6] | (head[7] << 8);
+        int h = head[8] | (head[9] << 8);
+        return w > 0 && h > 0 ? new PageSize(w, h) : null;
+    }
+
+    private static PageSize? ParseBmp(ReadOnlySpan<byte> head)
+    {
+        if (head.Length < 26) return null;
+        int dibSize = head[14] | (head[15] << 8) | (head[16] << 16) | (head[17] << 24);
+        int w, hRaw;
+        if (dibSize == 12)   // BITMAPCOREHEADER (OS/2)：宽高各 2 字节
+        {
+            w = head[18] | (head[19] << 8);
+            hRaw = head[20] | (head[21] << 8);
+        }
+        else
+        {
+            w = head[18] | (head[19] << 8) | (head[20] << 16) | (head[21] << 24);
+            hRaw = head[22] | (head[23] << 8) | (head[24] << 16) | (head[25] << 24);
+        }
+        int h = Math.Abs(hRaw);   // BMP 高度可负（自顶向下）
+        return w > 0 && h > 0 ? new PageSize(w, h) : null;
+    }
+
+    /// <summary>WebP：RIFF/WEBP 容器内找 VP8（有损）/VP8L（无损）/VP8X（扩展）块解析宽高。</summary>
+    private static PageSize? ParseWebp(ReadOnlySpan<byte> head)
+    {
+        int p = 12;
+        while (p + 8 <= head.Length)
+        {
+            if (p + 4 > head.Length) return null;
+            var type = new string(new[]
+            {
+                (char)head[p], (char)head[p + 1], (char)head[p + 2], (char)head[p + 3],
+            });
+            int size = head[p + 4] | (head[p + 5] << 8) | (head[p + 6] << 16) | (head[p + 7] << 24);
+            int dataStart = p + 8;
+            if (type == "VP8 " && dataStart + 10 <= head.Length)        // 有损：3 字节 start code + 3 字节尺寸
+            {
+                int w = (head[dataStart + 3] | ((head[dataStart + 4] & 0x3F) << 8)) + 1;
+                int h = (((head[dataStart + 4] >> 6) | (head[dataStart + 5] << 2)
+                    | ((head[dataStart + 6] & 0x0F) << 10)) & 0x3FFF) + 1;
+                return new PageSize(w, h);
+            }
+            if (type == "VP8L" && dataStart + 5 <= head.Length)         // 无损：0x2F + 14bit 宽高
+            {
+                int w = (head[dataStart + 1] | ((head[dataStart + 2] & 0x3F) << 8)) + 1;
+                int h = (((head[dataStart + 2] >> 6) | (head[dataStart + 3] << 2)
+                    | ((head[dataStart + 4] & 0x0F) << 10)) & 0x3FFF) + 1;
+                return new PageSize(w, h);
+            }
+            if (type == "VP8X" && dataStart + 10 <= head.Length)        // 扩展：3 字节保留 + 24bit 宽高（-1）
+            {
+                long w24 = head[dataStart + 4] | (head[dataStart + 5] << 8) | (head[dataStart + 6] << 16);
+                long h24 = head[dataStart + 7] | (head[dataStart + 8] << 8) | (head[dataStart + 9] << 16);
+                return new PageSize((int)w24 + 1, (int)h24 + 1);
+            }
+            p += 8 + size + (size & 1);   // 块 2 字节对齐
         }
         return null;
     }

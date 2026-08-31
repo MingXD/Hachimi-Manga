@@ -333,6 +333,10 @@ public partial class ReaderViewModel
             // 2E 修复：JPEG 解码 + 降采样是同步 CPU 密集操作，移到线程池执行，
             // 避免在 UI 线程解码大图（4299x6071 → 数百 ms）导致翻页/滚动卡死
             decoded = await Task.Run(() => Bitmap.DecodeToWidth(ms, want));
+            // v3 诊断：实际解码位图宽 vs 请求宽 vs 解析的原图宽 —— 区分"原图分辨率低(物理限制)"
+            // 与"ParseHeader 解析错误导致 Auto 档主动降采样(程序 bug)"
+            if (decoded is not null)
+                App.SLog($"DECODE p={physical} want={want} actualW={decoded.PixelSize.Width} origW={origW} displayW={DisplayWidth}");
         }
         catch (Exception ex)
         {
