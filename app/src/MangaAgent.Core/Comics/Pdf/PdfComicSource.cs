@@ -8,6 +8,10 @@ namespace MangaAgent.Core.Comics.Pdf;
 /// ComicSource.RenderPageAsync(index, targetWidthPx) 按目标宽渲染（缩放任意倍数仍清晰），
 /// GetPageSize 返回"canonical 密度(300dpi) 折算像素"以驱动既有的宽高比/清晰度档位逻辑；
 /// OpenPageAsync 为通用兜底（渲染 800px 宽 → PNG 流），真实调用方（解码/缩略图）优先走 RenderPageAsync。
+/// 背景：渲染前把位图整体填白（FPDFBitmap_FillRect）——PDFium 不自动填背景，页面"未绘制区"
+/// （纸面留白）不填会输出初始化黑值（BUG-009）。
+/// 裁切模式（CropToContent）：默认"纸面视图"（Chrome 样）；开启后按页面图像对象的边界
+/// （"位图本身"）裁剪输出与尺寸，展示逻辑与图片书一致（单页满幅/双页图相接/滚动按内容比例）。
 /// 线程安全：PDFium 文档级调用须串行 —— 所有 FPDF 访问经 _gate（读取/渲染在 Task.Run 线程池执行并持锁，
 /// 绝不在持锁时 await，沿用 Zip 源 P2-1 纪律，避免 UI 同步取数与持锁任务续体互等死锁）。
 /// </summary>
@@ -20,13 +24,45 @@ public sealed class PdfComicSource : ComicSource
     /// <summary>OpenPageAsync 兜底渲染宽（通用图片解码方降采样需求已足够；真实调用方走 RenderPageAsync）。</summary>
     private const int FallbackRenderWidth = 800;
 
+    /// <summary>页面图像对象的边界（pt，PDF 左下原点 y 上）。</summary>
+    private readonly struct ContentBox
+    {
+        public ContentBox(float l, float b, float r, float t)
+        {
+            L = l; B = b; R = r; T = t; Valid = true;
+        }
+
+        public readonly float L, B, R, T;
+        public readonly bool Valid;
+        public float Width => R - L;
+        public float Height => T - B;
+    }
+
     private readonly string _path;
     private readonly object _gate = new();
     private IntPtr _doc;
     private int? _pageCount;
     private bool _disposedFlag;
 
+    private bool _cropToContent;
+    private readonly Dictionary<int, ContentBox> _contentBoxes = new();
+
     public PdfComicSource(string path) => _path = path;
+
+    /// <summary>裁切模式：开启后页面按"位图本身"边界裁剪（尺寸与渲染输出同步），纸面留白被去掉。</summary>
+    public bool CropToContent
+    {
+        get { lock (_gate) return _cropToContent; }
+        set
+        {
+            lock (_gate)
+            {
+                if (_cropToContent == value) return;
+                _cropToContent = value;
+                _contentBoxes.Clear();   // 内容边界缓存按需重算（语义切换）
+            }
+        }
+    }
 
     public override string Name => Path.GetFileNameWithoutExtension(_path);
     public override string SourcePath => _path;
@@ -66,7 +102,8 @@ public sealed class PdfComicSource : ComicSource
         return new PageSize((int)Math.Round(widthPt * s), (int)Math.Round(heightPt * s));
     }
 
-    /// <summary>页尺寸（同步，UI 构造期/后台补全调用；LoadPage 为轻量解析，毫秒级）。</summary>
+    /// <summary>页尺寸（同步，UI 构造期/后台补全调用；LoadPage 为轻量解析，毫秒级）。
+    /// 裁切模式返回内容区（位图本身）尺寸 —— 布局/双页/滚动全链路按此比例展示。</summary>
     public override PageSize? GetPageSize(int index)
     {
         try
@@ -78,7 +115,11 @@ public sealed class PdfComicSource : ComicSource
                 if (page == IntPtr.Zero) return null;
                 try
                 {
-                    return CanonicalPixels(Fpdf.FPDF_GetPageWidthF(page), Fpdf.FPDF_GetPageHeightF(page));
+                    float pw = Fpdf.FPDF_GetPageWidthF(page);
+                    float ph = Fpdf.FPDF_GetPageHeightF(page);
+                    if (_cropToContent && TryGetContentBox(page, index, out var cb))
+                        return CanonicalPixels(cb.Width, cb.Height);
+                    return CanonicalPixels(pw, ph);
                 }
                 finally { Fpdf.FPDF_ClosePage(page); }
             }
@@ -87,6 +128,38 @@ public sealed class PdfComicSource : ComicSource
         {
             return null;   // 坏页/缺 dll：TryReadSize catch 哲学一致
         }
+    }
+
+    /// <summary>取（或计算并缓存）页内容边界。</summary>
+    private bool TryGetContentBox(IntPtr page, int index, out ContentBox box)
+    {
+        if (_contentBoxes.TryGetValue(index, out box)) return box.Valid;
+        box = ComputeContentBox(page);
+        _contentBoxes[index] = box;
+        return box.Valid;
+    }
+
+    /// <summary>枚举页面对象，统计 IMAGE/FORM（图像载体）边界并集；无图像（纯矢量页）→ 无效（不裁）。
+    /// 忽略微小对象（面积 &lt; 页 1%）；TEXT/PATH 不计 —— 裁切语义 = "显示位图本身"。</summary>
+    private ContentBox ComputeContentBox(IntPtr page)
+    {
+        float pw = Fpdf.FPDF_GetPageWidthF(page);
+        float ph = Fpdf.FPDF_GetPageHeightF(page);
+        float minArea = pw * ph * 0.01f;
+        float l = float.MaxValue, b = float.MaxValue, r = float.MinValue, t = float.MinValue;
+        int n = Fpdf.FPDFPage_CountObjects(page);
+        for (int i = 0; i < n; i++)
+        {
+            IntPtr obj = Fpdf.FPDFPage_GetObject(page, i);
+            int type = Fpdf.FPDFPageObj_GetType(obj);
+            if (type != Fpdf.FPDF_PAGEOBJ_IMAGE && type != Fpdf.FPDF_PAGEOBJ_FORM) continue;
+            if (!Fpdf.FPDFPageObj_GetBounds(obj, out float ol, out float ob, out float or, out float ot)) continue;
+            float w = or - ol, h = ot - ob;
+            if (w <= 0 || h <= 0 || w * h < minArea) continue;
+            l = Math.Min(l, ol); b = Math.Min(b, ob);
+            r = Math.Max(r, or); t = Math.Max(t, ot);
+        }
+        return r > l && t > b ? new ContentBox(l, b, r, t) : default;
     }
 
     public override async Task<RenderedPage?> RenderPageAsync(int index, int targetWidthPx, CancellationToken ct = default)
@@ -107,20 +180,45 @@ public sealed class PdfComicSource : ComicSource
                     float ph = Fpdf.FPDF_GetPageHeightF(page);
                     if (pw <= 0 || ph <= 0)
                         throw new PdfException(PdfErrorKind.Corrupt, $"PDF 第 {index + 1} 页尺寸无效：{_path}");
-                    int w = targetWidthPx;
-                    int h = Math.Max(1, (int)Math.Round(ph * targetWidthPx / pw));
-                    IntPtr bmp = Fpdf.FPDFBitmap_CreateEx(w, h, Fpdf.FPDFBitmap_BGRA, IntPtr.Zero, 0);
+                    ContentBox cb = default;
+                    bool crop = _cropToContent && TryGetContentBox(page, index, out cb);
+                    // 渲染宽：裁切模式按内容占比放大，保证裁出后 ≈ targetWidth
+                    int rawW = crop
+                        ? Math.Max(targetWidthPx, (int)Math.Ceiling(targetWidthPx * pw / cb.Width))
+                        : targetWidthPx;
+                    int rawH = Math.Max(1, (int)Math.Round(ph * rawW / pw));
+                    IntPtr bmp = Fpdf.FPDFBitmap_CreateEx(rawW, rawH, Fpdf.FPDFBitmap_BGRA, IntPtr.Zero, 0);
                     if (bmp == IntPtr.Zero)
                         throw new PdfException(PdfErrorKind.Other, $"PDF 渲染缓冲创建失败：{_path}");
                     try
                     {
-                        Fpdf.FPDF_RenderPageBitmap(bmp, page, 0, 0, w, h, 0, Fpdf.RenderFlags);
+                        // BUG-009：预填白底 —— 页面未绘制区（纸面留白）应为白而非初始化黑
+                        Fpdf.FPDFBitmap_FillRect(bmp, 0, 0, rawW, rawH, 0xFFFFFFFF);
+                        Fpdf.FPDF_RenderPageBitmap(bmp, page, 0, 0, rawW, rawH, 0, Fpdf.RenderFlags);
                         IntPtr buf = Fpdf.FPDFBitmap_GetBuffer(bmp);
                         if (buf == IntPtr.Zero)
                             throw new PdfException(PdfErrorKind.Other, $"PDF 渲染失败（无输出缓冲）：{_path}");
-                        byte[] data = new byte[w * h * 4];
-                        Marshal.Copy(buf, data, 0, data.Length);
-                        return new RenderedPage(w, h, data);
+                        if (!crop)
+                        {
+                            byte[] fullData = new byte[rawW * rawH * 4];
+                            Marshal.Copy(buf, fullData, 0, fullData.Length);
+                            return new RenderedPage(rawW, rawH, fullData);
+                        }
+                        // 裁切：按比例抠出内容（位图本身）子区
+                        int x0 = Math.Clamp((int)Math.Round(cb.L / pw * rawW), 0, rawW);
+                        int x1 = Math.Clamp((int)Math.Round(cb.R / pw * rawW), 0, rawW);
+                        int yTop = Math.Clamp((int)Math.Round(rawH - cb.T / ph * rawH), 0, rawH);   // 页面顶=0
+                        int yBot = Math.Clamp((int)Math.Round(rawH - cb.B / ph * rawH), 0, rawH);
+                        int cw = Math.Max(1, x1 - x0);
+                        int ch = Math.Max(1, yBot - yTop);
+                        byte[] data = new byte[cw * ch * 4];
+                        int srcStride = rawW * 4;
+                        for (int row = 0; row < ch; row++)
+                        {
+                            Marshal.Copy(IntPtr.Add(buf, (yTop + row) * srcStride + x0 * 4),
+                                data, row * cw * 4, cw * 4);
+                        }
+                        return new RenderedPage(cw, ch, data);
                     }
                     finally { Fpdf.FPDFBitmap_Destroy(bmp); }
                 }
@@ -159,6 +257,7 @@ public sealed class PdfComicSource : ComicSource
         {
             if (_disposedFlag) return ValueTask.CompletedTask;
             _disposedFlag = true;
+            _contentBoxes.Clear();
             if (_doc != IntPtr.Zero)
             {
                 Fpdf.FPDF_CloseDocument(_doc);

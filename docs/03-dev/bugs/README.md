@@ -12,5 +12,7 @@
 | [BUG-005](BUG-005-library-and-switch.md) | ✅ 已修复 | 资料库添加/切换问题（v1.8 扫描进度+容错） |
 | [BUG-006](BUG-006-webtoon-rewrite.md) | ✅ 已修复 | Webtoon 虚拟化重构（并发竞态 2 处，v1.7） |
 | [BUG-007](BUG-007-physical-navigation.md) | ✅ 已修复 | 单页跳页跳过物理页（物理页导航，v1.9） |
+| [BUG-008](BUG-008-pdf-title-blank.md) | ✅ 已修复 | v4-PDF 目录书名空白（/Info Title 解析出 NUL） |
+| [BUG-009](BUG-009-pdf-black-edge-background.md) | ✅ 已修复 | v4-PDF 双页固定黑带（渲染背景未预填白，白边输出为黑） |
 
 > v2.x 的修复（预览栏 CPU/内存拉满、白天按钮黑、双页高度不匹配等）记录在 [v2-changes-record.md](../v2-changes-record.md)。

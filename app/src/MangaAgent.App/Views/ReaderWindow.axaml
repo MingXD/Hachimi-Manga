@@ -101,6 +101,9 @@
           </Button.ContextMenu>
         </Button>
         <Button Content="{Binding ThemeText}" Command="{Binding ToggleThemeCommand}" ToolTip.Tip="白天/夜间 (T)" Foreground="{Binding ForegroundHex}"/>
+        <!-- v4.1-PDF：裁切模式（仅 PDF 书）—— 开 = 按"位图本身"显示（去纸面留白），关 = 纸面视图（Chrome 样） -->
+        <Button x:Name="CropButton" Content="{Binding PdfCropText}" Click="OnCropClick" IsVisible="{Binding IsPdf}"
+                ToolTip.Tip="PDF 裁切：只显示位图本身（与图片书观感一致）" Foreground="{Binding ForegroundHex}"/>
         <Button x:Name="ZoomOutButton" Content="−" Click="OnZoomOutClick" ToolTip.Tip="缩小" Foreground="{Binding ForegroundHex}"/>
         <TextBlock Text="{Binding ZoomPercentText}" VerticalAlignment="Center" Foreground="{Binding ForegroundHex}" Margin="2,0" ToolTip.Tip="当前缩放（基准=适应屏幕）"/>
         <Button x:Name="ZoomInButton" Content="＋" Click="OnZoomInClick" ToolTip.Tip="放大" Foreground="{Binding ForegroundHex}"/>

@@ -631,6 +631,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 ? MangaAgent.Core.Storage.ReadingDirection2.Ltr
                 : MangaAgent.Core.Storage.ReadingDirection2.Rtl;
             ReaderViewModel.ResumePosition = s.ResumePosition;
+            ReaderViewModel.PdfCropDefault = s.PdfCropDefault;   // v4.1-PDF：裁切默认（仅 PDF 生效）
             var vm = new ReaderViewModel(book.Book, StateDbPath);
             new ReaderWindow { DataContext = vm }.Show();
         }

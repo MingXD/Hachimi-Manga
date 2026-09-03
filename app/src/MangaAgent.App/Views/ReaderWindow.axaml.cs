@@ -343,6 +343,12 @@ public partial class ReaderWindow : Window
     private double _zoomSensitivityBase = 1.0;        // 缩放速度基准
     private double _webtoonSpeedBase = 1.0;           // 滚动速度基准
 
+    /// <summary>PDF 裁切切换（工具栏按钮，仅 PDF 书可见）：开=按位图本身显示，关=纸面视图。</summary>
+    private void OnCropClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (_vm is { IsPdf: true }) _vm.SetPdfCrop(!_vm.PdfCropActive);
+    }
+
     /// <summary>应用设置到运行时参数（打开/设置保存后调用）。</summary>
     private void ApplySettings()
     {

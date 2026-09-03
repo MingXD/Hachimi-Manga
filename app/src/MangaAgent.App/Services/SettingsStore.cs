@@ -35,6 +35,7 @@ public class AppSettings
     public string DefaultMode { get; set; } = "Single";  // 无保存状态时的默认模式：Single/Double/Webtoon
     public string DefaultDirection { get; set; } = "Rtl"; // 无保存状态时的默认方向：Rtl/Ltr（v3 #2b）
     public bool ResumePosition { get; set; } = true;     // 续读：打开书恢复上次位置
+    public bool PdfCropDefault { get; set; }             // PDF 裁切默认（v4.1）：开=按位图本身显示（去纸面留白），关=纸面视图（Chrome 样）
     public string DoubleClickAction { get; set; } = "Zoom"; // 双击行为：Zoom/Reset/None
     public string DefaultFitMode { get; set; } = "FitScreen"; // 分页默认适应：FitScreen/FitWidth
     // —— 滚动手感 ——

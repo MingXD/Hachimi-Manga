@@ -113,27 +113,58 @@ internal static class Fpdf
     [DllImport("pdfium.dll")] internal static extern IntPtr FPDFBitmap_CreateEx(int width, int height, int format,
         IntPtr firstScanline, int stride);
     [DllImport("pdfium.dll")] internal static extern IntPtr FPDFBitmap_GetBuffer(IntPtr bitmap);
+    // 渲染前把位图整体填充为指定色（页面"未绘制区"的背景 —— PDFium 不自动填背景，不填会输出初始化黑值）
+    [DllImport("pdfium.dll")] internal static extern void FPDFBitmap_FillRect(IntPtr bitmap,
+        int left, int top, int width, int height, uint color);
     [DllImport("pdfium.dll")] internal static extern void FPDF_RenderPageBitmap(IntPtr bitmap, IntPtr page,
         int startX, int startY, int destWidth, int destHeight, int rotate, int flags);
     [DllImport("pdfium.dll")] internal static extern void FPDFBitmap_Destroy(IntPtr bitmap);
+
+    // 页面对象枚举（裁切模式取"位图本身"边界用；只读使用，无需 formfill 环境）
+    [DllImport("pdfium.dll")] internal static extern int FPDFPage_CountObjects(IntPtr page);
+    [DllImport("pdfium.dll")] internal static extern IntPtr FPDFPage_GetObject(IntPtr page, int index);
+    [DllImport("pdfium.dll")] internal static extern int FPDFPageObj_GetType(IntPtr pageObject);
+    [DllImport("pdfium.dll")] internal static extern bool FPDFPageObj_GetBounds(IntPtr pageObject,
+        out float left, out float bottom, out float right, out float top);
+
+    // FPDF_PAGEOBJ_*（fpdf_edit.h）：裁切统计 IMAGE(3) 与 FORM(5)
+    internal const int FPDF_PAGEOBJ_TEXT = 1;
+    internal const int FPDF_PAGEOBJ_IMAGE = 3;
+    internal const int FPDF_PAGEOBJ_FORM = 5;
 
     // FPDF_GetMetaText：键为 UTF-8，buffer 为 UTF-16LE（长度按 UTF-16 计，含结尾 NUL）
     [DllImport("pdfium.dll")] internal static extern int FPDF_GetMetaText(IntPtr doc, IntPtr tag,
         IntPtr buffer, int buflen);
 
-    /// <summary>读取文档元数据文本（无此键返回 null）。</summary>
+    /// <summary>
+    /// 读取文档元数据文本并净化：PDF 空值/脏元数据可能以 NUL（U+0000）、控制字符、Unicode 格式符
+    /// （零宽等）形式出现 —— 剔除后 Trim，为空返回 null（BUG-008：空 Title 被当成书名 → 目录显示空白）。
+    /// </summary>
     internal static string? GetMetaText(IntPtr doc, string key)
     {
         IntPtr keyPtr = Marshal.StringToCoTaskMemUTF8(key);
         try
         {
-            int len = FPDF_GetMetaText(doc, keyPtr, IntPtr.Zero, 0);
-            if (len <= 1) return null;
-            IntPtr buf = Marshal.AllocCoTaskMem(len * 2);
+            // FPDF_GetMetaText：返回值为所需 buffer 的【字节数】（含结尾 NUL，UTF-16LE）；buflen 同为字节单位
+            int lenBytes = FPDF_GetMetaText(doc, keyPtr, IntPtr.Zero, 0);
+            if (lenBytes <= 2) return null;   // 空（仅 NUL 或不存在）
+            IntPtr buf = Marshal.AllocCoTaskMem(lenBytes);
             try
             {
-                if (FPDF_GetMetaText(doc, keyPtr, buf, len) <= 0) return null;
-                return Marshal.PtrToStringUni(buf, len - 1);
+                if (FPDF_GetMetaText(doc, keyPtr, buf, lenBytes) <= 0) return null;
+                string? raw = Marshal.PtrToStringUni(buf, lenBytes / 2);   // 字节 → UTF-16 字符数
+                if (raw is null) return null;
+                // 剔除 C0/C1 控制字符（含 NUL）与 Unicode 格式符（Cf：零宽空格/方向符等），Trim 后为空返回 null
+                var cleaned = new System.Text.StringBuilder(raw.Length);
+                foreach (var ch in raw)
+                {
+                    if (ch == '\0' || ch < 0x20 || (ch >= 0x7F && ch < 0xA0)
+                        || char.GetUnicodeCategory(ch) == System.Globalization.UnicodeCategory.Format)
+                        continue;
+                    cleaned.Append(ch);
+                }
+                string result = cleaned.ToString().Trim();
+                return result.Length == 0 ? null : result;
             }
             finally { Marshal.FreeCoTaskMem(buf); }
         }

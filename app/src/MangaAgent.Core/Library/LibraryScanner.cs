@@ -114,11 +114,20 @@ public static class LibraryScanner
 
     internal static string? ParseVolumeFromName(string name)
     {
-        // 修复（v4-PDF）：原模式中的 \b 在 C# 字符串里是退格字符（非正则词边界），且 .?s* 意图不明 ——
+        // v4-PDF 修复①：原模式中的 \b 在 C# 字符串里是退格字符（非正则词边界），且 .?s* 意图不明 ——
         // 文件名卷号 fallback 从未生效（CBZ 有 ComicInfo 掩盖；PDF 无元数据即暴露）。
-        // 意图：vol/v 前非字母数字（可紧跟 _ - [ 空格等），后跟可选点/空白 + 数字（如 "vol.3" "Vol 3" "v2" "_vol4"）。
-        var m = System.Text.RegularExpressions.Regex.Match(name, @"(?i)(?<![a-z0-9])(?:vol|v)\.?\s*(\d+)");
-        return m.Success ? m.Groups[1].Value : null;
+        // v4.1 扩展：支持中文卷号（第10卷 / 第 3 巻）——中文漫画命名（晚安布布系列）默认形态。
+        var patterns = new[]
+        {
+            @"(?i)(?<![a-z0-9])v(?:ol)?\.?\s*(\d+)",   // vol.10 / v2 / Vol 3
+            @"第\s*(\d+)\s*[卷巻]",                    // 第10卷 / 第 3 巻
+        };
+        foreach (var p in patterns)
+        {
+            var m = System.Text.RegularExpressions.Regex.Match(name, p);
+            if (m.Success) return m.Groups[1].Value;
+        }
+        return null;
     }
 
     internal static int ParseVolumeNumber(string? volume)

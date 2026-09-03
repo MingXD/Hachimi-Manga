@@ -105,4 +105,42 @@ public class PdfReaderE2eTests
             try { File.Delete(db); } catch { }
         }
     }
+
+    [AvaloniaFact]
+    public async Task PdfCrop_Toggle_Relayouts_And_Renders_Cropped()
+    {
+        if (!PdfiumLibrary.IsAvailable) return;
+        ReaderViewModel.PdfCropDefault = false;   // 测试隔离（静态）
+        // 嵌图 PDF（图居中占 92%，四周留白）—— 裁切后比例/输出应变化
+        var dir = Path.Combine(Path.GetTempPath(), $"manga_pdf_e2e_crop_{Guid.NewGuid():N}");
+        var path = PdfTestWriter.WriteEmbeddedImageFile(dir, "img.pdf", 1, 600, 800, marginPt: 24);
+        var db = Path.Combine(Path.GetTempPath(), $"manga_pdf_crop_db_{Guid.NewGuid():N}.db");
+        try
+        {
+            var book = new BookInfo(path, "img-book", null, null, BookKind.Pdf, DateTime.UtcNow, 1);
+            var vm = new ReaderViewModel(book, db);
+            await WaitUntilAsync(() => vm.SizesLoaded && vm.Image1 is not null, 20000);
+            Assert.False(vm.PdfCropActive);   // 默认关（纸面视图）
+            double fullRatio = vm.RatioOfPage(0);
+            Assert.Equal(0.75, fullRatio, 3);
+
+            vm.SetPdfCrop(true);
+            Assert.True(vm.PdfCropActive);
+            await WaitUntilAsync(() => vm.SizesLoaded, 20000);
+            double cropRatio = vm.RatioOfPage(0);
+            Assert.True(cropRatio < fullRatio - 0.001, $"裁切后比例应变小：{cropRatio} vs {fullRatio}");
+            await WaitUntilAsync(() => vm.Image1 is not null && vm.Image1!.PixelSize.Width > 100, 20000);
+            // 切回纸面
+            vm.SetPdfCrop(false);
+            Assert.False(vm.PdfCropActive);
+            await WaitUntilAsync(() => vm.SizesLoaded, 20000);
+            Assert.Equal(fullRatio, vm.RatioOfPage(0), 3);
+            await vm.DisposeAsync();
+        }
+        finally
+        {
+            try { File.Delete(db); } catch { }
+            try { Directory.Delete(dir, true); } catch { }
+        }
+    }
 }

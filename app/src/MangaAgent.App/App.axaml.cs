@@ -82,6 +82,9 @@ public partial class App : Application
                         lastWrite, 0);
                     var dbPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                         "HachimiManga", "reading.db");
+                    // v4.1-PDF：--open 同样注入设置默认（裁切偏好等），与库内打开行为一致
+                    var openSettings = global::MangaAgent.App.Services.SettingsStore.Load();
+                    ViewModels.ReaderViewModel.PdfCropDefault = openSettings.PdfCropDefault;
                     desktop.MainWindow = new Views.ReaderWindow
                     {
                         DataContext = new ViewModels.ReaderViewModel(book, dbPath),

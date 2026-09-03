@@ -1,6 +1,42 @@
 # v4-PDF：PDF 格式支持（变更记录）
 
-> 对应设计文档 `docs/02-design/pdf-format-support.md`（含 P0 实测与决策记录）。测试基线：**100 → 112/112 全绿**（新增 12 项 PDF 相关测试）。
+> 对应设计文档 `docs/02-design/pdf-format-support.md`（含 P0 实测与决策记录）。测试基线：**100 → 119/119 全绿**（v4 增 12、v4.1 增 7）。
+
+## v4.1 补丁（BUG-008/BUG-009 + 裁切模式 + 中文卷号，提交见 git log）
+
+### BUG-008：目录书名空白（/Info Title 为 NUL）
+- 根因链：PDF 无有效 Title → `FPDF_GetMetaText` 返回 NUL 终止被当真实字符（buflen 单位=字节，原实现按字符读致越读/脏值）→ `IsNullOrWhiteSpace` 不认 U+0000 → 空白书名
+- 修复：`Fpdf.GetMetaText` 下沉净化（剔除 NUL/C0-C1 控制符/Unicode 格式符 → Trim → 空返回 null）→ 扫描自动回退文件名
+- 真实样本复验：晚安布布 12 卷书名全部正常显示
+
+### BUG-009：双页固定黑带（纸面空区渲染为黑）
+- 根因（解剖定案）：QuickPDF 把 1041×1500 扫描图按比例居中放进 A4 纸面（图占 92.7% 宽），四周 3.7% 是 MediaBox 内"未绘制区"；`FPDFBitmap_CreateEx` 缓冲不初始化，PDFium 只画内容覆盖区 → 未绘制区输出黑(0,0,0,0)
+- 修复：渲染前 `FPDFBitmap_FillRect(bmp,0,0,w,h,0xFFFFFFFF)` 预填白（Chrome/PdfiumViewer 标准做法）；输出与 Chrome 一致
+- 用户两次纠正根因判断（v1"黑框出血"、v2"白边渲染黑"均被推翻）——最终以文件解剖（MediaBox/位图尺寸/绘制矩阵）+ FillRect 对照渲染定案
+
+### 裁切模式（新功能：位图本身视图）
+- `PdfComicSource.CropToContent`：按页面 IMAGE/FORM 对象边界并集（`FPDFPage_*` 枚举 API，无渲染开销；忽略 <1% 面积微小对象；纯矢量页自动不裁）裁剪输出与尺寸
+- `GetPageSize` 返回裁后 canonical（布局/双页/滚动自动一致）；`RenderPageAsync` 渲染放大后抠内容区（输出宽 ≈ 目标宽）
+- 工具栏"裁切"按钮（仅 PDF 书）：开=位图本身（画面放大 ~8%、双页图相接），关=纸面视图（Chrome 样）
+- 设置项 `PdfCropDefault`（默认关）+ 设置对话框"PDF 裁切"；`--open` 与库内打开均注入默认
+- 封面缩略图保持纸面视图（决策项）
+
+### 中文卷号解析
+- `ParseVolumeFromName` 扩展 `第N卷/第N巻` 形态（原仅 vol/v）→ 晚安布布 12 卷按数值卷序排列（第10卷 不再排在第1卷前）
+
+### 测试（+7）
+- `Dirty_Info_Title_Is_Sanitized`（空格/NUL 内嵌/正常标题/字面 NUL 文件=损坏跳过）
+- `Unpainted_Margin_Renders_White_Not_Black`（BUG-009 白底回归：自造"图不满纸、无背景矩形"PDF）
+- `CropToContent_Resizes_And_Crops_To_Bitmap` / `CropToContent_No_Image_Page_Is_Not_Cropped` / `CropToggle_Changes_Semantics_Idempotently`
+- `Chinese_Volume_Names_Are_Parsed_And_Numerically_Sorted`；E2E `PdfCrop_Toggle_Relayouts_And_Renders_Cropped`
+- `PdfTestWriter` 扩展：嵌入 Flate/raw 位图形态（含关键坑：PDF 图像显示尺寸由 cm 矩阵决定，1×1 cm 会把图压成 1pt）+ /Info Title 参数
+
+### 过程教训（详见 process-record 更新）
+- PDF 图像显示尺寸 = CTM（cm 矩阵）决定，非像素固有——fixture 曾把图压成 1×1pt
+- `FPDF_GetMetaText` buflen 为字节单位（曾按字符读致乱码）
+- 测试 fixture 纯 ASCII 局限：中文/零宽字符需真实样本或 UTF-16BE 编码
+
+---
 
 ## 功能落地清单
 

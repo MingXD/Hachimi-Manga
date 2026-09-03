@@ -1,3 +1,4 @@
+using CommunityToolkit.Mvvm.ComponentModel;
 using MangaAgent.Core.Comics;
 using MangaAgent.Core.Library;
 using MangaAgent.Core.Storage;
@@ -14,6 +15,12 @@ public partial class ReaderViewModel
         Book = book;
         _state = new ReadingStateStore(stateDbPath);
         _source = ComicSourceFactory.Open(book.Path);
+        // v4.1-PDF：裁切默认（设置注入，打开书前设置）—— 需在 LoadSizes 读尺寸前应用（尺寸语义随之切换）
+        if (_source is MangaAgent.Core.Comics.Pdf.PdfComicSource pdfSource)
+        {
+            pdfSource.CropToContent = PdfCropDefault;
+            _pdfCropActive = PdfCropDefault;
+        }
         var saved = _state.LoadState(book.Path);
         // v5.2：设置"续读"关 → 忽略保存状态（从第 1 页、用默认模式）
         if (!ResumePosition) saved = null;
@@ -39,6 +46,40 @@ public partial class ReaderViewModel
 
     /// <summary>打开书且无保存状态时的默认模式（设置注入，打开书前设置）。</summary>
     public static ViewMode DefaultMode { get; set; } = ViewMode.Single;
+
+    /// <summary>PDF 裁切默认（设置注入，打开书前设置；仅 PDF 书有效）。裁切=按"位图本身"边界显示，纸面留白被去掉。</summary>
+    public static bool PdfCropDefault { get; set; }
+
+    /// <summary>当前书是否为 PDF（工具栏"裁切"按钮可见性）。</summary>
+    public bool IsPdf => Book.Kind == BookKind.Pdf;
+
+    /// <summary>PDF 裁切模式当前是否开启（会话级；随设置默认值初始化，可由工具栏按钮切换）。</summary>
+    [ObservableProperty]
+    private bool _pdfCropActive;
+
+    /// <summary>裁切按钮文案（开/关状态可见）。</summary>
+    public string PdfCropText => PdfCropActive ? "裁切：开" : "裁切：关";
+
+    partial void OnPdfCropActiveChanged(bool value) => OnPropertyChanged(nameof(PdfCropText));
+
+    /// <summary>切换 PDF 裁切模式（工具栏按钮调用）：源语义切换 → 尺寸/位图缓存全部按新模式重算。</summary>
+    public void SetPdfCrop(bool crop)
+    {
+        if (_source is not MangaAgent.Core.Comics.Pdf.PdfComicSource pdf) return;
+        if (pdf.CropToContent == crop && PdfCropActive == crop) return;
+        pdf.CropToContent = crop;
+        PdfCropActive = crop;
+        App.SLog($"PDF_CROP {(crop ? "ON" : "OFF")} {Book.Path}");
+        // 尺寸语义变化：清空尺寸表与位图/缩略图缓存（旧缓存比例失效），重算并重建布局
+        _sizes.Clear();
+        foreach (var bmp in _pageCache.Values) TryDispose(bmp);   // UI 引用中的跳过（BUG-004 语义）
+        _pageCache.Clear();
+        _pageCacheWidth.Clear();
+        _cacheOrder.Clear();
+        ClearThumbCache();
+        LoadSizes(_currentPhysical);
+        RebuildLayout();   // 触发 LoadCurrentAsync（新比例重渲染当前页）；Webtoon 经 WebtoonLayoutChanged 重建
+    }
 
     /// <summary>打开书且无保存状态时的默认方向（设置注入，打开书前设置；v3 #2b）。</summary>
     public static ReadingDirection2 DefaultDirection { get; set; } = ReadingDirection2.Rtl;

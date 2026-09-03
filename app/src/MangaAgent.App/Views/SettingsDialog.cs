@@ -33,7 +33,7 @@ public class SettingsDialog : Window
     private readonly TextBox _zoomBaseT, _scrollBaseT, _frictionT, _flingThresholdT, _flingMaxT, _decodeLimitT, _cacheCapT;
     private readonly ComboBox _preset, _decodeQuality, _prefetchRange;
     private readonly TextBlock _memEstimate;
-    private readonly CheckBox _invert, _resume;
+    private readonly CheckBox _invert, _resume, _pdfCrop;
     private readonly ComboBox _pagedWheel, _defaultMode, _defaultDir, _doubleClick, _defaultFit;
 
     private static readonly (string Group, string Label)[] Groups =
@@ -115,6 +115,8 @@ public class SettingsDialog : Window
         UpdateMemEstimate();
         _invert = new CheckBox { IsChecked = _copy.InvertScroll, VerticalAlignment = VerticalAlignment.Center };
         _resume = new CheckBox { IsChecked = _copy.ResumePosition, VerticalAlignment = VerticalAlignment.Center };
+        // v4.1-PDF：裁切默认（开 = PDF 按"位图本身"显示，去纸面留白，与图片书观感一致）
+        _pdfCrop = new CheckBox { IsChecked = _copy.PdfCropDefault, VerticalAlignment = VerticalAlignment.Center };
         _defaultMode = new ComboBox { ItemsSource = new[] { "单页", "双页", "滚动" }, SelectedIndex = _copy.DefaultMode switch { "Double" => 1, "Webtoon" => 2, _ => 0 }, Width = 120, HorizontalAlignment = HorizontalAlignment.Left };
         _defaultDir = new ComboBox { ItemsSource = new[] { "右→左", "左→右" }, SelectedIndex = _copy.DefaultDirection == "Ltr" ? 1 : 0, Width = 120, HorizontalAlignment = HorizontalAlignment.Left };
         _doubleClick = new ComboBox { ItemsSource = new[] { "放大", "复位", "无动作" }, SelectedIndex = _copy.DoubleClickAction switch { "Reset" => 1, "None" => 2, _ => 0 }, Width = 120, HorizontalAlignment = HorizontalAlignment.Left };
@@ -136,6 +138,7 @@ public class SettingsDialog : Window
                 SettingRow("默认阅读模式", _defaultMode, null, "打开书且无保存状态时进入的模式"),
                 SettingRow("默认阅读顺序", _defaultDir, null, "打开书且无保存状态时的方向：右→左（日漫）/ 左→右"),
                 SettingRow("恢复上次位置", _resume, null, "打开书是否跳到上次阅读页；关 = 总是从第 1 页"),
+                SettingRow("PDF 裁切", _pdfCrop, null, "PDF 打开默认是否只显示位图本身（去纸面留白，与图片书观感一致）；关 = 纸面视图（同浏览器）。阅读器工具栏可随时切换"),
                 SettingRow("双击行为", _doubleClick, null, "双击图片：放大 / 复位 / 无动作"),
                 SettingRow("默认适应模式", _defaultFit, null, "分页打开默认视图：适应屏幕 / 适应宽度")),
             Card("滚动手感（滚动模式）",
@@ -368,6 +371,7 @@ public class SettingsDialog : Window
         SetSlider(_cacheCap, _cacheCapT, d.CacheCap, true);
         _invert.IsChecked = d.InvertScroll;
         _resume.IsChecked = d.ResumePosition;
+        _pdfCrop.IsChecked = d.PdfCropDefault;   // 默认关（纸面视图）
         _defaultMode.SelectedIndex = 0;
         _doubleClick.SelectedIndex = 0;
         _defaultFit.SelectedIndex = 0;
@@ -471,6 +475,7 @@ public class SettingsDialog : Window
         _copy.DefaultMode = _defaultMode.SelectedIndex switch { 1 => "Double", 2 => "Webtoon", _ => "Single" };
         _copy.DefaultDirection = _defaultDir.SelectedIndex == 1 ? "Ltr" : "Rtl";
         _copy.ResumePosition = _resume.IsChecked == true;
+        _copy.PdfCropDefault = _pdfCrop.IsChecked == true;
         _copy.DoubleClickAction = _doubleClick.SelectedIndex switch { 1 => "Reset", 2 => "None", _ => "Zoom" };
         _copy.DefaultFitMode = _defaultFit.SelectedIndex == 1 ? "FitWidth" : "FitScreen";
         _copy.ScrollFriction = _friction.Value;
@@ -493,6 +498,7 @@ public class SettingsDialog : Window
         DefaultMode = s.DefaultMode,
         DefaultDirection = s.DefaultDirection,
         ResumePosition = s.ResumePosition,
+        PdfCropDefault = s.PdfCropDefault,
         DoubleClickAction = s.DoubleClickAction,
         DefaultFitMode = s.DefaultFitMode,
         ScrollFriction = s.ScrollFriction,

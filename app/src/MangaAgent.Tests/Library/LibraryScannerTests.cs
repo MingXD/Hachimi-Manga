@@ -45,6 +45,30 @@ public class LibraryScannerTests
     }
 
     [Fact]
+    public async Task Chinese_Volume_Names_Are_Parsed_And_Numerically_Sorted()
+    {
+        if (!MangaAgent.Core.Comics.Pdf.PdfiumLibrary.IsAvailable) return;
+        var dir = Path.Combine(Path.GetTempPath(), $"manga_scan_{Guid.NewGuid():N}");
+        var seriesDir = Path.Combine(dir, "某系列");
+        // 中文卷号命名（"第10卷" 需数值序排在 "第3卷" 后，而非字典序在前）
+        var p3 = MangaAgent.Tests.Pdf.PdfTestWriter.WriteFile(seriesDir, "某系列 第3卷.pdf", 1);
+        var p10 = MangaAgent.Tests.Pdf.PdfTestWriter.WriteFile(seriesDir, "某系列 第10卷.pdf", 1);
+        try
+        {
+            var books = await LibraryScanner.ScanAsync(dir, TestContext.Current.CancellationToken);
+            var b3 = books.Single(b => b.Path == p3);
+            var b10 = books.Single(b => b.Path == p10);
+            Assert.Equal("3", b3.Volume);
+            Assert.Equal("10", b10.Volume);
+            Assert.True(books.IndexOf(b3) < books.IndexOf(b10), "第3卷应排在 第10卷 前（数值序）");
+        }
+        finally
+        {
+            try { Directory.Delete(dir, true); } catch { }
+        }
+    }
+
+    [Fact]
     public void ReadingState_RoundTrip()
     {
         var db = Path.Combine(Path.GetTempPath(), $"mangaagent_state_{Guid.NewGuid():N}.db");
