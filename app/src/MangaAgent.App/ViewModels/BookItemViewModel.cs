@@ -20,7 +20,7 @@ public partial class BookItemViewModel : ViewModelBase
     public Action? RefreshAction { get; set; }
 
     public string DisplayName => Book.DisplayName;
-    public string Subtitle => $"{Book.PageCount} 页 · {(Book.Kind == BookKind.Zip ? "CBZ" : "文件夹")}";
+    public string Subtitle => $"{Book.PageCount} 页 · {Book.KindLabel}";
 
     public BookItemViewModel(BookInfo book) => Book = book;
 
@@ -52,7 +52,9 @@ public partial class BookItemViewModel : ViewModelBase
         try
         {
             var ext = Path.GetExtension(Book.Path);
-            FileOps.Rename(Book.Path, newName + (Book.Kind == BookKind.Zip && !newName.EndsWith(ext) ? ext : ""));
+            // v4-PDF：文件型书（Zip/PDF）重命名保留扩展名（文件夹书无扩展名概念）
+            FileOps.Rename(Book.Path,
+                newName + (Book.IsFileKind && !newName.EndsWith(ext, StringComparison.OrdinalIgnoreCase) ? ext : ""));
             RefreshAction?.Invoke();
         }
         catch { /* 重命名失败忽略（后续提示） */ }

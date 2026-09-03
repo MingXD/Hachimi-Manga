@@ -45,11 +45,12 @@ public static class LibraryScanner
                 images.Count));
         }
 
-        // 递归子目录 + 收集 CBZ
+        // 递归子目录 + 收集 CBZ/PDF
         foreach (var sub in Directory.GetDirectories(dir))
             await ScanDirectoryAsync(sub, books, ct, progress);
 
         await AddZipBooksAsync(dir, series, books, ct);
+        await AddPdfBooksAsync(dir, series, books, ct);
     }
 
     private static async Task<BookInfo> MakeZipBookAsync(string file, string? series, CancellationToken ct)
@@ -81,6 +82,30 @@ public static class LibraryScanner
         }
     }
 
+    /// <summary>安全收集 PDF：依赖 pdfium.dll —— dll 缺失/加密/损坏均跳过（沿用坏文件哲学，不中断扫描）。</summary>
+    private static async Task AddPdfBooksAsync(string dir, string series, List<BookInfo> books, CancellationToken ct)
+    {
+        if (!Comics.Pdf.PdfiumLibrary.IsAvailable) return;   // 无渲染组件：整个库跳过 PDF（避免每个文件抛异常）
+        foreach (var file in Directory.GetFiles(dir, "*.pdf", SearchOption.TopDirectoryOnly))
+        {
+            ct.ThrowIfCancellationRequested();
+            try
+            {
+                await using var src = new Comics.Pdf.PdfComicSource(file);
+                var meta = await src.ReadMetadataAsync(ct);
+                var info = new FileInfo(file);
+                var title = meta?.Title is { Length: > 0 } t ? t : Path.GetFileNameWithoutExtension(file);
+                var volume = meta?.Volume ?? ParseVolumeFromName(Path.GetFileNameWithoutExtension(file));
+                books.Add(new BookInfo(file, title, meta?.Series ?? series, volume, BookKind.Pdf,
+                    info.LastWriteTimeUtc, src.PageCount));
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"SKIP bad pdf {file}: {ex.Message}");
+            }
+        }
+    }
+
     private static string TitleFromPath(string dir)
     {
         var name = Path.GetFileName(dir.TrimEnd(Path.DirectorySeparatorChar));
@@ -89,7 +114,10 @@ public static class LibraryScanner
 
     internal static string? ParseVolumeFromName(string name)
     {
-        var m = System.Text.RegularExpressions.Regex.Match(name, @"(?i)(?:vol|v).?s*(d+)");
+        // 修复（v4-PDF）：原模式中的 \b 在 C# 字符串里是退格字符（非正则词边界），且 .?s* 意图不明 ——
+        // 文件名卷号 fallback 从未生效（CBZ 有 ComicInfo 掩盖；PDF 无元数据即暴露）。
+        // 意图：vol/v 前非字母数字（可紧跟 _ - [ 空格等），后跟可选点/空白 + 数字（如 "vol.3" "Vol 3" "v2" "_vol4"）。
+        var m = System.Text.RegularExpressions.Regex.Match(name, @"(?i)(?<![a-z0-9])(?:vol|v)\.?\s*(\d+)");
         return m.Success ? m.Groups[1].Value : null;
     }
 

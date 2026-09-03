@@ -33,6 +33,9 @@ cache/
 # Regenerable big fixtures
 reference/fixtures/big/
 
+# Vendored native binaries (pdfium.dll ~7MB) - kept local, not committed
+vendor/
+
 # User test comics
 /test-file/
 

@@ -22,11 +22,22 @@ public static class FolderTreeScanner
             await FillAsync(child, ct);
             node.Children.Add(child);
         }
-        // 本目录的书（CBZ + 文件夹型：直接含图片的目录 → 一本漫画）
-        foreach (var file in Directory.GetFiles(node.Path).Where(f =>
-            Path.GetExtension(f).ToLowerInvariant() is ".cbz" or ".zip"))
+        // 本目录的书（CBZ/PDF 文件书 + 文件夹型：直接含图片的目录 → 一本漫画）。
+        // 单个坏文件（损坏/加密/无 pdfium.dll）跳过，不中断整树（与 LibraryScanner 的坏文件哲学一致）
+        foreach (var file in Directory.GetFiles(node.Path))
         {
-            node.Books.Add(await MakeBookAsync(file, ct));
+            var ext = Path.GetExtension(file).ToLowerInvariant();
+            bool isArchive = ext is ".cbz" or ".zip";
+            bool isPdf = ext == ".pdf" && Comics.Pdf.PdfiumLibrary.IsAvailable;
+            if (!isArchive && !isPdf) continue;
+            try
+            {
+                node.Books.Add(await MakeBookAsync(file, ct));
+            }
+            catch
+            {
+                // 坏文件跳过
+            }
         }
         // 扩展名与 FolderComicSource/LibraryScanner 一致（含 gif/bmp）；PageCount = 本目录直接图片数
         var images = Directory.GetFiles(node.Path).Where(f =>
@@ -39,12 +50,23 @@ public static class FolderTreeScanner
         node.Books.Sort((a, b) => ImageInfo.CompareNatural(a.Title, b.Title));
     }
 
+    /// <summary>文件型书：按扩展名打开源读元数据/页数（CBZ/PDF 共用）。</summary>
     private static async Task<BookInfo> MakeBookAsync(string file, CancellationToken ct)
     {
-        await using var src = new ZipComicSource(file);
-        var meta = await src.ReadMetadataAsync(ct);
-        var info = new FileInfo(file);
-        return new BookInfo(file, meta?.Title ?? Path.GetFileNameWithoutExtension(file), meta?.Series,
-            meta?.Volume, BookKind.Zip, info.LastWriteTimeUtc, src.PageCount);
+        var ext = Path.GetExtension(file).ToLowerInvariant();
+        if (ext is ".cbz" or ".zip")
+        {
+            await using var src = new ZipComicSource(file);
+            var meta = await src.ReadMetadataAsync(ct);
+            var info = new FileInfo(file);
+            return new BookInfo(file, meta?.Title ?? Path.GetFileNameWithoutExtension(file), meta?.Series,
+                meta?.Volume, BookKind.Zip, info.LastWriteTimeUtc, src.PageCount);
+        }
+        // PDF：dll 缺失/损坏跳过（不做 Book —— 目录浏览不显示，与扫描行为一致）
+        await using var pdf = new Comics.Pdf.PdfComicSource(file);
+        var pmeta = await pdf.ReadMetadataAsync(ct);
+        var pinfo = new FileInfo(file);
+        return new BookInfo(file, pmeta?.Title ?? Path.GetFileNameWithoutExtension(file), pmeta?.Series,
+            pmeta?.Volume, BookKind.Pdf, pinfo.LastWriteTimeUtc, pdf.PageCount);
     }
 }

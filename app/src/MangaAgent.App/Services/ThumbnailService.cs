@@ -19,11 +19,20 @@ public static class ThumbnailService
         {
             await using var src = ComicSourceFactory.Open(book.Path);
             if (src.PageCount == 0) return null;
-            using var page = await src.OpenPageAsync(0);
-            using var ms = new MemoryStream();
-            await page.CopyToAsync(ms);
-            ms.Position = 0;
-            bmp = Bitmap.DecodeToWidth(ms, 260);
+            // v4-PDF：矢量源按宽光栅化直通；图片源走流解码
+            var raster = await src.RenderPageAsync(0, 260);
+            if (raster is { } rp)
+            {
+                bmp = Imaging.BgraBitmap.Create(rp.Width, rp.Height, rp.Bgra8888);
+            }
+            else
+            {
+                using var page = await src.OpenPageAsync(0);
+                using var ms = new MemoryStream();
+                await page.CopyToAsync(ms);
+                ms.Position = 0;
+                bmp = Bitmap.DecodeToWidth(ms, 260);
+            }
             s_cache[book.Path] = new WeakReference<Bitmap>(bmp);
         }
         catch

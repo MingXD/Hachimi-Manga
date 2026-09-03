@@ -31,6 +31,20 @@ public class LibraryScannerTests
     }
 
     [Fact]
+    public async Task Scans_Pdf_Books()
+    {
+        if (!MangaAgent.Core.Comics.Pdf.PdfiumLibrary.IsAvailable) return;   // dll 缺失：跳过（不中断基线）
+        var books = await LibraryScanner.ScanAsync(Fixtures, TestContext.Current.CancellationToken);
+        var pdfs = books.Where(b => b.Kind == BookKind.Pdf).ToList();
+        // TestSeriesA 目录含 TestSeriesA_vol4.pdf（2 页：矢量页 + 内嵌 JPEG 页）
+        var vol4 = pdfs.SingleOrDefault(b => b.Path.EndsWith("TestSeriesA_vol4.pdf"));
+        Assert.NotNull(vol4);
+        Assert.Equal("TestSeriesA", vol4!.Series);
+        Assert.Equal("4", vol4.Volume);
+        Assert.Equal(2, vol4.PageCount);
+    }
+
+    [Fact]
     public void ReadingState_RoundTrip()
     {
         var db = Path.Combine(Path.GetTempPath(), $"mangaagent_state_{Guid.NewGuid():N}.db");

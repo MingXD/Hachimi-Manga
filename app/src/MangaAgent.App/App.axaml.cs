@@ -75,9 +75,10 @@ public partial class App : Application
                 if (File.Exists(path) || isDir)
                 {
                     var lastWrite = isDir ? Directory.GetLastWriteTimeUtc(path) : File.GetLastWriteTimeUtc(path);
+                    // v4-PDF：文件型书类型按扩展名推断（--open xxx.pdf 不再被误当 CBZ）
                     var book = new MangaAgent.Core.Library.BookInfo(
                         path, Path.GetFileNameWithoutExtension(path.TrimEnd('\\')), null, null,
-                        isDir ? MangaAgent.Core.Library.BookKind.Folder : MangaAgent.Core.Library.BookKind.Zip,
+                        MangaAgent.Core.Library.BookInfo.KindForPath(path),
                         lastWrite, 0);
                     var dbPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                         "HachimiManga", "reading.db");

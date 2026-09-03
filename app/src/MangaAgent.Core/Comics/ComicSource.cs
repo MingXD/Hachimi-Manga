@@ -24,8 +24,15 @@ public readonly record struct PageSize(int Width, int Height)
     public double AspectRatio => Height == 0 ? 0 : (double)Width / Height;
 }
 
+/// <summary>按目标宽度光栅化的页面像素（BGRA8888，自顶向下，无预乘；alpha 恒 255 视为不透明）。
+/// PDF 等矢量源经 RenderPageAsync 产出；图片源返回 null 走流解码路径。</summary>
+public readonly record struct RenderedPage(int Width, int Height, byte[] Bgra8888)
+{
+    public int Stride => Width * 4;
+}
+
 /// <summary>
-/// 所有漫画"来源"（文件夹 / CBZ / 未来 CBR、PDF）的统一抽象。
+/// 所有漫画"来源"（文件夹 / CBZ / PDF）的统一抽象。
 /// 随机访问、懒解码：阅读引擎不感知具体格式。
 /// </summary>
 public abstract class ComicSource : IAsyncDisposable
@@ -47,17 +54,25 @@ public abstract class ComicSource : IAsyncDisposable
     /// <summary>读取元数据（无则返回 null）。</summary>
     public abstract Task<ComicMetadata?> ReadMetadataAsync(CancellationToken ct = default);
 
+    /// <summary>
+    /// 按目标像素宽光栅化页面（矢量源实现；图片源默认返回 null → 调用方走 OpenPageAsync + 解码流）。
+    /// 返回 null 表示本源不支持宽度感知光栅化。
+    /// </summary>
+    public virtual Task<RenderedPage?> RenderPageAsync(int index, int targetWidthPx, CancellationToken ct = default)
+        => Task.FromResult<RenderedPage?>(null);
+
     public abstract ValueTask DisposeAsync();
 }
 
 public static class ComicSourceFactory
 {
-    /// <summary>按路径自动选择实现：.cbz/.zip → Zip，目录 → Folder。</summary>
+    /// <summary>按路径自动选择实现：.cbz/.zip → Zip，.pdf → PDF，目录 → Folder。</summary>
     public static ComicSource Open(string path)
     {
         if (Directory.Exists(path)) return new FolderComicSource(path);
         var ext = Path.GetExtension(path).ToLowerInvariant();
         if (ext is ".cbz" or ".zip") return new ZipComicSource(path);
+        if (ext == ".pdf") return new Pdf.PdfComicSource(path);
         throw new NotSupportedException($"不支持的漫画来源格式: {ext}");
     }
 }

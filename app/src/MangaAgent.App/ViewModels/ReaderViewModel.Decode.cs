@@ -30,10 +30,21 @@ public partial class ReaderViewModel
     public int PrefetchRange { get; set; } = 2;
 
     /// <summary>按档位计算某物理页的有效解码上限（v3）：
-    /// Auto = min(原图宽, 4096)（放大到原图级才解大图）；Limit = DecodeLimit；Original = 原图宽；原图宽未知回退 4096。</summary>
+    /// Auto = min(原图宽, 4096)（放大到原图级才解大图）；Limit = DecodeLimit；Original = 原图宽；原图宽未知回退 4096。
+    /// v4-PDF：矢量源无固有像素上限 → 档位 = 渲染密度上限（Auto ≤ canonical 300dpi；Limit/Original = 用户预算）。</summary>
     public int EffectiveDecodeLimit(int physical)
     {
         int origW = _sizes.TryGetValue(physical, out var sz) && sz.Width > 0 ? sz.Width : 0;
+        if (_source is MangaAgent.Core.Comics.Pdf.PdfComicSource)
+        {
+            return DecodeQuality switch
+            {
+                "Original" => Math.Max(Math.Max(1200, DecodeLimit), origW),   // 用尽预算且不低于 canonical
+                "Limit" => Math.Max(1200, DecodeLimit),
+                // Auto：上限 = canonical(300dpi) 折算宽 —— 语义等同图片书"放大到原图级"
+                _ => Math.Max(1200, Math.Min(origW > 0 ? origW : 4096, 4096)),
+            };
+        }
         return DecodeQuality switch
         {
             "Original" when origW > 0 => origW,
@@ -183,11 +194,21 @@ public partial class ReaderViewModel
         await _prefetchGate.WaitAsync();
         try
         {
-            using var stream = await _source.OpenPageAsync(physical);
-            using var ms = new MemoryStream();
-            await stream.CopyToAsync(ms);
-            ms.Position = 0;
-            var bmp = await Task.Run(() => Bitmap.DecodeToWidth(ms, want));
+            Bitmap? bmp = null;
+            // v4-PDF：预取走按宽光栅化（与正文同一 RenderPageAsync 入口）
+            var raster = await _source.RenderPageAsync(physical, want);
+            if (raster is { } rp)
+            {
+                bmp = Imaging.BgraBitmap.Create(rp.Width, rp.Height, rp.Bgra8888);
+            }
+            else
+            {
+                using var stream = await _source.OpenPageAsync(physical);
+                using var ms = new MemoryStream();
+                await stream.CopyToAsync(ms);
+                ms.Position = 0;
+                bmp = await Task.Run(() => Bitmap.DecodeToWidth(ms, want));
+            }
             if (bmp is null) return;
             if (_disposed) { TryDispose(bmp); return; }   // P2-3：关闭后不再入缓存（防清除后再污染）
             if (_pageCache.TryGetValue(physical, out var old) && !_uiRefs.ContainsKey(old))
@@ -246,11 +267,20 @@ public partial class ReaderViewModel
         Bitmap? bmp = null;
         try
         {
-            using var stream = await _source.OpenPageAsync(physical);
-            using var ms = new MemoryStream();
-            await stream.CopyToAsync(ms);
-            ms.Position = 0;
-            bmp = await Task.Run(() => Avalonia.Media.Imaging.Bitmap.DecodeToWidth(ms, ThumbWidth));
+            // v4-PDF：预览栏缩略图同样按宽光栅化（150px 渲染毫秒级）
+            var raster = await _source.RenderPageAsync(physical, ThumbWidth);
+            if (raster is { } rp)
+            {
+                bmp = Imaging.BgraBitmap.Create(rp.Width, rp.Height, rp.Bgra8888);
+            }
+            else
+            {
+                using var stream = await _source.OpenPageAsync(physical);
+                using var ms = new MemoryStream();
+                await stream.CopyToAsync(ms);
+                ms.Position = 0;
+                bmp = await Task.Run(() => Avalonia.Media.Imaging.Bitmap.DecodeToWidth(ms, ThumbWidth));
+            }
             if (bmp is not null)
             {
                 if (_disposed) bmp.Dispose();   // P2-3：关闭后不入缩略图缓存
@@ -326,13 +356,22 @@ public partial class ReaderViewModel
         string? error = null;
         try
         {
-            using var stream = await _source.OpenPageAsync(physical);
-            using var ms = new MemoryStream();
-            await stream.CopyToAsync(ms);
-            ms.Position = 0;
-            // 2E 修复：JPEG 解码 + 降采样是同步 CPU 密集操作，移到线程池执行，
-            // 避免在 UI 线程解码大图（4299x6071 → 数百 ms）导致翻页/滚动卡死
-            decoded = await Task.Run(() => Bitmap.DecodeToWidth(ms, want));
+            // v4-PDF：矢量源按目标宽光栅化（原生 BGRA 直通，无编码往返；图片源返回 null 走流解码）
+            var raster = await _source.RenderPageAsync(physical, want);
+            if (raster is { } rp)
+            {
+                decoded = Imaging.BgraBitmap.Create(rp.Width, rp.Height, rp.Bgra8888);
+            }
+            else
+            {
+                using var stream = await _source.OpenPageAsync(physical);
+                using var ms = new MemoryStream();
+                await stream.CopyToAsync(ms);
+                ms.Position = 0;
+                // 2E 修复：JPEG 解码 + 降采样是同步 CPU 密集操作，移到线程池执行，
+                // 避免在 UI 线程解码大图（4299x6071 → 数百 ms）导致翻页/滚动卡死
+                decoded = await Task.Run(() => Bitmap.DecodeToWidth(ms, want));
+            }
             // v3 诊断：实际解码位图宽 vs 请求宽 vs 解析的原图宽 —— 区分"原图分辨率低(物理限制)"
             // 与"ParseHeader 解析错误导致 Auto 档主动降采样(程序 bug)"
             if (decoded is not null)

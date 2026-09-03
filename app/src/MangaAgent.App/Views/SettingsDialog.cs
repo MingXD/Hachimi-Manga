@@ -144,7 +144,7 @@ public class SettingsDialog : Window
                 SettingRow("甩动限幅", _flingMax, _flingMaxT, "甩动最大速度（px/s）")),
             Card("性能与行为",
                 SettingRow("性能预设", _preset, null, "一键组合：解码清晰度 / 预取范围 / 缓存页数（选择后可继续微调）"),
-                SettingRow("解码质量", _decodeQuality, null, "自动=平时小图、放大按需解到原图；限幅=固定上限；原图=始终最清晰（内存大）"),
+                SettingRow("解码质量", _decodeQuality, null, "自动=按需解到原图（PDF 放大按档重渲至 300dpi 级）；限幅=固定上限；原图=始终最清晰（内存大）"),
                 SettingRow("限幅上限", _decodeLimit, _decodeLimitT, "限幅档的解码宽度上限"),
                 SettingRow("预取范围", _prefetchRange, null, "翻页前预解码相邻页数（越大越流畅、越耗内存）"),
                 SettingRow("缓存页数", _cacheCap, _cacheCapT, "位图缓存上限（流畅 vs 内存）"),

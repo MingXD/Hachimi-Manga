@@ -597,7 +597,8 @@ public partial class MainWindowViewModel : ViewModelBase
         bool nodeIsPure = node.Children.Count == 0 && node.Books.Any(b => b.Kind == BookKind.Folder);
         foreach (var b in node.Books)
         {
-            bool include = b.Kind == BookKind.Zip || (b.Kind == BookKind.Folder && nodeIsPure);
+            // v4-PDF：文件型书（CBZ/PDF）全参与命中；FolderBook 仅纯图片节点命中
+            bool include = b.IsFileKind || (b.Kind == BookKind.Folder && nodeIsPure);
             if (include && (b.Title.Contains(q, StringComparison.OrdinalIgnoreCase)
                 || (b.Series?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false)))
                 hits.Add(WireEntry(new FolderEntryItemViewModel(b)));
