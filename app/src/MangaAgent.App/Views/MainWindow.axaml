@@ -103,10 +103,11 @@
                         <Separator/>
                         <MenuItem Header="重命名" Tag="rename" Click="OnEntryMenuClick"/>
                         <MenuItem Header="删除（回收站）" Tag="delete" Click="OnEntryMenuClick"/>
-                        <Separator/>
+                        <!-- v4.10：文件夹专属项与其两条分隔线一起随 IsFolder 隐藏（否则漫画右键"删除"下方出现两条横线） -->
+                        <Separator IsVisible="{Binding IsFolder}"/>
                         <MenuItem Header="设置封面…" Tag="setcover" Click="OnEntryMenuClick" IsVisible="{Binding IsFolder}"/>
                         <MenuItem Header="清除封面" Tag="clearcover" Click="OnEntryMenuClick" IsVisible="{Binding IsFolder}"/>
-                        <Separator/>
+                        <Separator IsVisible="{Binding IsFolder}"/>
                         <MenuItem Header="在资源管理器中显示" Tag="show" Click="OnEntryMenuClick"/>
                         <MenuItem Header="属性" Tag="props" Click="OnEntryMenuClick"/>
                       </ContextMenu>
@@ -195,10 +196,11 @@
                         <Separator/>
                         <MenuItem Header="重命名" Tag="rename" Click="OnEntryMenuClick"/>
                         <MenuItem Header="删除（回收站）" Tag="delete" Click="OnEntryMenuClick"/>
-                        <Separator/>
+                        <!-- v4.10：文件夹专属项与其两条分隔线一起随 IsFolder 隐藏（否则漫画右键"删除"下方出现两条横线） -->
+                        <Separator IsVisible="{Binding IsFolder}"/>
                         <MenuItem Header="设置封面…" Tag="setcover" Click="OnEntryMenuClick" IsVisible="{Binding IsFolder}"/>
                         <MenuItem Header="清除封面" Tag="clearcover" Click="OnEntryMenuClick" IsVisible="{Binding IsFolder}"/>
-                        <Separator/>
+                        <Separator IsVisible="{Binding IsFolder}"/>
                         <MenuItem Header="在资源管理器中显示" Tag="show" Click="OnEntryMenuClick"/>
                         <MenuItem Header="属性" Tag="props" Click="OnEntryMenuClick"/>
                       </ContextMenu>
