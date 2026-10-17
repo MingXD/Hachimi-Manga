@@ -69,10 +69,10 @@ public partial class MainWindowViewModel : ViewModelBase
     };
     public double GalleryItemHeight => GalleryMode switch
     {
-        GalleryMode.Large => 408,   // = 卡片高400 + Margin4×2（v4.5 加高容纳同尺寸封面+三行文本）
-        GalleryMode.Small => 224,   // = 卡片高216 + 8
+        GalleryMode.Large => 388,   // = 卡片高380 + Margin4×2（v4.7 恢复 v2.3.8 原值）
+        GalleryMode.Small => 204,
         GalleryMode.Detail => 40,  // 详情：行式条高
-        _ => 299,                   // = 卡片高291 + 8
+        _ => 280,
     };
 
     [RelayCommand]
@@ -374,14 +374,14 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private FolderEntryItemViewModel WireEntry(FolderEntryItemViewModel item)
     {
-        // 功能-1：卡片尺寸随展示模式（v4.5：加高容纳"漫画封面同尺寸的文件夹封面 + 三行文本"）
+        // 功能-1：卡片尺寸随展示模式（v4.7：恢复 v2.3.8 原始卡片高度；文件夹封面同尺寸+两行合并文本放得下）
         (item.CardWidth, item.CardHeight) = GalleryMode switch
         {
             // 卡片 = 封面(0.7 单行本比例) + 文本区；详情 = 行式条
-            GalleryMode.Large => (240.0, 400.0),
-            GalleryMode.Small => (120.0, 216.0),
+            GalleryMode.Large => (240.0, 380.0),
+            GalleryMode.Small => (120.0, 196.0),
             GalleryMode.Detail => (560.0, 40.0),
-            _ => (168.0, 291.0),
+            _ => (168.0, 272.0),
         };
         // 封面统一 0.7 比例（单行本：新书判148×210≈0.705 / B6 182×257≈0.708），三模式等比 ×1.5
         (item.CoverWidth, item.CoverHeight) = GalleryMode switch

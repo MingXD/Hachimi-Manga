@@ -130,9 +130,9 @@
                                   ClipToBounds="True" HorizontalAlignment="Center">
                             <Image Source="{Binding Thumbnail}" Stretch="UniformToFill" Width="{Binding FolderCoverW}" Height="{Binding FolderCoverH}"/>
                           </Border>
-                          <TextBlock Text="{Binding DisplayName}" Foreground="#E8E8E8" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" FontSize="{Binding TitleFontSize}" HorizontalAlignment="Center" Margin="0,8,0,0"/>
-                          <TextBlock Text="{Binding Subtitle}" Foreground="#888888" FontSize="{Binding SubtitleFontSize}" HorizontalAlignment="Center" Margin="0,3,0,0" TextTrimming="CharacterEllipsis"/>
-                          <TextBlock Text="{Binding StatsLine2}" Foreground="#888888" FontSize="{Binding SubtitleFontSize}" HorizontalAlignment="Center" Margin="0,2,0,0" TextTrimming="CharacterEllipsis"/>
+                          <!-- v4.7：三行文本合并为名称 + 一行统计（M 本漫画 · N 个子文件夹 · 共 X 本），380 卡片放得下 -->
+                          <TextBlock Text="{Binding DisplayName}" Foreground="#E8E8E8" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" FontSize="{Binding TitleFontSize}" HorizontalAlignment="Center" Margin="0,4,0,0"/>
+                          <TextBlock Text="{Binding SubtitleOneLine}" Foreground="#888888" FontSize="{Binding SubtitleFontSize}" HorizontalAlignment="Center" Margin="0,3,0,0" TextTrimming="CharacterEllipsis"/>
                         </StackPanel>
                         <StackPanel Margin="6" VerticalAlignment="Center" IsVisible="{Binding FolderWithoutCover}">
                           <TextBlock Text="📁" FontSize="64" HorizontalAlignment="Center" Foreground="#D8A24A"/>
