@@ -47,9 +47,12 @@ public partial class FolderEntryItemViewModel : ViewModelBase
     /// <summary>详情模式：行式布局（图标 + 名称 + 副标题横排，无图片）。</summary>
     public bool IsDetail { get; set; }
 
-    /// <summary>v4.3 文件夹自定义封面区尺寸（按展示模式注入；比漫画封面矮，给三行文本留空间）。</summary>
+    /// <summary>v4.3 文件夹自定义封面区尺寸（按展示模式注入；与漫画封面同宽、略矮给三行文本留空间）。</summary>
     public double FolderCoverW { get; set; } = 144;
-    public double FolderCoverH { get; set; } = 155;
+    public double FolderCoverH { get; set; } = 183;
+
+    /// <summary>v4.4 封面解码 DPI 系数（主窗口 RenderScaling 注入；headless/无窗口 = 1.0）。</summary>
+    public double CoverDpi { get; set; } = 1.0;
 
     /// <summary>v4.3 文件夹封面绝对路径（仅文件夹条目；由主窗口从 FolderCovers 记录解析并注入）。</summary>
     public string? FolderCoverPath { get; private set; }
@@ -171,18 +174,21 @@ public partial class FolderEntryItemViewModel : ViewModelBase
         Book = book;
     }
 
-    /// <summary>懒加载封面（BUG-002 同款按需加载）：漫画=首图缩略图；文件夹=自定义封面图（无则保持 📁）。</summary>
+    /// <summary>懒加载封面（BUG-002 同款按需加载）：漫画=首图缩略图；文件夹=自定义封面图（无则保持 📁）。
+    /// v4.4：解码宽按"封面框需求 × 图片比例 × DPI"计算（横向封面/高 DPI 不再糊）。</summary>
     public async Task LoadThumbnailAsync()
     {
         if (Thumbnail is not null) return;
         if (IsFolder)
         {
             if (FolderCoverPath is null) return;
-            Thumbnail = await ThumbnailService.GetImageThumbAsync(FolderCoverPath, Math.Max(64, (int)FolderCoverW));
+            Thumbnail = await ThumbnailService.GetImageCoverThumbAsync(
+                FolderCoverPath, (int)FolderCoverW, (int)FolderCoverH, CoverDpi);
             return;
         }
         if (Book is null) return;
-        Thumbnail = await ThumbnailService.GetThumbnailAsync(Book);
+        Thumbnail = await ThumbnailService.GetThumbnailAsync(
+            Book, (int)CoverWidth, (int)CoverHeight, CoverDpi);
     }
 
     [RelayCommand]

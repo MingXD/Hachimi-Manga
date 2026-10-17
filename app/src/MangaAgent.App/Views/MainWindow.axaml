@@ -112,9 +112,10 @@
                       </ContextMenu>
                     </Border.ContextMenu>
                     <Grid>
-                      <!-- 卡片模式（大/中/小）：文件夹图标 or 封面 + 文本（尺寸/字体随模式注入） -->
-                      <StackPanel Margin="6" VerticalAlignment="Center" IsVisible="{Binding !IsDetail}">
-                        <StackPanel VerticalAlignment="Center" IsVisible="{Binding IsFolder}">
+                      <!-- 卡片模式（大/中/小）：文件夹图标 or 封面 + 文本（尺寸/字体随模式注入）
+                           v4.4：顶部对齐 + 上边距 11（封面水平居中产生的左右空隙恒 11）→ 上/左/右空隙一致 -->
+                      <StackPanel Margin="6,11,6,0" VerticalAlignment="Top" IsVisible="{Binding !IsDetail}">
+                        <StackPanel IsVisible="{Binding IsFolder}">
                           <!-- v4.3 文件夹自定义封面：有封面显示图片（比漫画封面矮，给下方三行文本留空间），无封面显示 📁 -->
                           <Border Background="#2A2A34" CornerRadius="4" Width="{Binding FolderCoverW}" Height="{Binding FolderCoverH}"
                                   ClipToBounds="True" HorizontalAlignment="Center" IsVisible="{Binding HasCover}">

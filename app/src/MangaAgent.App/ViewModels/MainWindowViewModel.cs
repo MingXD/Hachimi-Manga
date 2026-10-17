@@ -424,14 +424,16 @@ public partial class MainWindowViewModel : ViewModelBase
             });
             return folders.Count > 0 ? folders[0].TryGetLocalPath() : null;
         };
-        // v4.3 文件夹自定义封面区尺寸（比漫画封面矮，给三行文本留空间）
+        // v4.4 文件夹自定义封面区尺寸（与漫画封面同宽、略矮给三行文本留空间；空隙统一 11px）
         (item.FolderCoverW, item.FolderCoverH) = GalleryMode switch
         {
-            GalleryMode.Large => (216.0, 232.0),
-            GalleryMode.Small => (96.0, 100.0),
+            GalleryMode.Large => (216.0, 281.0),
+            GalleryMode.Small => (96.0, 118.0),
             GalleryMode.Detail => (0.0, 0.0),
-            _ => (144.0, 155.0),
+            _ => (144.0, 183.0),
         };
+        // v4.4 封面解码 DPI（主窗口缩放系数；headless 无窗口 = 1.0）
+        item.CoverDpi = GetOwnerWindow?.Invoke()?.RenderScaling ?? 1.0;
         return item;
     }
 

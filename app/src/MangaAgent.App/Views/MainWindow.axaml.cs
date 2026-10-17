@@ -252,7 +252,10 @@ public partial class MainWindow : Window
         var items = _vm.FolderEntries.Count > 0 ? (System.Collections.Generic.IReadOnlyList<FolderEntryItemViewModel>)_vm.FolderEntries
                                                 : System.Array.Empty<FolderEntryItemViewModel>();
         if (items.Count == 0) return;
-        const double itemW = 184, itemH = 262, buffer = 300;
+        // v4.4：用当前展示模式的真实卡片尺寸估算（原硬编码 184×262 已与模式尺寸脱节）
+        double itemW = Math.Max(1, _vm.GalleryItemWidth);
+        double itemH = Math.Max(1, _vm.GalleryItemHeight);
+        const double buffer = 300;
         double viewW = Math.Max(1, CoverScroller.Viewport.Width);
         int perRow = Math.Max(1, (int)(viewW / itemW));
         double offset = CoverScroller.Offset.Y;
@@ -261,7 +264,9 @@ public partial class MainWindow : Window
         int i = 0;
         foreach (var item in items)
         {
-            if (item.IsFolder || item.Thumbnail is not null) { i++; continue; }
+            // v4.4 修复：文件夹条目原先被无条件跳过 → 滚动后出现的文件夹封面永不加载
+            // （仅"无自定义封面"的文件夹才跳过）
+            if ((item.IsFolder && item.FolderCoverPath is null) || item.Thumbnail is not null) { i++; continue; }
             int row = i / perRow;
             double top = row * itemH;
             if (top <= offset + viewH + buffer && top + itemH >= offset - buffer)

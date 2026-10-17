@@ -27,7 +27,7 @@ public partial class BookItemViewModel : ViewModelBase
     public async Task LoadThumbnailAsync()
     {
         if (Thumbnail is null)
-            Thumbnail = await ThumbnailService.GetThumbnailAsync(Book);
+            Thumbnail = await ThumbnailService.GetThumbnailAsync(Book, 216, 309, 1.0);   // 大图模式封面框
     }
 
     [RelayCommand]
