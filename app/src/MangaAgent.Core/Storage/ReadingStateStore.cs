@@ -182,5 +182,24 @@ public sealed class ReadingStateStore : IDisposable
         cmd.ExecuteNonQuery();
     }
 
+    /// <summary>v4.12：目录移动后迁移封面记录（旧文件夹路径 → 新路径；相对路径不变，目录内部结构未动）。
+    /// 先清理目标路径的旧记录（防残留），再更新源记录；源无记录时无操作。</summary>
+    public void MoveFolderCover(string srcDir, string dstDir)
+    {
+        if (string.Equals(srcDir, dstDir, StringComparison.OrdinalIgnoreCase)) return;
+        using (var del = _conn.CreateCommand())
+        {
+            del.CommandText = "DELETE FROM FolderCovers WHERE FolderPath = $p";
+            del.Parameters.AddWithValue("$p", dstDir);
+            del.ExecuteNonQuery();
+        }
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "UPDATE FolderCovers SET FolderPath = $dst, UpdatedAt = $t WHERE FolderPath = $src";
+        cmd.Parameters.AddWithValue("$dst", dstDir);
+        cmd.Parameters.AddWithValue("$t", DateTime.UtcNow.ToString("O"));
+        cmd.Parameters.AddWithValue("$src", srcDir);
+        cmd.ExecuteNonQuery();
+    }
+
     public void Dispose() => _conn.Dispose();
 }

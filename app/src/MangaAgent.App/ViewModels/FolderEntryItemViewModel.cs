@@ -264,7 +264,7 @@ public partial class FolderEntryItemViewModel : ViewModelBase
         // v3 #1：进度版异步移动（跨卷复制时显示进度）+ 失败显示原因
         var progress = new Progress<(int Done, int Total)>(p =>
             ProgressAction?.Invoke($"正在移动 {p.Done}/{p.Total}…"));
-        var (ok, error) = await Task.Run(() => MangaAgent.Core.Library.FileOps.MoveToAsync(SourcePath, dest, progress));
+        var (ok, error, _) = await Task.Run(() => MangaAgent.Core.Library.FileOps.MoveToAsync(SourcePath, dest, progress));
         if (ok) { RefreshAction?.Invoke(); ProgressAction?.Invoke("移动完成"); }
         else NotifyError?.Invoke($"移动失败：{error}");
         global::MangaAgent.App.App.SLog($"MOVE {SourcePath} -> {dest} ok={ok} err={error}");

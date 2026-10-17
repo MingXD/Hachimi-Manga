@@ -164,8 +164,9 @@ public static class FileOps
         catch (Exception ex) { return (false, ex.Message); }
     }
 
-    /// <summary>异步移动（带进度，v3 #1）：同卷 Move（秒级，无进度）；跨卷 = CopyToAsync 进度复制 + 成功后删源（防数据丢失）。</summary>
-    public static async Task<(bool Ok, string? Error)> MoveToAsync(string path, string destDir,
+    /// <summary>异步移动（带进度，v3 #1）：同卷 Move（秒级，无进度）；跨卷 = CopyToAsync 进度复制 + 成功后删源（防数据丢失）。
+    /// v4.12：返回实际目标路径 TargetPath（同卷/跨卷、重名 UniquePath 后均准确），供调用方迁移关联数据（如文件夹封面记录）。</summary>
+    public static async Task<(bool Ok, string? Error, string? TargetPath)> MoveToAsync(string path, string destDir,
         IProgress<(int Done, int Total)>? progress = null, CancellationToken ct = default)
     {
         try
@@ -175,7 +176,7 @@ public static class FileOps
             if ((Directory.Exists(path) || File.Exists(path)) &&
                 string.Equals(Path.GetDirectoryName(Path.GetFullPath(path.TrimEnd('\\'))),
                     Path.GetFullPath(destDir).TrimEnd('\\'), StringComparison.OrdinalIgnoreCase))
-                return (false, "源与目标目录相同");
+                return (false, "源与目标目录相同", null);
             var name = Path.GetFileName(path.TrimEnd('\\'));
             if (string.IsNullOrEmpty(name)) name = new DirectoryInfo(path).Name;
             var dest = Path.Combine(destDir, name);
@@ -183,9 +184,9 @@ public static class FileOps
             if (Directory.Exists(path))
             {
                 if (Path.GetFullPath(path).Equals(Path.GetFullPath(dest), StringComparison.OrdinalIgnoreCase))
-                    return (false, "源与目标相同");
+                    return (false, "源与目标相同", null);
                 if (IsSubPath(dest, path))
-                    return (false, "目标不能是源文件夹的子目录");
+                    return (false, "目标不能是源文件夹的子目录", null);
                 if (SameVolume(path, dest))
                 {
                     Directory.Move(path, dest);
@@ -193,14 +194,14 @@ public static class FileOps
                 else
                 {
                     var (ok, err) = await CopyToAsync(path, destDir, progress, ct);   // 同输入 → 同 UniquePath 结果
-                    if (!ok) return (false, err);
+                    if (!ok) return (false, err, null);
                     Directory.Delete(path, true);
                 }
             }
             else if (File.Exists(path))
             {
                 if (Path.GetFullPath(path).Equals(Path.GetFullPath(dest), StringComparison.OrdinalIgnoreCase))
-                    return (false, "源与目标相同");
+                    return (false, "源与目标相同", null);
                 if (SameVolume(path, dest))
                 {
                     File.Move(path, dest);
@@ -212,10 +213,10 @@ public static class FileOps
                     File.Delete(path);
                 }
             }
-            else return (false, "源路径不存在");
-            return (true, null);
+            else return (false, "源路径不存在", null);
+            return (true, null, dest);
         }
-        catch (Exception ex) { return (false, ex.Message); }
+        catch (Exception ex) { return (false, ex.Message, null); }
     }
 
     /// <summary>同卷判断（跨卷时 File.Move/Directory.Move 不支持，须回退复制+删源）。</summary>

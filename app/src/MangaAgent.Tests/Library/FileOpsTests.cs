@@ -152,7 +152,7 @@ public class FileOpsTests
             var dst = Path.Combine(root, "dst");
             Directory.CreateDirectory(src);
             File.WriteAllText(Path.Combine(src, "a.txt"), "a");
-            var (ok, err) = await FileOps.MoveToAsync(src, dst);   // 同卷 Move，无进度
+            var (ok, err, _) = await FileOps.MoveToAsync(src, dst);   // 同卷 Move，无进度（v4.12 增加 TargetPath）
             Assert.True(ok, err);
             Assert.False(Directory.Exists(src));
             Assert.True(File.Exists(Path.Combine(dst, "src", "a.txt")));

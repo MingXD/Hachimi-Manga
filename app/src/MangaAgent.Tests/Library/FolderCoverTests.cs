@@ -82,6 +82,40 @@ public class FolderCoverTests
         }
     }
 
+    [Fact]
+    public void MoveFolderCover_Migrates_Record_To_New_Path()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"manga_cover_mv_{Guid.NewGuid():N}");
+        var db = Path.Combine(Path.GetTempPath(), $"manga_cover_mv_db_{Guid.NewGuid():N}.db");
+        try
+        {
+            Directory.CreateDirectory(root);
+            File.WriteAllBytes(Path.Combine(root, "a.png"), TinyPng);
+            using var store = new ReadingStateStore(db);
+            Assert.True(store.SetFolderCover(root, "a.png"));
+            // 模拟目录移动：旧路径 → 新路径（相对路径不变）
+            var movedRoot = root + "_moved";
+            store.MoveFolderCover(root, movedRoot);
+            Assert.Null(store.LoadFolderCover(root));                     // 旧键失效
+            Assert.Equal("a.png", store.LoadFolderCover(movedRoot));      // 新键可用
+            // 目标已有旧记录 → 被清理后迁移（目标须为真实存在的文件夹+图片）
+            var xRoot = movedRoot + "_x";
+            Directory.CreateDirectory(xRoot);
+            File.WriteAllBytes(Path.Combine(xRoot, "b.png"), TinyPng);
+            Assert.True(store.SetFolderCover(xRoot, "b.png"));
+            store.MoveFolderCover(movedRoot, xRoot);
+            Assert.Equal("a.png", store.LoadFolderCover(xRoot));
+            // 源无记录 → 无操作
+            store.MoveFolderCover(movedRoot + "_no", movedRoot + "_no2");
+            Assert.Null(store.LoadFolderCover(movedRoot + "_no2"));
+        }
+        finally
+        {
+            try { Directory.Delete(root, true); } catch { }
+            try { File.Delete(db); } catch { }
+        }
+    }
+
     [AvaloniaFact]
     public async Task Entry_Shows_Cover_And_Clears_Back()
     {

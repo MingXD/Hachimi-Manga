@@ -455,7 +455,8 @@ public partial class MainWindowViewModel : ViewModelBase
         return done;
     }
 
-    /// <summary>v4.3 多选批量移动到指定目录（右键"移动到…"）。返回成功数。</summary>
+    /// <summary>v4.3 多选批量移动到指定目录（右键"移动到…"）。返回成功数。
+    /// v4.12：目录移动成功后迁移自定义封面记录（FolderPath 旧键 → 实际目标路径）。</summary>
     public async Task<int> MovePathsToAsync(IReadOnlyList<string> paths, string destDir)
     {
         var list = paths.Where(p => File.Exists(p) || Directory.Exists(p)).ToList();
@@ -464,8 +465,21 @@ public partial class MainWindowViewModel : ViewModelBase
         for (int i = 0; i < list.Count; i++)
         {
             StatusText = $"正在移动 {i + 1}/{list.Count}…";
-            var (ok, err) = await Task.Run(() => MangaAgent.Core.Library.FileOps.MoveToAsync(list[i], destDir));
-            if (ok) done++;
+            var (ok, err, targetPath) = await Task.Run(() => MangaAgent.Core.Library.FileOps.MoveToAsync(list[i], destDir));
+            if (ok)
+            {
+                done++;
+                // v4.12：目录移动成功 → 迁移该文件夹的封面记录（相对路径不变）；文件无需处理
+                if (targetPath is not null && Directory.Exists(targetPath))
+                {
+                    try
+                    {
+                        using var coverState = new MangaAgent.Core.Storage.ReadingStateStore(StateDbPath);
+                        coverState.MoveFolderCover(list[i], targetPath);
+                    }
+                    catch { /* 迁移失败不影响移动结果 */ }
+                }
+            }
             else { fail++; App.SLog($"MOVE FAIL {list[i]}: {err}"); }
         }
         if (done > 0) await RefreshCurrentViewAsync();
