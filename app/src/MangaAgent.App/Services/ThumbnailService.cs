@@ -41,4 +41,26 @@ public static class ThumbnailService
         }
         return bmp;
     }
+
+    /// <summary>v4.3：任意本地图片路径 → 缩略图（文件夹自定义封面用；同一弱引用缓存）。</summary>
+    public static async Task<Bitmap?> GetImageThumbAsync(string imagePath, int width)
+    {
+        if (s_cache.TryGetValue(imagePath, out var wr) && wr.TryGetTarget(out var cached))
+            return cached;
+        Bitmap? bmp = null;
+        try
+        {
+            if (!File.Exists(imagePath)) return null;
+            bmp = await Task.Run(() => Bitmap.DecodeToWidth(File.OpenRead(imagePath), Math.Max(32, width)));
+            if (bmp is not null) s_cache[imagePath] = new WeakReference<Bitmap>(bmp);
+        }
+        catch
+        {
+            return null;
+        }
+        return bmp;
+    }
+
+    /// <summary>移除缓存（封面更换后强制重新加载）。</summary>
+    public static void Invalidate(string path) => s_cache.Remove(path);
 }

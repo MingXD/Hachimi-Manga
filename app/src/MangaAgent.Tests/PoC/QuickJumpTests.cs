@@ -34,11 +34,11 @@ public class QuickJumpTests
         {
             var vm = new ReaderViewModel(StressBook, db);
             await WaitUntilAsync(() => vm.Image1 is not null);
-            // 封面单页 → 共 151 逻辑页（0..150）；跳到第 100 逻辑页（0-based 99）
+            // v4.3 强制配对：300 页两两成对 → 150 逻辑页；逻辑页 99 = 物理(198,199)
             vm.JumpToPageCommand.Execute(99);
-            await WaitUntilAsync(() => vm.CurrentIndex == 99 && vm.PageText == "198 / 300");
-            // BUG-A v1.9：单页模式显示物理页号（逻辑99 → 物理198）
-            Assert.Equal("198 / 300", vm.PageText);
+            await WaitUntilAsync(() => vm.CurrentIndex == 99 && vm.PageText == "199 / 300");
+            // BUG-A v1.9：单页模式显示物理页号（逻辑99 首物理 198 → 199）
+            Assert.Equal("199 / 300", vm.PageText);
 
             // 越界 clamp
             vm.JumpToPageCommand.Execute(10000);

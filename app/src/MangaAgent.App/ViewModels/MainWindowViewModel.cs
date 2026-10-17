@@ -158,8 +158,23 @@ public partial class MainWindowViewModel : ViewModelBase
                                   .ToList();
         FolderEntries.Clear();
         foreach (var s in sorted) FolderEntries.Add(s);
-        // 懒加载可见封面（前 24 个漫画条目）
-        foreach (var item in FolderEntries.Where(e => !e.IsFolder).Take(24)) _ = item.LoadThumbnailAsync();
+        // 懒加载可见封面（前 24 个条目；漫画 + 有自定义封面的文件夹）
+        foreach (var item in FolderEntries.Take(24)) _ = item.LoadThumbnailAsync();
+        // v4.3：文件夹自定义封面（一次批量查询 FolderCovers 后注入各文件夹条目）
+        var folderPaths = FolderEntries.Where(e => e.IsFolder && e.Folder is not null)
+            .Select(e => e.Folder!.Path).ToList();
+        if (folderPaths.Count > 0)
+        {
+            try
+            {
+                using var coverState = new MangaAgent.Core.Storage.ReadingStateStore(StateDbPath);
+                var covers = coverState.LoadFolderCovers(folderPaths);
+                foreach (var e in FolderEntries.Where(e => e.IsFolder && e.Folder is not null))
+                    if (covers.TryGetValue(e.Folder!.Path, out var rel))
+                        e.SetFolderCover(e.Folder!.Path, rel);
+            }
+            catch { /* 封面记录读取失败不阻塞目录浏览 */ }
+        }
 
         // 面包屑
         Breadcrumbs.Clear();
@@ -409,7 +424,96 @@ public partial class MainWindowViewModel : ViewModelBase
             });
             return folders.Count > 0 ? folders[0].TryGetLocalPath() : null;
         };
+        // v4.3 文件夹自定义封面区尺寸（比漫画封面矮，给三行文本留空间）
+        (item.FolderCoverW, item.FolderCoverH) = GalleryMode switch
+        {
+            GalleryMode.Large => (216.0, 232.0),
+            GalleryMode.Small => (96.0, 100.0),
+            GalleryMode.Detail => (0.0, 0.0),
+            _ => (144.0, 155.0),
+        };
         return item;
+    }
+
+    /// <summary>v4.3 多选批量复制到指定目录（右键"复制到…"）。返回成功数。</summary>
+    public async Task<int> CopyPathsToAsync(IReadOnlyList<string> paths, string destDir)
+    {
+        var list = paths.Where(p => File.Exists(p) || Directory.Exists(p)).ToList();
+        if (list.Count == 0) return 0;
+        int done = 0, fail = 0;
+        for (int i = 0; i < list.Count; i++)
+        {
+            StatusText = $"正在复制 {i + 1}/{list.Count}…";
+            var (ok, err) = await Task.Run(() => MangaAgent.Core.Library.FileOps.CopyToAsync(list[i], destDir));
+            if (ok) done++;
+            else { fail++; App.SLog($"COPY FAIL {list[i]}: {err}"); }
+        }
+        if (done > 0) await RefreshCurrentViewAsync();
+        StatusText = fail == 0 ? $"已复制 {done} 项" : $"复制完成：{done}/{list.Count} 项（失败 {fail}）";
+        return done;
+    }
+
+    /// <summary>v4.3 多选批量移动到指定目录（右键"移动到…"）。返回成功数。</summary>
+    public async Task<int> MovePathsToAsync(IReadOnlyList<string> paths, string destDir)
+    {
+        var list = paths.Where(p => File.Exists(p) || Directory.Exists(p)).ToList();
+        if (list.Count == 0) return 0;
+        int done = 0, fail = 0;
+        for (int i = 0; i < list.Count; i++)
+        {
+            StatusText = $"正在移动 {i + 1}/{list.Count}…";
+            var (ok, err) = await Task.Run(() => MangaAgent.Core.Library.FileOps.MoveToAsync(list[i], destDir));
+            if (ok) done++;
+            else { fail++; App.SLog($"MOVE FAIL {list[i]}: {err}"); }
+        }
+        if (done > 0) await RefreshCurrentViewAsync();
+        StatusText = fail == 0 ? $"已移动 {done} 项" : $"移动完成：{done}/{list.Count} 项（失败 {fail}）";
+        return done;
+    }
+
+    /// <summary>v4.3 为文件夹设置自定义封面：系统文件选择器（初始目录=该文件夹）→ 校验必须在该文件夹内 → 只存相对路径记录。</summary>
+    public async Task SetFolderCoverAsync(FolderEntryItemViewModel entry)
+    {
+        if (entry.Folder is null) return;
+        var window = GetOwnerWindow?.Invoke();
+        var top = window is not null ? TopLevel.GetTopLevel(window) : null;
+        if (top is null) return;
+        var files = await top.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "选择文件夹封面图片（限该文件夹内）",
+            AllowMultiple = false,
+            SuggestedStartLocation = await top.StorageProvider.TryGetFolderFromPathAsync(entry.Folder.Path),
+            FileTypeFilter = new[] { FilePickerFileTypes.ImageAll },
+        });
+        if (files.Count == 0) return;
+        var path = files[0].TryGetLocalPath();
+        if (string.IsNullOrEmpty(path))
+        {
+            StatusText = "无法解析所选文件路径";
+            return;
+        }
+        var rel = Path.GetRelativePath(entry.Folder.Path, path);
+        using var state = new MangaAgent.Core.Storage.ReadingStateStore(StateDbPath);
+        if (!state.SetFolderCover(entry.Folder.Path, rel))
+        {
+            StatusText = "封面无效：必须选择该文件夹内的图片文件";
+            MangaAgent.App.Views.AlertDialog.Show("封面无效：必须选择该文件夹内的图片文件");
+            return;
+        }
+        entry.SetFolderCover(entry.Folder.Path, rel);
+        StatusText = "已设置文件夹封面";
+        App.SLog($"FOLDER_COVER SET {entry.Folder.Path} -> {rel}");
+    }
+
+    /// <summary>v4.3 清除文件夹封面（恢复 📁 原样式）。</summary>
+    public void ClearFolderCover(FolderEntryItemViewModel entry)
+    {
+        if (entry.Folder is null) return;
+        using var state = new MangaAgent.Core.Storage.ReadingStateStore(StateDbPath);
+        state.ClearFolderCover(entry.Folder.Path);
+        entry.ClearFolderCover();
+        StatusText = "已清除文件夹封面";
+        App.SLog($"FOLDER_COVER CLEAR {entry.Folder.Path}");
     }
 
     private async Task LoadSavedLibrariesAsync()

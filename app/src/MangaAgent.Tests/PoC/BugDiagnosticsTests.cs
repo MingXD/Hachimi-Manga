@@ -86,11 +86,12 @@ public class BugDiagnosticsTests
             Assert.NotNull(vm.Image1);
 
             // 逐页翻越缓存上限（6），验证缓存淘汰不抛异常
-            Assert.True(vm.TotalLogical >= 2, $"逻辑页数异常: {vm.TotalLogical}");
-            for (int i = 0; i < 10 && i < vm.TotalLogical - 1; i++)
+            Assert.True(vm.PhysicalPageCount >= 2, $"物理页数异常: {vm.PhysicalPageCount}");
+            // v4.3 强制配对后单页模式下翻页按物理页推进（逻辑索引随物理映射，不再逐页 +1）
+            for (int i = 0; i < 10 && i < vm.PhysicalPageCount - 1; i++)
             {
                 vm.NextPageCommand.Execute(null);
-                await WaitUntilAsync(() => vm.CurrentIndex == i + 1 && vm.Image1 is not null);
+                await WaitUntilAsync(() => vm.CurrentPhysical == i + 1 && vm.Image1 is not null);
             }
             Assert.False(vm.HasStatus, $"不应出现解码错误: {vm.StatusText}");
             await vm.DisposeAsync();

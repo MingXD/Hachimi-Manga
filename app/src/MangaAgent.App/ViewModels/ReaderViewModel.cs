@@ -107,7 +107,8 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
             Enumerable.Range(0, _source.PageCount)
                 .Select(i => new PhysicalPageRef(i, _sizes.TryGetValue(i, out var sz) ? sz.AspectRatio : 0.7))
                 .ToList(),
-            new PageLayoutOptions { FirstPairOffset = PairOffset });
+            // v4.3：强制配对——配对起点 1 → (1,2),(3,4)…；起点 2 → 第1张单页,(2,3),(4,5)…；忽略宽高/封面规则
+            new PageLayoutOptions { FirstPairOffset = PairOffset, ForcePairing = true });
         TotalLogical = Math.Max(1, _logical.Count);
         if (CurrentIndex >= _logical.Count) CurrentIndex = Math.Max(0, _logical.Count - 1);
         _ = LoadCurrentAsync();

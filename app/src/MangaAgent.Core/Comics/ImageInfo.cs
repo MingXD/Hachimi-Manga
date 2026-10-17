@@ -145,12 +145,14 @@ public static class ImageInfo
             });
             int size = head[p + 4] | (head[p + 5] << 8) | (head[p + 6] << 16) | (head[p + 7] << 24);
             int dataStart = p + 8;
-            if (type == "VP8 " && dataStart + 10 <= head.Length)        // 有损：3 字节 start code + 3 字节尺寸
+            if (type == "VP8 " && dataStart + 10 <= head.Length)
             {
-                int w = (head[dataStart + 3] | ((head[dataStart + 4] & 0x3F) << 8)) + 1;
-                int h = (((head[dataStart + 4] >> 6) | (head[dataStart + 5] << 2)
-                    | ((head[dataStart + 6] & 0x0F) << 10)) & 0x3FFF) + 1;
-                return new PageSize(w, h);
+                // 有损 VP8 帧：payload[0..2]=frame tag、[3..5]=start code(9D 01 2A)、[6..7]=宽(14bit LE)、[8..9]=高(14bit LE)
+                // 修复（v4.3）：原实现从 +3 起读（把 start code 当宽度）并套用 VP8L 位打包公式 → 尺寸全错
+                // （用户库 webp 实测 1280×1899 被解析成 414×169 → 比例 2.45 被当横向页 → 显示极小/永不拼接）
+                int w = head[dataStart + 6] | ((head[dataStart + 7] & 0x3F) << 8);
+                int h = head[dataStart + 8] | ((head[dataStart + 9] & 0x3F) << 8);
+                return w > 0 && h > 0 ? new PageSize(w, h) : null;
             }
             if (type == "VP8L" && dataStart + 5 <= head.Length)         // 无损：0x2F + 14bit 宽高
             {

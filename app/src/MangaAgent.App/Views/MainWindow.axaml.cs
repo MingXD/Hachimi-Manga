@@ -94,6 +94,80 @@ public partial class MainWindow : Window
         return sel?.OfType<FolderEntryItemViewModel>().ToList() ?? new();
     }
 
+    // ---------- v4.3：右键菜单多选感知（Tag 决定动作；复制/移动/删除批量，其余单选） ----------
+
+    private void OnEntryMenuClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (_vm is null || sender is not MenuItem mi || mi.DataContext is not FolderEntryItemViewModel entry) return;
+        var action = mi.Tag as string ?? "";
+        var lb = _vm.IsDetailView ? DetailList : BooksList;
+        var selected = SelectedEntries();
+        // 右键点中的条目不在选区 → 改为单选它（文件管理器行为）
+        if (!selected.Contains(entry))
+        {
+            try { lb.SelectedItems?.Clear(); lb.SelectedItems?.Add(entry); } catch { }
+            selected = new List<FolderEntryItemViewModel> { entry };
+        }
+        if (selected.Count == 0) selected = new List<FolderEntryItemViewModel> { entry };
+        switch (action)
+        {
+            case "open":
+                if (selected.Count == 1) entry.OpenCommand.Execute(null);
+                break;
+            case "copy":
+                _ = CopyEntriesAsync(selected);
+                break;
+            case "move":
+                _ = MoveEntriesAsync(selected);
+                break;
+            case "rename":
+                if (selected.Count == 1) _ = entry.RenameCommand.ExecuteAsync(null);
+                break;
+            case "delete":
+                _ = DeleteEntriesAsync(selected);
+                break;
+            case "setcover":
+                if (entry.IsFolder) _ = _vm.SetFolderCoverAsync(entry);
+                break;
+            case "clearcover":
+                if (entry.IsFolder) _vm.ClearFolderCover(entry);
+                break;
+            case "show":
+                entry.ShowInExplorerCommand.Execute(null);   // 多选时打首个（右键项）
+                break;
+            case "props":
+                if (selected.Count == 1) entry.PropertiesCommand.Execute(null);
+                break;
+        }
+    }
+
+    private async Task CopyEntriesAsync(List<FolderEntryItemViewModel> targets)
+    {
+        if (_vm is null || targets.Count == 0) return;
+        var dest = targets[0].PickTargetFolderAction is { } pick ? await pick() : null;
+        if (string.IsNullOrEmpty(dest)) return;
+        var paths = targets.Select(t => t.SourcePath).Where(p => p.Length > 0).ToList();
+        await _vm.CopyPathsToAsync(paths, dest);
+    }
+
+    private async Task MoveEntriesAsync(List<FolderEntryItemViewModel> targets)
+    {
+        if (_vm is null || targets.Count == 0) return;
+        var dest = targets[0].PickTargetFolderAction is { } pick ? await pick() : null;
+        if (string.IsNullOrEmpty(dest)) return;
+        var paths = targets.Select(t => t.SourcePath).Where(p => p.Length > 0).ToList();
+        await _vm.MovePathsToAsync(paths, dest);
+    }
+
+    private async Task DeleteEntriesAsync(List<FolderEntryItemViewModel> targets)
+    {
+        var paths = targets.Select(t => t.SourcePath).Where(p => p.Length > 0).ToList();
+        if (paths.Count == 0) return;
+        if (paths.Count > 1 && !await Views.ConfirmDialog.ShowAsync($"确定删除选中的 {paths.Count} 项到回收站？"))
+            return;
+        _vm?.DeletePaths(paths);
+    }
+
     private void CopySelected(bool cut)
     {
         var paths = SelectedEntries().Select(x => x.SourcePath).ToList();

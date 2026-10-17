@@ -27,6 +27,13 @@ public sealed class PageLayoutOptions
     /// 1 = 封面与第 2 页均单页，(2,3) 成对（原作 2、3 相接，第 1 页是独立封面）。
     /// </summary>
     public int FirstPairOffset { get; init; } = 0;
+
+    /// <summary>
+    /// v4.3 强制配对（阅读器默认开启）：按配对起点**顺序两两配对，忽略页面宽高/封面规则**。
+    /// 起点 0 → (1,2)、(3,4)…；起点 1 → 第 1 张单页，(2,3)、(4,5)…；末张不足单页。
+    /// 关闭时走旧的封面单页/横向页单页规则（默认值仍为 false，测试与旧行为不受影响）。
+    /// </summary>
+    public bool ForcePairing { get; init; }
 }
 
 /// <summary>
@@ -41,6 +48,29 @@ public static class PageLayouter
         var result = new List<LogicalPage>(pages.Count / 2 + 2);
         int i = 0;
         int n = pages.Count;
+
+        // v4.3 强制配对：按配对起点顺序两两配对，忽略宽高/封面规则
+        if (o.ForcePairing)
+        {
+            int first = Math.Clamp(o.FirstPairOffset, 0, 1);
+            for (int k = 0; k < first && k < n; k++)
+                result.Add(new LogicalPage(pages[k].Index, -1));   // 起点 1：第 1 张单页
+            int j = first;
+            while (j < n)
+            {
+                if (j + 1 < n)
+                {
+                    result.Add(new LogicalPage(pages[j].Index, pages[j + 1].Index));
+                    j += 2;
+                }
+                else
+                {
+                    result.Add(new LogicalPage(pages[j].Index, -1));   // 末张不足单页
+                    j++;
+                }
+            }
+            return result;
+        }
 
         // 封面单页
         if (o.CoverSingle && n > 0)

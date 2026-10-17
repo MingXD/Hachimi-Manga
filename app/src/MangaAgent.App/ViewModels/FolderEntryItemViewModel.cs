@@ -47,6 +47,35 @@ public partial class FolderEntryItemViewModel : ViewModelBase
     /// <summary>详情模式：行式布局（图标 + 名称 + 副标题横排，无图片）。</summary>
     public bool IsDetail { get; set; }
 
+    /// <summary>v4.3 文件夹自定义封面区尺寸（按展示模式注入；比漫画封面矮，给三行文本留空间）。</summary>
+    public double FolderCoverW { get; set; } = 144;
+    public double FolderCoverH { get; set; } = 155;
+
+    /// <summary>v4.3 文件夹封面绝对路径（仅文件夹条目；由主窗口从 FolderCovers 记录解析并注入）。</summary>
+    public string? FolderCoverPath { get; private set; }
+
+    /// <summary>文件夹条目是否有自定义封面（驱动模板封面区 / 📁 图标互斥显示）。</summary>
+    public bool HasCover => Thumbnail is not null;
+
+    partial void OnThumbnailChanged(Bitmap? value) => OnPropertyChanged(nameof(HasCover));
+
+    /// <summary>设置文件夹封面（相对路径必须在该文件夹内且图片存在；失败无副作用）。</summary>
+    public void SetFolderCover(string folderPath, string relPath)
+    {
+        if (!MangaAgent.Core.Storage.ReadingStateStore.ValidateFolderCoverRelPath(folderPath, relPath, out var full))
+            return;
+        FolderCoverPath = full;
+        ThumbnailService.Invalidate(full);   // 更换封面时强制重新加载
+        _ = LoadThumbnailAsync();
+    }
+
+    /// <summary>清除文件夹封面（恢复 📁 原样式；不触碰图片文件）。</summary>
+    public void ClearFolderCover()
+    {
+        FolderCoverPath = null;
+        Thumbnail = null;
+    }
+
     /// <summary>名称：文件夹名 / 书名。</summary>
     public string DisplayName => IsFolder ? (Folder?.Name ?? "") : (Book?.DisplayName ?? "");
 
@@ -142,10 +171,17 @@ public partial class FolderEntryItemViewModel : ViewModelBase
         Book = book;
     }
 
-    /// <summary>漫画条目：懒加载封面（BUG-002 同款按需加载）。</summary>
+    /// <summary>懒加载封面（BUG-002 同款按需加载）：漫画=首图缩略图；文件夹=自定义封面图（无则保持 📁）。</summary>
     public async Task LoadThumbnailAsync()
     {
-        if (IsFolder || Thumbnail is not null || Book is null) return;
+        if (Thumbnail is not null) return;
+        if (IsFolder)
+        {
+            if (FolderCoverPath is null) return;
+            Thumbnail = await ThumbnailService.GetImageThumbAsync(FolderCoverPath, Math.Max(64, (int)FolderCoverW));
+            return;
+        }
+        if (Book is null) return;
         Thumbnail = await ThumbnailService.GetThumbnailAsync(Book);
     }
 

@@ -58,18 +58,18 @@ public class ReaderE2eTests
             vm.ToggleThemeCommand.Execute(null);
             Assert.False(vm.IsDark);
 
-            // 5) 续读：新开 VM 恢复物理页（上一逻辑页首物理=1）+ 双页模式
+            // 5) 续读：新开 VM 恢复物理页 1（v4.3 强制配对下物理 1 属逻辑页 0 = (0,1)）+ 双页模式
             var vm2 = new ReaderViewModel(StressBook, db);
             Assert.True(vm2.ViewMode == ViewMode.Double);
-            await WaitUntilAsync(() => vm2.CurrentIndex == 1, 3000);
+            await WaitUntilAsync(() => vm2.CurrentIndex == 0, 3000);
 
-            // 6) 书签
+            // 6) 书签（v4.3：书签存物理页；双页模式下 CurrentPhysical=逻辑页首物理，逻辑0=(0,1) → 0）
             vm2.ToggleBookmarkCommand.Execute(null);
-            Assert.Contains(1, vm2.Bookmarks);
+            Assert.Contains(0, vm2.Bookmarks);
             vm2.ToggleBookmarkCommand.Execute(null); // 取消
-            Assert.DoesNotContain(1, vm2.Bookmarks);
+            Assert.DoesNotContain(0, vm2.Bookmarks);
             vm2.ToggleBookmarkCommand.Execute(null); // 再加回
-            Assert.Contains(1, vm2.Bookmarks);
+            Assert.Contains(0, vm2.Bookmarks);
 
             // 7) 窗口级渲染冒烟（真实 ReaderWindow）
             var win = new ReaderWindow { DataContext = vm2 };

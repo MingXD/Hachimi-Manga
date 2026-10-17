@@ -95,23 +95,32 @@
                           ToolTip.Tip="{Binding DisplayName}">
                     <Border.ContextMenu>
                       <ContextMenu>
-                        <MenuItem Header="打开" Command="{Binding OpenCommand}"/>
+                        <!-- v4.3：右键操作全部改多选感知（command 留在 code-behind 统一分发） -->
+                        <MenuItem Header="打开" Tag="open" Click="OnEntryMenuClick"/>
                         <Separator/>
-                        <MenuItem Header="复制到…" Command="{Binding CopyToCommand}"/>
-                        <MenuItem Header="移动到…" Command="{Binding MoveToCommand}"/>
+                        <MenuItem Header="复制到…" Tag="copy" Click="OnEntryMenuClick"/>
+                        <MenuItem Header="移动到…" Tag="move" Click="OnEntryMenuClick"/>
                         <Separator/>
-                        <MenuItem Header="重命名" Command="{Binding RenameCommand}"/>
-                        <MenuItem Header="删除（回收站）" Command="{Binding DeleteCommand}"/>
+                        <MenuItem Header="重命名" Tag="rename" Click="OnEntryMenuClick"/>
+                        <MenuItem Header="删除（回收站）" Tag="delete" Click="OnEntryMenuClick"/>
                         <Separator/>
-                        <MenuItem Header="在资源管理器中显示" Command="{Binding ShowInExplorerCommand}"/>
-                        <MenuItem Header="属性" Command="{Binding PropertiesCommand}"/>
+                        <MenuItem Header="设置封面…" Tag="setcover" Click="OnEntryMenuClick" IsVisible="{Binding IsFolder}"/>
+                        <MenuItem Header="清除封面" Tag="clearcover" Click="OnEntryMenuClick" IsVisible="{Binding IsFolder}"/>
+                        <Separator/>
+                        <MenuItem Header="在资源管理器中显示" Tag="show" Click="OnEntryMenuClick"/>
+                        <MenuItem Header="属性" Tag="props" Click="OnEntryMenuClick"/>
                       </ContextMenu>
                     </Border.ContextMenu>
                     <Grid>
                       <!-- 卡片模式（大/中/小）：文件夹图标 or 封面 + 文本（尺寸/字体随模式注入） -->
                       <StackPanel Margin="6" VerticalAlignment="Center" IsVisible="{Binding !IsDetail}">
                         <StackPanel VerticalAlignment="Center" IsVisible="{Binding IsFolder}">
-                          <TextBlock Text="📁" FontSize="64" HorizontalAlignment="Center" Foreground="#D8A24A"/>
+                          <!-- v4.3 文件夹自定义封面：有封面显示图片（比漫画封面矮，给下方三行文本留空间），无封面显示 📁 -->
+                          <Border Background="#2A2A34" CornerRadius="4" Width="{Binding FolderCoverW}" Height="{Binding FolderCoverH}"
+                                  ClipToBounds="True" HorizontalAlignment="Center" IsVisible="{Binding HasCover}">
+                            <Image Source="{Binding Thumbnail}" Stretch="UniformToFill" Width="{Binding FolderCoverW}" Height="{Binding FolderCoverH}"/>
+                          </Border>
+                          <TextBlock Text="📁" FontSize="64" HorizontalAlignment="Center" Foreground="#D8A24A" IsVisible="{Binding !HasCover}"/>
                           <TextBlock Text="{Binding DisplayName}" Foreground="#E8E8E8" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" FontSize="{Binding TitleFontSize}" HorizontalAlignment="Center" Margin="0,8,0,0"/>
                           <TextBlock Text="{Binding Subtitle}" Foreground="#888888" FontSize="{Binding SubtitleFontSize}" HorizontalAlignment="Center" Margin="0,3,0,0" TextTrimming="CharacterEllipsis"/>
                           <TextBlock Text="{Binding StatsLine2}" Foreground="#888888" FontSize="{Binding SubtitleFontSize}" HorizontalAlignment="Center" Margin="0,2,0,0" TextTrimming="CharacterEllipsis"/>
@@ -169,16 +178,20 @@
                           BorderBrush="#333333" BorderThickness="1" ClipToBounds="True" ToolTip.Tip="{Binding DisplayName}">
                     <Border.ContextMenu>
                       <ContextMenu>
-                        <MenuItem Header="打开" Command="{Binding OpenCommand}"/>
+                        <!-- v4.3：右键操作全部改多选感知（command 留在 code-behind 统一分发） -->
+                        <MenuItem Header="打开" Tag="open" Click="OnEntryMenuClick"/>
                         <Separator/>
-                        <MenuItem Header="复制到…" Command="{Binding CopyToCommand}"/>
-                        <MenuItem Header="移动到…" Command="{Binding MoveToCommand}"/>
+                        <MenuItem Header="复制到…" Tag="copy" Click="OnEntryMenuClick"/>
+                        <MenuItem Header="移动到…" Tag="move" Click="OnEntryMenuClick"/>
                         <Separator/>
-                        <MenuItem Header="重命名" Command="{Binding RenameCommand}"/>
-                        <MenuItem Header="删除（回收站）" Command="{Binding DeleteCommand}"/>
+                        <MenuItem Header="重命名" Tag="rename" Click="OnEntryMenuClick"/>
+                        <MenuItem Header="删除（回收站）" Tag="delete" Click="OnEntryMenuClick"/>
                         <Separator/>
-                        <MenuItem Header="在资源管理器中显示" Command="{Binding ShowInExplorerCommand}"/>
-                        <MenuItem Header="属性" Command="{Binding PropertiesCommand}"/>
+                        <MenuItem Header="设置封面…" Tag="setcover" Click="OnEntryMenuClick" IsVisible="{Binding IsFolder}"/>
+                        <MenuItem Header="清除封面" Tag="clearcover" Click="OnEntryMenuClick" IsVisible="{Binding IsFolder}"/>
+                        <Separator/>
+                        <MenuItem Header="在资源管理器中显示" Tag="show" Click="OnEntryMenuClick"/>
+                        <MenuItem Header="属性" Tag="props" Click="OnEntryMenuClick"/>
                       </ContextMenu>
                     </Border.ContextMenu>
                     <Grid ColumnDefinitions="34,*">
