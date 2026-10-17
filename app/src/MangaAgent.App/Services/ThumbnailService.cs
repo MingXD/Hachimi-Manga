@@ -47,7 +47,9 @@ public static class ThumbnailService
         Bitmap? bmp = null;
         try
         {
-            bmp = await Task.Run(() => Bitmap.DecodeToWidth(File.OpenRead(imagePath), decodeW));
+            // v4.13 修复：File.OpenRead 必须关闭（否则文件句柄锁定封面图及所在文件夹 → 移动/删除报 Access denied）
+            using var fs = File.OpenRead(imagePath);
+            bmp = await Task.Run(() => Bitmap.DecodeToWidth(fs, decodeW));
             if (bmp is not null) s_cache[key] = new WeakReference<Bitmap>(bmp);
         }
         catch

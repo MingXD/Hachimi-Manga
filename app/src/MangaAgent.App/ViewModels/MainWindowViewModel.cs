@@ -562,6 +562,23 @@ public partial class MainWindowViewModel : ViewModelBase
             }
             catch { /* 建树失败不阻塞启动 */ }
         }
+        // v4.13：路径以库根相对存储 —— 设置库根并把旧版本绝对路径记录迁移为相对（幂等）
+        RefreshLibraryRootsAndMigrate();
+    }
+
+    /// <summary>v4.13：更新 ReadingStateStore 的库根列表，并把库根下旧绝对路径记录迁移为相对（幂等）。</summary>
+    private void RefreshLibraryRootsAndMigrate()
+    {
+        try
+        {
+            MangaAgent.Core.Storage.ReadingStateStore.SetLibraryRoots(Libraries.Select(l => l.Path));
+            using var db = new MangaAgent.Core.Storage.ReadingStateStore(StateDbPath);
+            db.MigratePathsToRelative();
+        }
+        catch (Exception ex)
+        {
+            App.SLog($"LIB_ROOTS FAIL: {ex.Message}");
+        }
     }
 
     [RelayCommand]
@@ -623,6 +640,8 @@ public partial class MainWindowViewModel : ViewModelBase
             FolderTree.Add(tree);
             SelectedFolder = tree;
             StatusText = $"已添加：{lib.Name}（{lib.Books.Count} 本）";
+            // v4.13：新库根加入 → 更新相对路径基准并迁移旧绝对记录（幂等）
+            RefreshLibraryRootsAndMigrate();
             // 持久化库根
             var existing = File.Exists(LibrariesFile) ? await File.ReadAllLinesAsync(LibrariesFile) : Array.Empty<string>();
             await File.WriteAllLinesAsync(LibrariesFile, existing.Append(path).Distinct(StringComparer.OrdinalIgnoreCase));
