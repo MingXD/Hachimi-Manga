@@ -125,13 +125,13 @@
                           <TextBlock Text="{Binding DisplayName}" Foreground="#E8E8E8" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" FontSize="{Binding TitleFontSize}" Margin="0,6,0,0"/>
                           <TextBlock Text="{Binding Subtitle}" Foreground="#888888" FontSize="{Binding SubtitleFontSize}" TextTrimming="CharacterEllipsis"/>
                         </StackPanel>
-                        <StackPanel Margin="6,11,6,0" VerticalAlignment="Top" IsVisible="{Binding FolderWithCover}">
+                        <StackPanel Margin="6" VerticalAlignment="Center" IsVisible="{Binding FolderWithCover}">
                           <Border Background="#2A2A34" CornerRadius="4" Width="{Binding FolderCoverW}" Height="{Binding FolderCoverH}"
                                   ClipToBounds="True" HorizontalAlignment="Center">
                             <Image Source="{Binding Thumbnail}" Stretch="UniformToFill" Width="{Binding FolderCoverW}" Height="{Binding FolderCoverH}"/>
                           </Border>
-                          <!-- v4.7：三行文本合并为名称 + 一行统计（M 本漫画 · N 个子文件夹 · 共 X 本），380 卡片放得下 -->
-                          <TextBlock Text="{Binding DisplayName}" Foreground="#E8E8E8" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" FontSize="{Binding TitleFontSize}" HorizontalAlignment="Center" Margin="0,4,0,0"/>
+                          <!-- v4.8：与漫画封面同一放置规则（居中；名称单行截断防 2 行时底部溢出裁切，悬停 ToolTip 看全名） -->
+                          <TextBlock Text="{Binding DisplayName}" Foreground="#E8E8E8" TextWrapping="Wrap" MaxLines="1" TextTrimming="CharacterEllipsis" FontSize="{Binding TitleFontSize}" HorizontalAlignment="Center" Margin="0,4,0,0" ToolTip.Tip="{Binding DisplayName}"/>
                           <TextBlock Text="{Binding SubtitleOneLine}" Foreground="#888888" FontSize="{Binding SubtitleFontSize}" HorizontalAlignment="Center" Margin="0,3,0,0" TextTrimming="CharacterEllipsis"/>
                         </StackPanel>
                         <StackPanel Margin="6" VerticalAlignment="Center" IsVisible="{Binding FolderWithoutCover}">
