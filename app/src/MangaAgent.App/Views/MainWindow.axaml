@@ -130,9 +130,10 @@
                                   ClipToBounds="True" HorizontalAlignment="Center">
                             <Image Source="{Binding Thumbnail}" Stretch="UniformToFill" Width="{Binding FolderCoverW}" Height="{Binding FolderCoverH}"/>
                           </Border>
-                          <!-- v4.8：与漫画封面同一放置规则（居中；名称单行截断防 2 行时底部溢出裁切，悬停 ToolTip 看全名） -->
-                          <TextBlock Text="{Binding DisplayName}" Foreground="#E8E8E8" TextWrapping="Wrap" MaxLines="1" TextTrimming="CharacterEllipsis" FontSize="{Binding TitleFontSize}" HorizontalAlignment="Center" Margin="0,4,0,0" ToolTip.Tip="{Binding DisplayName}"/>
-                          <TextBlock Text="{Binding SubtitleOneLine}" Foreground="#888888" FontSize="{Binding SubtitleFontSize}" HorizontalAlignment="Center" Margin="0,3,0,0" TextTrimming="CharacterEllipsis"/>
+                          <!-- v4.9：名称单行截断 + 统计两行（Subtitle/StatsLine2，与无封面文件夹一致），文本左对齐（与漫画卡片风格一致） -->
+                          <TextBlock Text="{Binding DisplayName}" Foreground="#E8E8E8" TextWrapping="Wrap" MaxLines="1" TextTrimming="CharacterEllipsis" FontSize="{Binding TitleFontSize}" Margin="0,3,0,0" ToolTip.Tip="{Binding DisplayName}"/>
+                          <TextBlock Text="{Binding Subtitle}" Foreground="#888888" FontSize="{Binding SubtitleFontSize}" Margin="0,2,0,0" TextTrimming="CharacterEllipsis"/>
+                          <TextBlock Text="{Binding StatsLine2}" Foreground="#888888" FontSize="{Binding SubtitleFontSize}" Margin="0,1,0,0" TextTrimming="CharacterEllipsis"/>
                         </StackPanel>
                         <StackPanel Margin="6" VerticalAlignment="Center" IsVisible="{Binding FolderWithoutCover}">
                           <TextBlock Text="📁" FontSize="64" HorizontalAlignment="Center" Foreground="#D8A24A"/>
