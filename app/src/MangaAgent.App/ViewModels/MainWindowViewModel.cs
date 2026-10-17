@@ -69,10 +69,10 @@ public partial class MainWindowViewModel : ViewModelBase
     };
     public double GalleryItemHeight => GalleryMode switch
     {
-        GalleryMode.Large => 388,   // = 卡片高380 + Margin4×2
-        GalleryMode.Small => 204,
+        GalleryMode.Large => 408,   // = 卡片高400 + Margin4×2（v4.5 加高容纳同尺寸封面+三行文本）
+        GalleryMode.Small => 224,   // = 卡片高216 + 8
         GalleryMode.Detail => 40,  // 详情：行式条高
-        _ => 280,
+        _ => 299,                   // = 卡片高291 + 8
     };
 
     [RelayCommand]
@@ -374,14 +374,14 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private FolderEntryItemViewModel WireEntry(FolderEntryItemViewModel item)
     {
-        // 功能-1：卡片尺寸随展示模式
+        // 功能-1：卡片尺寸随展示模式（v4.5：加高容纳"漫画封面同尺寸的文件夹封面 + 三行文本"）
         (item.CardWidth, item.CardHeight) = GalleryMode switch
         {
             // 卡片 = 封面(0.7 单行本比例) + 文本区；详情 = 行式条
-            GalleryMode.Large => (240.0, 380.0),
-            GalleryMode.Small => (120.0, 196.0),
+            GalleryMode.Large => (240.0, 400.0),
+            GalleryMode.Small => (120.0, 216.0),
             GalleryMode.Detail => (560.0, 40.0),
-            _ => (168.0, 272.0),
+            _ => (168.0, 291.0),
         };
         // 封面统一 0.7 比例（单行本：新书判148×210≈0.705 / B6 182×257≈0.708），三模式等比 ×1.5
         (item.CoverWidth, item.CoverHeight) = GalleryMode switch
@@ -424,13 +424,13 @@ public partial class MainWindowViewModel : ViewModelBase
             });
             return folders.Count > 0 ? folders[0].TryGetLocalPath() : null;
         };
-        // v4.4 文件夹自定义封面区尺寸（与漫画封面同宽、略矮给三行文本留空间；空隙统一 11px）
+        // v4.5 文件夹自定义封面区 = 漫画封面同尺寸（216×309 / 144×206 / 96×137）
         (item.FolderCoverW, item.FolderCoverH) = GalleryMode switch
         {
-            GalleryMode.Large => (216.0, 281.0),
-            GalleryMode.Small => (96.0, 118.0),
+            GalleryMode.Large => (216.0, 309.0),
+            GalleryMode.Small => (96.0, 137.0),
             GalleryMode.Detail => (0.0, 0.0),
-            _ => (144.0, 183.0),
+            _ => (144.0, 206.0),
         };
         // v4.4 封面解码 DPI（主窗口缩放系数；headless 无窗口 = 1.0）
         item.CoverDpi = GetOwnerWindow?.Invoke()?.RenderScaling ?? 1.0;

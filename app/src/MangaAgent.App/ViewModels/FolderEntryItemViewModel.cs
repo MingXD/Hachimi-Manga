@@ -47,9 +47,9 @@ public partial class FolderEntryItemViewModel : ViewModelBase
     /// <summary>详情模式：行式布局（图标 + 名称 + 副标题横排，无图片）。</summary>
     public bool IsDetail { get; set; }
 
-    /// <summary>v4.3 文件夹自定义封面区尺寸（按展示模式注入；与漫画封面同宽、略矮给三行文本留空间）。</summary>
+    /// <summary>v4.5 文件夹自定义封面区尺寸（= 漫画封面同尺寸，按展示模式由主窗口注入）。</summary>
     public double FolderCoverW { get; set; } = 144;
-    public double FolderCoverH { get; set; } = 183;
+    public double FolderCoverH { get; set; } = 206;
 
     /// <summary>v4.4 封面解码 DPI 系数（主窗口 RenderScaling 注入；headless/无窗口 = 1.0）。</summary>
     public double CoverDpi { get; set; } = 1.0;

@@ -112,21 +112,30 @@
                       </ContextMenu>
                     </Border.ContextMenu>
                     <Grid>
-                      <!-- 卡片模式（大/中/小）：文件夹图标 or 封面 + 文本（尺寸/字体随模式注入）
-                           v4.4：顶部对齐 + 上边距 11（封面水平居中产生的左右空隙恒 11）→ 上/左/右空隙一致 -->
-                      <StackPanel Margin="6,11,6,0" VerticalAlignment="Top" IsVisible="{Binding !IsDetail}">
+                      <!-- 卡片模式（大/中/小）：封面 + 文本（尺寸/字体随模式注入）
+                           v4.5：外层铺满卡片；文件夹按有无自定义封面分两分支（有封面=与漫画封面同尺寸+顶对齐11px；
+                           无封面=📁 原样式整体垂直居中）；漫画条目顶对齐（上/左/右空隙 11px 一致） -->
+                      <StackPanel IsVisible="{Binding !IsDetail}">
                         <StackPanel IsVisible="{Binding IsFolder}">
-                          <!-- v4.3 文件夹自定义封面：有封面显示图片（比漫画封面矮，给下方三行文本留空间），无封面显示 📁 -->
-                          <Border Background="#2A2A34" CornerRadius="4" Width="{Binding FolderCoverW}" Height="{Binding FolderCoverH}"
-                                  ClipToBounds="True" HorizontalAlignment="Center" IsVisible="{Binding HasCover}">
-                            <Image Source="{Binding Thumbnail}" Stretch="UniformToFill" Width="{Binding FolderCoverW}" Height="{Binding FolderCoverH}"/>
-                          </Border>
-                          <TextBlock Text="📁" FontSize="64" HorizontalAlignment="Center" Foreground="#D8A24A" IsVisible="{Binding !HasCover}"/>
-                          <TextBlock Text="{Binding DisplayName}" Foreground="#E8E8E8" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" FontSize="{Binding TitleFontSize}" HorizontalAlignment="Center" Margin="0,8,0,0"/>
-                          <TextBlock Text="{Binding Subtitle}" Foreground="#888888" FontSize="{Binding SubtitleFontSize}" HorizontalAlignment="Center" Margin="0,3,0,0" TextTrimming="CharacterEllipsis"/>
-                          <TextBlock Text="{Binding StatsLine2}" Foreground="#888888" FontSize="{Binding SubtitleFontSize}" HorizontalAlignment="Center" Margin="0,2,0,0" TextTrimming="CharacterEllipsis"/>
+                          <!-- 有自定义封面：与漫画封面同尺寸，顶部对齐（上/左/右空隙 11px） -->
+                          <StackPanel Margin="6,11,6,0" VerticalAlignment="Top" IsVisible="{Binding HasCover}">
+                            <Border Background="#2A2A34" CornerRadius="4" Width="{Binding FolderCoverW}" Height="{Binding FolderCoverH}"
+                                    ClipToBounds="True" HorizontalAlignment="Center">
+                              <Image Source="{Binding Thumbnail}" Stretch="UniformToFill" Width="{Binding FolderCoverW}" Height="{Binding FolderCoverH}"/>
+                            </Border>
+                            <TextBlock Text="{Binding DisplayName}" Foreground="#E8E8E8" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" FontSize="{Binding TitleFontSize}" HorizontalAlignment="Center" Margin="0,8,0,0"/>
+                            <TextBlock Text="{Binding Subtitle}" Foreground="#888888" FontSize="{Binding SubtitleFontSize}" HorizontalAlignment="Center" Margin="0,3,0,0" TextTrimming="CharacterEllipsis"/>
+                            <TextBlock Text="{Binding StatsLine2}" Foreground="#888888" FontSize="{Binding SubtitleFontSize}" HorizontalAlignment="Center" Margin="0,2,0,0" TextTrimming="CharacterEllipsis"/>
+                          </StackPanel>
+                          <!-- 无封面：📁 原样式（整体垂直居中） -->
+                          <StackPanel Margin="6" VerticalAlignment="Center" IsVisible="{Binding !HasCover}">
+                            <TextBlock Text="📁" FontSize="64" HorizontalAlignment="Center" Foreground="#D8A24A"/>
+                            <TextBlock Text="{Binding DisplayName}" Foreground="#E8E8E8" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" FontSize="{Binding TitleFontSize}" HorizontalAlignment="Center" Margin="0,8,0,0"/>
+                            <TextBlock Text="{Binding Subtitle}" Foreground="#888888" FontSize="{Binding SubtitleFontSize}" HorizontalAlignment="Center" Margin="0,3,0,0" TextTrimming="CharacterEllipsis"/>
+                            <TextBlock Text="{Binding StatsLine2}" Foreground="#888888" FontSize="{Binding SubtitleFontSize}" HorizontalAlignment="Center" Margin="0,2,0,0" TextTrimming="CharacterEllipsis"/>
+                          </StackPanel>
                         </StackPanel>
-                        <StackPanel IsVisible="{Binding !IsFolder}">
+                        <StackPanel Margin="6,11,6,0" VerticalAlignment="Top" IsVisible="{Binding !IsFolder}">
                           <Border Background="#2A2A34" CornerRadius="4" Width="{Binding CoverWidth}" Height="{Binding CoverHeight}" ClipToBounds="True" HorizontalAlignment="Center">
                             <Image Source="{Binding Thumbnail}" Stretch="UniformToFill" Width="{Binding CoverWidth}" Height="{Binding CoverHeight}"/>
                           </Border>
