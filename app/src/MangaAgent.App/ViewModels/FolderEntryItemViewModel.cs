@@ -60,7 +60,18 @@ public partial class FolderEntryItemViewModel : ViewModelBase
     /// <summary>文件夹条目是否有自定义封面（驱动模板封面区 / 📁 图标互斥显示）。</summary>
     public bool HasCover => Thumbnail is not null;
 
-    partial void OnThumbnailChanged(Bitmap? value) => OnPropertyChanged(nameof(HasCover));
+    /// <summary>v4.6：有自定义封面的文件夹（顶对齐分支）。</summary>
+    public bool FolderWithCover => IsFolder && HasCover;
+
+    /// <summary>v4.6：无自定义封面的文件夹（居中分支）。</summary>
+    public bool FolderWithoutCover => IsFolder && !HasCover;
+
+    partial void OnThumbnailChanged(Bitmap? value)
+    {
+        OnPropertyChanged(nameof(HasCover));
+        OnPropertyChanged(nameof(FolderWithCover));
+        OnPropertyChanged(nameof(FolderWithoutCover));
+    }
 
     /// <summary>设置文件夹封面（相对路径必须在该文件夹内且图片存在；失败无副作用）。</summary>
     public void SetFolderCover(string folderPath, string relPath)
