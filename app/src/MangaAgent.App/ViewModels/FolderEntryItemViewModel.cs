@@ -238,6 +238,7 @@ public partial class FolderEntryItemViewModel : ViewModelBase
     private void Properties()
     {
         if (Book is { } b) MangaAgent.App.Views.PropertiesDialog.Show(b);
+        else if (Folder is { } f) MangaAgent.App.Views.FolderPropertiesDialog.Show(f);   // v4.15：文件夹属性（此前无反应）
     }
 
     [RelayCommand]
