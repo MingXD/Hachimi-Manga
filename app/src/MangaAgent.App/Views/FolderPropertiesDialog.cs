@@ -6,23 +6,23 @@ using MangaAgent.Core.Library;
 
 namespace MangaAgent.App.Views;
 
-/// <summary>v4.15 文件夹属性对话框：基本信息立即显示；大小在后台递归计算并节流回填（"已算 X / N 文件"）；
-/// 关闭窗口即取消后台计算（CancellationToken）。</summary>
+/// <summary>v4.16 文件夹属性对话框：与漫画属性一致——整块文本可选中复制（SelectableTextBlock）；
+/// 大小后台递归计算：计算中显示"已算 X / N 个文件"，**完成后的最终文本不会被滞留的进度回调覆盖**；关闭即取消。</summary>
 public static class FolderPropertiesDialog
 {
     public static void Show(FolderNode folder)
     {
-        var sizeLine = new TextBlock { Text = "大小：计算中…", FontSize = 13, TextWrapping = TextWrapping.Wrap };
         string modified;
         try { modified = Directory.GetLastWriteTime(folder.Path).ToString("yyyy-MM-dd HH:mm"); }
         catch { modified = "-"; }
+        string baseInfo = $"名称：{folder.Name}\n路径：{folder.Path}\n类型：文件夹\n" +
+                          $"本层：{FolderEntryItemViewModel.CountDirectBooks(folder)} 本漫画 · " +
+                          $"{FolderEntryItemViewModel.CountDirectSubfolders(folder)} 个子文件夹\n" +
+                          $"目录下共 {FolderEntryItemViewModel.CountBooksRecursive(folder)} 本漫画\n" +
+                          $"修改时间：{modified}";
         var info = new SelectableTextBlock
         {
-            Text = $"名称：{folder.Name}\n路径：{folder.Path}\n类型：文件夹\n" +
-                   $"本层：{FolderEntryItemViewModel.CountDirectBooks(folder)} 本漫画 · " +
-                   $"{FolderEntryItemViewModel.CountDirectSubfolders(folder)} 个子文件夹\n" +
-                   $"目录下共 {FolderEntryItemViewModel.CountBooksRecursive(folder)} 本漫画\n" +
-                   $"修改时间：{modified}",
+            Text = baseInfo + "\n大小：计算中…",
             TextWrapping = TextWrapping.Wrap,
             MinWidth = 380,
         };
@@ -36,24 +36,28 @@ public static class FolderPropertiesDialog
             {
                 Margin = new Avalonia.Thickness(16),
                 Spacing = 10,
-                Children = { info, sizeLine, ok },
+                Children = { info, ok },
             },
         };
         ok.Click += (_, _) => window.Close();
         var cts = new CancellationTokenSource();
         window.Closed += (_, _) => cts.Cancel();
 
-        void SetSizeText(string text)
+        bool done = false;   // 仅在 UI 线程读写（完成/进度回调都经 Dispatcher）
+        void SetText(string sizeText)
         {
             if (cts.IsCancellationRequested) return;
             Avalonia.Threading.Dispatcher.UIThread.Post(() =>
             {
-                try { sizeLine.Text = text; } catch { }
+                try { info.Text = baseInfo + "\n" + sizeText; } catch { }
             });
         }
 
         var progress = new Progress<FolderStats.Result>(r =>
-            SetSizeText($"大小：计算中… 已算 {FolderStats.FormatSize(r.TotalBytes)} / {r.Files:N0} 个文件"));
+        {
+            if (done) return;   // v4.16：完成后的滞留进度回调不得覆盖最终结果
+            SetText($"大小：计算中…（已算 {FolderStats.FormatSize(r.TotalBytes)} / {r.Files:N0} 个文件）");
+        });
 
         window.ShowDialog(GetOwner()!);
         _ = Task.Run(async () =>
@@ -65,12 +69,20 @@ public static class FolderPropertiesDialog
                 var text = $"大小：{FolderStats.FormatSize(result.TotalBytes)}" +
                            $"（{result.Files:N0} 个文件 / {result.Folders:N0} 个文件夹）";
                 if (result.Skipped > 0) text += $" · {result.Skipped:N0} 项跳过";
-                SetSizeText(text);
+                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                {
+                    done = true;
+                    try { info.Text = baseInfo + "\n" + text; } catch { }
+                });
             }
             catch (OperationCanceledException) { }
             catch (Exception ex)
             {
-                SetSizeText($"大小：计算失败（{ex.Message}）");
+                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                {
+                    done = true;
+                    try { info.Text = baseInfo + $"\n大小：计算失败（{ex.Message}）"; } catch { }
+                });
             }
         });
     }
