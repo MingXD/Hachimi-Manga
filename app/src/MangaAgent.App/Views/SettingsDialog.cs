@@ -4,6 +4,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Platform.Storage;
 using MangaAgent.App.Services;
 using MangaAgent.Core.Library;
 
@@ -154,6 +155,8 @@ public class SettingsDialog : Window
                 SettingRow("分页滚轮行为", _pagedWheel, null, "分页模式下滚轮 = 缩放 或 翻页"),
                 SettingRow("滚动方向反转", _invert, null, "自然滚动（滚轮方向反转）"),
                 new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { new TextBlock { Text = "最坏内存估算：", FontSize = 11, Foreground = Avalonia.Media.Brushes.Gray, VerticalAlignment = VerticalAlignment.Center }, _memEstimate } }),
+            // v4.14：数据管理（导出/导入封面与进度；只含设置不含图片，库内相对路径可跨电脑迁移）
+            BuildDataManagementCard(),
         }
             }
         };
@@ -421,6 +424,68 @@ public class SettingsDialog : Window
     }
 
     // ================= 通用辅助 =================
+
+    /// <summary>v4.14 数据管理卡片：导出/导入封面与阅读进度（JSON；库内相对路径，跨电脑可迁移）。</summary>
+    private Border BuildDataManagementCard()
+    {
+        var exportBtn = new Button { Content = "导出封面与进度…", MinWidth = 140, HorizontalAlignment = HorizontalAlignment.Left };
+        var importBtn = new Button { Content = "导入…", MinWidth = 70, HorizontalAlignment = HorizontalAlignment.Left };
+        var overwriteChk = new CheckBox { Content = "导入时覆盖已存在记录", VerticalAlignment = VerticalAlignment.Center };
+        var status = new TextBlock { FontSize = 11, Foreground = Brushes.Gray, TextWrapping = TextWrapping.Wrap };
+        static string DbPath() => Path.Combine(SettingsStore.BaseDir, "reading.db");
+
+        exportBtn.Click += async (_, _) =>
+        {
+            try
+            {
+                var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+                {
+                    Title = "导出封面与进度",
+                    SuggestedFileName = "HachimiManga-data.json",
+                    DefaultExtension = "json",
+                    FileTypeChoices = new[] { new FilePickerFileType("JSON 文件") { Patterns = new[] { "*.json" } } },
+                });
+                var path = file?.TryGetLocalPath();
+                if (string.IsNullOrEmpty(path)) return;
+                using var db = new MangaAgent.Core.Storage.ReadingStateStore(DbPath());
+                db.ExportToJson(path);
+                status.Text = $"已导出：{path}";
+            }
+            catch (Exception ex)
+            {
+                status.Text = $"导出失败：{ex.Message}";
+            }
+        };
+        importBtn.Click += async (_, _) =>
+        {
+            try
+            {
+                var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+                {
+                    Title = "导入封面与进度",
+                    AllowMultiple = false,
+                    FileTypeFilter = new[] { new FilePickerFileType("JSON 文件") { Patterns = new[] { "*.json" } } },
+                });
+                var path = files.Count > 0 ? files[0].TryGetLocalPath() : null;
+                if (string.IsNullOrEmpty(path)) return;
+                using var db = new MangaAgent.Core.Storage.ReadingStateStore(DbPath());
+                var (applied, skipped, unmatched) = db.ImportFromJson(path, overwriteChk.IsChecked == true);
+                status.Text = $"导入完成：应用 {applied}，跳过 {skipped}，未匹配 {unmatched}";
+            }
+            catch (Exception ex)
+            {
+                status.Text = $"导入失败：{ex.Message}";
+            }
+        };
+
+        return Card("数据管理",
+            SettingRow("导出 / 导入",
+                new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { exportBtn, importBtn } },
+                null,
+                "导出为 JSON（只含设置、不含图片；路径为库内相对，换电脑可迁移）。导入时按相对路径在当前资料库中匹配，未匹配项会汇总提示"),
+            overwriteChk,
+            status);
+    }
 
     /// <summary>分组卡片（圆角 Border + 标题 + 内容），随宽度拉伸 —— 阅读/快捷键/介绍三页统一样式。</summary>
     private static Border Card(string title, params Control[] children)

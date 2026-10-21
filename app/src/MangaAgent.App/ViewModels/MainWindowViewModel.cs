@@ -535,9 +535,17 @@ public partial class MainWindowViewModel : ViewModelBase
     private async Task LoadSavedLibrariesAsync()
     {
         if (!File.Exists(LibrariesFile)) return;
+        int missing = 0;
         foreach (var line in await File.ReadAllLinesAsync(LibrariesFile))
         {
-            if (string.IsNullOrWhiteSpace(line) || !Directory.Exists(line)) continue;
+            if (string.IsNullOrWhiteSpace(line)) continue;
+            if (!Directory.Exists(line))
+            {
+                // v4.14：失效库路径提示（库被移动/改名/删除后重新添加即可恢复封面与进度）
+                missing++;
+                App.SLog($"LOAD_LIB MISSING {line}");
+                continue;
+            }
             try
             {
                 var lib = new LibraryItemViewModel(line, await LibraryScanner.ScanAsync(line));
@@ -549,6 +557,8 @@ public partial class MainWindowViewModel : ViewModelBase
                 App.SLog($"LOAD_LIB FAIL {line}: {ex.Message}");
             }
         }
+        if (missing > 0)
+            StatusText = $"有 {missing} 个资料库路径失效（可能被移动/改名），请在左侧重新添加该库";
         if (Libraries.Count > 0)
         {
             SelectedLibrary = Libraries[0];

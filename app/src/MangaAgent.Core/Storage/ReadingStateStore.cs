@@ -1,4 +1,6 @@
 using Microsoft.Data.Sqlite;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace MangaAgent.Core.Storage;
 
@@ -51,7 +53,10 @@ public sealed class ReadingStateStore : IDisposable
                     if (best is null || root.Length > best.Length) best = root;
                 }
             }
-            return best is null ? absPath : Path.GetRelativePath(Path.GetFullPath(best), full);
+            if (best is null) return absPath;
+            var bestFull = Path.GetFullPath(best).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            if (full.Equals(bestFull, StringComparison.OrdinalIgnoreCase)) return absPath;   // 库根自身 → 绝对键（防 "." 冲突）
+            return Path.GetRelativePath(bestFull, full);
         }
         catch
         {
@@ -223,29 +228,16 @@ public sealed class ReadingStateStore : IDisposable
         return r.Read() ? r.GetString(0) : null;
     }
 
-    /// <summary>批量读取（目录浏览一次查询）：folderPath(绝对) → relPath。内部按库根相对路径查询，结果键转回绝对路径。</summary>
+    /// <summary>批量读取（目录浏览用）：folderPath(绝对) → relPath。
+    /// v4.14 修复：改为逐条查询——旧实现按"存储键→绝对路径"反转映射，若多个条目换算成同一键（如库根自身曾存 "."）
+    /// 会互相覆盖/串号（用户反馈"库根文件夹设封面后返回再进入一定消失"的根因）。条目数小，逐条查询开销可忽略。</summary>
     public Dictionary<string, string> LoadFolderCovers(IEnumerable<string> folderPaths)
     {
         var dict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        var absList = folderPaths.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-        if (absList.Count == 0) return dict;
-        // 绝对 → 存储键（rel）；同一存储键可能对应多个绝对（罕见），反转映射回填
-        var storageToAbs = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var abs in absList) storageToAbs[ToStoragePath(abs)] = abs;
-        using var cmd = _conn.CreateCommand();
-        var pars = new List<string>();
-        int i = 0;
-        foreach (var key in storageToAbs.Keys)
+        foreach (var abs in folderPaths.Distinct(StringComparer.OrdinalIgnoreCase))
         {
-            pars.Add("$p" + i);
-            cmd.Parameters.AddWithValue("$p" + i, key);
-            i++;
-        }
-        cmd.CommandText = "SELECT FolderPath, RelPath FROM FolderCovers WHERE FolderPath IN (" + string.Join(",", pars) + ")";
-        using var r = cmd.ExecuteReader();
-        while (r.Read())
-        {
-            if (storageToAbs.TryGetValue(r.GetString(0), out var abs)) dict[abs] = r.GetString(1);
+            var rel = LoadFolderCover(abs);
+            if (rel is not null) dict[abs] = rel;
         }
         return dict;
     }
@@ -281,12 +273,29 @@ public sealed class ReadingStateStore : IDisposable
     }
 
     /// <summary>v4.13：把三张表中已存的绝对路径记录迁移为库根相对路径（幂等；已相对的不动）。
+    /// v4.14：库根本身条目现在存绝对（不再 "."）；历史遗留的 "." 记录无法还原归属 → 清理（用户需重设那几个库根文件夹的封面）。
     /// 主窗口加载库后调用一次（旧版本数据升级用）。</summary>
     public void MigratePathsToRelative()
     {
         MigrateTableToRelative("ReadingState", "Path");
         try { MigrateTableToRelative("Bookmarks", "Path"); } catch { /* 主键冲突可忽略 */ }
         MigrateTableToRelative("FolderCovers", "FolderPath");
+        // v4.14：清理无意义的 "." 记录（旧实现把"路径==库根"存成 "."，多条目互相覆盖后无法还原）
+        DeleteExact("ReadingState", "Path", ".");
+        DeleteExact("Bookmarks", "Path", ".");
+        DeleteExact("FolderCovers", "FolderPath", ".");
+    }
+
+    private void DeleteExact(string table, string column, string value)
+    {
+        try
+        {
+            using var del = _conn.CreateCommand();
+            del.CommandText = $"DELETE FROM {table} WHERE {column} = $v";
+            del.Parameters.AddWithValue("$v", value);
+            del.ExecuteNonQuery();
+        }
+        catch { /* 清理失败不影响其余 */ }
     }
 
     private void MigrateTableToRelative(string table, string column)
@@ -315,5 +324,125 @@ public sealed class ReadingStateStore : IDisposable
         }
     }
 
+    // ---------- v4.14 导出 / 导入（设置页"数据管理"；只存设置不存图片，路径用库内相对值，跨机按存在性匹配） ----------
+
+    /// <summary>导出全部封面/阅读进度/书签到 JSON 文件。</summary>
+    public void ExportToJson(string filePath)
+    {
+        var data = new ExportDataDto { ExportedAt = DateTime.UtcNow.ToString("O") };
+        using (var cmd = _conn.CreateCommand())
+        {
+            cmd.CommandText = "SELECT FolderPath, RelPath FROM FolderCovers";
+            using var r = cmd.ExecuteReader();
+            while (r.Read()) data.Covers.Add(new CoverRecordDto { Folder = r.GetString(0), Image = r.GetString(1) });
+        }
+        using (var cmd = _conn.CreateCommand())
+        {
+            cmd.CommandText = "SELECT Path, LogicalPage, Mode, Direction FROM ReadingState";
+            using var r = cmd.ExecuteReader();
+            while (r.Read())
+                data.Progress.Add(new ProgressRecordDto
+                {
+                    Book = r.GetString(0),
+                    Page = r.GetInt32(1),
+                    Mode = r.GetString(2),
+                    Direction = r.GetString(3),
+                });
+        }
+        using (var cmd = _conn.CreateCommand())
+        {
+            cmd.CommandText = "SELECT Path, LogicalPage FROM Bookmarks";
+            using var r = cmd.ExecuteReader();
+            while (r.Read()) data.Bookmarks.Add(new BookmarkRecordDto { Book = r.GetString(0), Page = r.GetInt32(1) });
+        }
+        File.WriteAllText(filePath, JsonSerializer.Serialize(data, new JsonSerializerOptions { WriteIndented = true }));
+    }
+
+    /// <summary>从 JSON 导入（每条记录按"相对路径在当前库根下是否存在"匹配；overwrite=false 时已存在记录保留）。
+    /// 返回 (应用数, 跳过数, 未匹配数)。</summary>
+    public (int Applied, int Skipped, int Unmatched) ImportFromJson(string filePath, bool overwrite)
+    {
+        var data = JsonSerializer.Deserialize<ExportDataDto>(File.ReadAllText(filePath))
+                   ?? throw new InvalidOperationException("JSON 解析失败");
+        int applied = 0, skipped = 0, unmatched = 0;
+        foreach (var c in data.Covers)
+        {
+            var abs = ResolveStoredPath(c.Folder);
+            if (abs is null) { unmatched++; continue; }
+            if (!overwrite && LoadFolderCover(abs) is not null) { skipped++; continue; }
+            if (SetFolderCover(abs, c.Image)) applied++;
+            else unmatched++;
+        }
+        foreach (var p in data.Progress)
+        {
+            var abs = ResolveStoredPath(p.Book);
+            if (abs is null) { unmatched++; continue; }
+            if (!overwrite && LoadState(abs) is not null) { skipped++; continue; }
+            SaveState(abs, p.Page,
+                Enum.TryParse<ReadingMode>(p.Mode, out var m) ? m : ReadingMode.Single,
+                Enum.TryParse<ReadingDirection2>(p.Direction, out var d) ? d : ReadingDirection2.Rtl);
+            applied++;
+        }
+        foreach (var b in data.Bookmarks)
+        {
+            var abs = ResolveStoredPath(b.Book);
+            if (abs is null) { unmatched++; continue; }
+            if (!overwrite && LoadBookmarks(abs).Contains(b.Page)) { skipped++; continue; }
+            AddBookmark(abs, b.Page);
+            applied++;
+        }
+        return (applied, skipped, unmatched);
+    }
+
+    /// <summary>存储值 → 绝对路径：绝对 → 校验存在；相对 → 遍历库根（具体优先）找存在者；都不存在 → null（未匹配）。</summary>
+    private static string? ResolveStoredPath(string stored)
+    {
+        if (string.IsNullOrEmpty(stored)) return null;
+        try
+        {
+            if (Path.IsPathRooted(stored))
+                return (File.Exists(stored) || Directory.Exists(stored)) ? stored : null;
+        }
+        catch { return null; }
+        foreach (var root in LibraryRoots.OrderByDescending(r => r.Length))
+        {
+            string cand;
+            try { cand = Path.Combine(root, stored); } catch { continue; }
+            if (File.Exists(cand) || Directory.Exists(cand)) return cand;
+        }
+        return null;
+    }
+
     public void Dispose() => _conn.Dispose();
+}
+
+// ---------- v4.14 导出/导入数据对象（JSON 键名固定，保证跨版本/跨机器兼容） ----------
+
+public sealed class CoverRecordDto
+{
+    [JsonPropertyName("folder")] public string Folder { get; set; } = "";
+    [JsonPropertyName("image")] public string Image { get; set; } = "";
+}
+
+public sealed class ProgressRecordDto
+{
+    [JsonPropertyName("book")] public string Book { get; set; } = "";
+    [JsonPropertyName("page")] public int Page { get; set; }
+    [JsonPropertyName("mode")] public string Mode { get; set; } = "Single";
+    [JsonPropertyName("direction")] public string Direction { get; set; } = "Rtl";
+}
+
+public sealed class BookmarkRecordDto
+{
+    [JsonPropertyName("book")] public string Book { get; set; } = "";
+    [JsonPropertyName("page")] public int Page { get; set; }
+}
+
+public sealed class ExportDataDto
+{
+    [JsonPropertyName("version")] public int Version { get; set; } = 1;
+    [JsonPropertyName("exportedAt")] public string? ExportedAt { get; set; }
+    [JsonPropertyName("covers")] public List<CoverRecordDto> Covers { get; set; } = new();
+    [JsonPropertyName("progress")] public List<ProgressRecordDto> Progress { get; set; } = new();
+    [JsonPropertyName("bookmarks")] public List<BookmarkRecordDto> Bookmarks { get; set; } = new();
 }

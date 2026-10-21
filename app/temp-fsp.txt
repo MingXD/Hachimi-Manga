@@ -1,0 +1,18 @@
+START
+bzRoot raw='F:\额外储存\bz'
+roots after SetLibraryRoots: 6
+  root='G:\额外储存\bz_2' exists=True
+  root='F:\额外储存\bz' exists=True
+  root='F:\额外储存\bz\25.08\毎日健康生活 (ヘルシーマン)' exists=True
+  root='F:\额外储存\bz\25.08\秘密結社うさぎ (だんちょ)' exists=True
+  root='F:\额外储存\bz\25.08\飯食って寝る。 (あたげ)' exists=True
+  root='G:\影视\晚安，布布' exists=True
+ToStoragePath(bz\25.08\ちょいぴろ) = '25.08\ちょいぴろ'
+FromStoragePath('25.08\ちょいぴろ') = 'F:\额外储存\bz\25.08\ちょいぴろ'
+  root='F:\额外储存\bz\25.08\毎日健康生活 (ヘルシーマン)' cand='F:\额外储存\bz\25.08\毎日健康生活 (ヘルシーマン)\25.08\ちょいぴろ' exists=False
+  root='F:\额外储存\bz\25.08\秘密結社うさぎ (だんちょ)' cand='F:\额外储存\bz\25.08\秘密結社うさぎ (だんちょ)\25.08\ちょいぴろ' exists=False
+  root='F:\额外储存\bz\25.08\飯食って寝る。 (あたげ)' cand='F:\额外储存\bz\25.08\飯食って寝る。 (あたげ)\25.08\ちょいぴろ' exists=False
+  root='G:\额外储存\bz_2' cand='G:\额外储存\bz_2\25.08\ちょいぴろ' exists=False
+  root='G:\影视\晚安，布布' cand='G:\影视\晚安，布布\25.08\ちょいぴろ' exists=False
+  root='F:\额外储存\bz' cand='F:\额外储存\bz\25.08\ちょいぴろ' exists=True
+DONE
