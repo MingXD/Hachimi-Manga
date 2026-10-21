@@ -44,19 +44,13 @@ public static class FolderPropertiesDialog
         window.Closed += (_, _) => cts.Cancel();
 
         bool done = false;   // 仅在 UI 线程读写（完成/进度回调都经 Dispatcher）
-        void SetText(string sizeText)
-        {
-            if (cts.IsCancellationRequested) return;
-            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-            {
-                try { info.Text = baseInfo + "\n" + sizeText; } catch { }
-            });
-        }
-
+        // v4.17：进度回调本身就在 UI 线程（Progress<T> 捕获 UI 上下文）→ **直接赋值，不要二次 Dispatcher.Post**
+        // （原实现 SetText 内再 Post 一次 → 文本赋值排到完成 Post 之后 → 覆盖最终文本；小文件夹计算快、高概率复现）
         var progress = new Progress<FolderStats.Result>(r =>
         {
-            if (done) return;   // v4.16：完成后的滞留进度回调不得覆盖最终结果
-            SetText($"大小：计算中…（已算 {FolderStats.FormatSize(r.TotalBytes)} / {r.Files:N0} 个文件）");
+            if (done || cts.IsCancellationRequested) return;
+            try { info.Text = baseInfo + "\n" + $"大小：计算中…（已算 {FolderStats.FormatSize(r.TotalBytes)} / {r.Files:N0} 个文件）"; }
+            catch { }
         });
 
         window.ShowDialog(GetOwner()!);
