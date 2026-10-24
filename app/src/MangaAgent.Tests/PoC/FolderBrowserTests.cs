@@ -135,6 +135,62 @@ public class FolderBrowserTests
         }
     }
 
+    /// <summary>v4.18 回归（用户实测 2026-10-24）：装 zip 的分类文件夹（如 "[nemuke？ (似せ)]"）必须显示为文件夹条目，
+    /// 不能被 BUG-D 折叠规则渲染成一本漫画 —— 否则用户看不到文件夹本身，对它"移动到该文件夹"会因源=目标目录失败。</summary>
+    [AvaloniaFact]
+    public async Task Zip_Folder_Shows_As_Folder_Not_Book()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"manga_zipfolder_{Guid.NewGuid():N}");
+        try
+        {
+            // 根/zhongzi/nemuke？ (似せ)/：2 个 zip（分类文件夹，不是单行本）
+            var nemuke = Path.Combine(root, "zhongzi", "nemuke？ (似せ)");
+            Directory.CreateDirectory(nemuke);
+            WriteZip(Path.Combine(nemuke, "[nemuke？ (似せ)] アナキメ1 [中国翻訳].zip"));
+            WriteZip(Path.Combine(nemuke, "[nemuke？ (似せ)] アナキメ2 [中国翻訳].zip"));
+            // 根/zhongzi/Mixed/：1 张图片 + 1 个 zip（混合 → 也是分类文件夹）
+            var mixed = Path.Combine(root, "zhongzi", "Mixed");
+            Directory.CreateDirectory(mixed);
+            File.WriteAllBytes(Path.Combine(mixed, "p1.jpg"), new byte[8]);
+            WriteZip(Path.Combine(mixed, "loose.zip"));
+
+            var tree = await FolderTreeScanner.ScanAsync(root);
+            var zhongzi = tree.Children.Single(c => c.Name == "zhongzi");
+            var nemukeNode = zhongzi.Children.Single(c => c.Name == "nemuke？ (似せ)");
+
+            // 判定：两类都不是单行本文件夹
+            Assert.False(nemukeNode.IsSingleVolumeFolder, "装 zip 的文件夹不是单行本");
+            Assert.False(zhongzi.Children.Single(c => c.Name == "Mixed").IsSingleVolumeFolder, "图片+zip 混合也不是单行本");
+
+            var vm = new MainWindowViewModel();
+            vm.ShowFolderContents(zhongzi);
+            Assert.Equal(2, vm.FolderEntries.Count);
+            Assert.All(vm.FolderEntries, e => Assert.True(e.IsFolder, "zhongzi 下两项都应显示为文件夹"));
+            var nemukeEntry = vm.FolderEntries.Single(e => e.DisplayName == "nemuke？ (似せ)");
+            Assert.Null(nemukeEntry.Book);   // 不是"一本漫画"的身份
+
+            // 进入 nemuke？：里面是 2 本 zip 漫画
+            vm.EnterFolderCommand.Execute(nemukeNode);
+            Assert.Equal(2, vm.FolderEntries.Count);
+            Assert.All(vm.FolderEntries, e => Assert.False(e.IsFolder));
+            Assert.All(vm.FolderEntries, e => Assert.Equal(BookKind.Zip, e.Book!.Kind));
+        }
+        finally
+        {
+            try { Directory.Delete(root, true); } catch { }
+        }
+    }
+
+    /// <summary>写一个最小可用 zip（含 1 页图片条目，供 ZipComicSource 统计页数）。</summary>
+    private static void WriteZip(string path)
+    {
+        using var fs = File.Create(path);
+        using var za = new System.IO.Compression.ZipArchive(fs, System.IO.Compression.ZipArchiveMode.Create);
+        var entry = za.CreateEntry("0001.jpg");
+        using var es = entry.Open();
+        es.Write(new byte[] { 0xFF, 0xD8, 0xFF, 0xD9 }, 0, 4);
+    }
+
     [AvaloniaFact]
     public async Task Folder_With_Subfolder_And_Images_Is_Folder_With_Stats()
     {

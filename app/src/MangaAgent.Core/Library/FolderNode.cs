@@ -12,6 +12,12 @@ public sealed class FolderNode
     /// <summary>父节点（目录浏览器的"返回上级"用；根为 null）。</summary>
     public FolderNode? Parent { get; set; }
 
+    /// <summary>单行本文件夹（v4.18）：无子文件夹，且直接装的全部是图片（FolderBook）——即"一个文件夹 = 一本漫画"。
+    /// 仅这类叶子在目录浏览里折叠成漫画条目；装 zip/pdf 的分类文件夹（如 "[nemuke？ (似せ)]"）必须保持文件夹身份，
+    /// 否则会被误渲染成一本漫画（书名取第一本），用户看不到文件夹本身，对它"移动到该文件夹"还会源=目标目录失败。</summary>
+    public bool IsSingleVolumeFolder =>
+        Children.Count == 0 && Books.Count > 0 && Books.All(b => b.Kind == BookKind.Folder);
+
     /// <summary>面包屑路径（根 → 当前）。</summary>
     public IReadOnlyList<FolderNode> PathChain
     {

@@ -14,5 +14,6 @@
 | [BUG-007](BUG-007-physical-navigation.md) | ✅ 已修复 | 单页跳页跳过物理页（物理页导航，v1.9） |
 | [BUG-008](BUG-008-pdf-title-blank.md) | ✅ 已修复 | v4-PDF 目录书名空白（/Info Title 解析出 NUL） |
 | [BUG-009](BUG-009-pdf-black-edge-background.md) | ✅ 已修复 | v4-PDF 双页固定黑带（渲染背景未预填白，白边输出为黑） |
+| [BUG-010](BUG-010-zip-folder-collapsed-as-book.md) | ✅ 已修复 | 装 zip 的分类文件夹被折叠成一本漫画（文件夹"消失"+移动反复失败，v4.18） |
 
 > v2.x 的修复（预览栏 CPU/内存拉满、白天按钮黑、双页高度不匹配等）记录在 [v2-changes-record.md](../v2-changes-record.md)。

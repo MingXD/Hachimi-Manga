@@ -149,9 +149,9 @@ public partial class FolderEntryItemViewModel : ViewModelBase
     }
 
     // ---------- 统计辅助（v2.3.7：M/N 只统计本层，X 递归） ----------
-    /// <summary>纯图片文件夹 = 漫画：无子文件夹且本目录直接含图片。</summary>
+    /// <summary>纯图片文件夹 = 漫画：无子文件夹且本目录直接含图片（v4.18：统一用 FolderNode.IsSingleVolumeFolder）。</summary>
     internal static bool IsPureImageFolder(MangaAgent.Core.Library.FolderNode n)
-        => n.Children.Count == 0 && n.Books.Any(b => b.Kind == BookKind.Folder);
+        => n.IsSingleVolumeFolder;
 
     /// <summary>本层直接漫画数 M：纯图片子文件夹数 + 本目录直接图片(FolderBook)数 + 本目录文件书(CBZ/PDF)数。</summary>
     internal static int CountDirectBooks(MangaAgent.Core.Library.FolderNode n)

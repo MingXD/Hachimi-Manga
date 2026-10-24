@@ -142,10 +142,14 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         CurrentFolder = folder;
         FolderEntries.Clear();
-        // BUG-D v1.9：子文件夹判定 —— 有子文件夹 → 文件夹条目；无子文件夹但有书（纯图片叶子）→ 漫画条目
+        // BUG-D v1.9（v4.18 细化）：子文件夹判定 —— 有子文件夹 → 文件夹条目；
+        // 单行本文件夹（无子文件夹且直接装图片，FolderNode.IsSingleVolumeFolder）→ 折叠为漫画条目；
+        // 其余（装 zip/pdf 的分类文件夹，如 "[nemuke？ (似せ)]"）必须保持文件夹身份，
+        // 否则会被误渲染成一本漫画（书名取 Books[0]），用户看不到文件夹本身，
+        // 对那张卡"移动到该文件夹"还会因源=目标目录而失败。
         foreach (var child in folder.Children)
         {
-            if (child.Children.Count == 0 && child.Books.Count > 0)
+            if (child.IsSingleVolumeFolder)
                 FolderEntries.Add(WireEntry(new FolderEntryItemViewModel(child.Books[0])));
             else
                 FolderEntries.Add(WireEntry(new FolderEntryItemViewModel(child)));
@@ -743,7 +747,7 @@ public partial class MainWindowViewModel : ViewModelBase
     /// ②非纯图片子文件夹按名匹配 = 文件夹（其内部图片漫画不单独命中，避免同名重复）。</summary>
     private void CollectSearchHits(MangaAgent.Core.Library.FolderNode node, string q, List<FolderEntryItemViewModel> hits)
     {
-        bool nodeIsPure = node.Children.Count == 0 && node.Books.Any(b => b.Kind == BookKind.Folder);
+        bool nodeIsPure = node.IsSingleVolumeFolder;
         foreach (var b in node.Books)
         {
             // v4-PDF：文件型书（CBZ/PDF）全参与命中；FolderBook 仅纯图片节点命中
@@ -754,7 +758,7 @@ public partial class MainWindowViewModel : ViewModelBase
         }
         foreach (var child in node.Children)
         {
-            bool childIsPure = child.Children.Count == 0 && child.Books.Any(x => x.Kind == BookKind.Folder);
+            bool childIsPure = child.IsSingleVolumeFolder;
             if (!childIsPure && child.Name.Contains(q, StringComparison.OrdinalIgnoreCase))
                 hits.Add(WireEntry(new FolderEntryItemViewModel(child)));
             CollectSearchHits(child, q, hits);
