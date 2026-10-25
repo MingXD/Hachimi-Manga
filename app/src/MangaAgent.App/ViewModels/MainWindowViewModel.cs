@@ -4,6 +4,7 @@ using Avalonia.Platform.Storage;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using MangaAgent.App.Views;
+using MangaAgent.App.Services;
 using MangaAgent.Core.Library;
 using Avalonia.Threading;
 using MangaAgent.Core.Storage;
@@ -185,6 +186,138 @@ public partial class MainWindowViewModel : ViewModelBase
         foreach (var n in folder.PathChain) Breadcrumbs.Add(n);
         // 侧边栏树选中同步（避免递归：SelectedFolder 已在同一值时不触发变化）
         SelectedFolder = folder;
+        // v4.19：记录"已渲染时的目录时间戳"（窗口激活时据此判断外部改动）；并挂上当前目录监听（P3）
+        _shownFolderMtime = DirMtime(folder.Path);
+        _shownRootMtime = FolderTree.Count > 0 ? DirMtime(FolderTree[0].Path) : DateTime.MinValue;
+        // 目录监听只在有窗口时启用（headless 测试/无窗口场景不挂 watcher，避免测试环境干扰）
+        if (GetOwnerWindow is not null)
+            _watcher.Watch(folder.Path, () => _ = RefreshCurrentFolderAsync());
+        // v4.19：文件型书页数后台懒补（扫描不再打开压缩包）
+        _ = EnrichPageCountsAsync();
+    }
+
+    // ---------- v4.19 自动更新机制（P1 浅刷新 / P2 导航+激活 / P3 当前目录 watcher） ----------
+    private readonly FolderWatcher _watcher = new();
+    private DateTime _shownFolderMtime = DateTime.MinValue;
+    private DateTime _shownRootMtime = DateTime.MinValue;
+    private int _enrichVersion;
+    private readonly SemaphoreSlim _refreshLock = new(1, 1);
+
+    private static DateTime DirMtime(string path)
+    {
+        try { return Directory.Exists(path) ? Directory.GetLastWriteTimeUtc(path) : DateTime.MinValue; }
+        catch { return DateTime.MinValue; }
+    }
+
+    /// <summary>当前目录浅刷新并重渲染（watcher/导航/操作后统一入口）。</summary>
+    public async Task RefreshCurrentFolderAsync()
+    {
+        if (CurrentFolder is null) return;
+        await RefreshNodeAndRenderAsync(CurrentFolder);
+    }
+
+    /// <summary>浅刷新指定节点（只列目录，毫秒级）→ 重渲染当前视图。
+    /// 并发策略（v4.19）：用 <see cref="SemaphoreSlim"/> 串行化 —— 与"排队丢弃"不同，
+    /// 每个调用方都会等到自己的刷新真正完成（粘贴/移动后 await 即可断言结果），
+    /// 连续操作只会多跑几次毫秒级刷新，不会丢刷新。</summary>
+    private async Task RefreshNodeAndRenderAsync(MangaAgent.Core.Library.FolderNode node)
+    {
+        await _refreshLock.WaitAsync();
+        try
+        {
+            await MangaAgent.Core.Library.FolderTreeScanner.RefreshShallowAsync(node);
+            if (_searchActive) { ApplyFilter(); return; }
+            if (CurrentFolder is not null && ReferenceEquals(CurrentFolder, node))
+                ShowFolderContents(node);
+            else
+                _shownFolderMtime = DirMtime(node.Path);   // 非当前层：仅更新缓存时间戳
+        }
+        catch (Exception ex)
+        {
+            App.SLog($"REFRESH_SHALLOW FAIL {node.Path}: {ex.Message}");
+        }
+        finally { _refreshLock.Release(); }
+    }
+
+    /// <summary>窗口重新激活（P2②）：当前目录或库根的时间戳变了（外部新建/移动/删除）→ 浅刷新。
+    /// 目录的 LastWriteTime 在"子项增删改名"时会变化，所以这次检查天然便宜且够用。</summary>
+    public async Task RefreshIfStaleAsync()
+    {
+        if (CurrentFolder is null) return;
+        var folder = CurrentFolder;
+        var root = FolderTree.Count > 0 ? FolderTree[0] : null;
+        bool folderChanged = DirMtime(folder.Path) != _shownFolderMtime;
+        bool rootChanged = root is not null && !ReferenceEquals(root, folder) && DirMtime(root.Path) != _shownRootMtime;
+        if (!folderChanged && !rootChanged) return;
+        App.SLog($"REFRESH_STALE folder={folderChanged} root={rootChanged} {folder.Path}");
+        try
+        {
+            if (rootChanged && root is not null)
+            {
+                await MangaAgent.Core.Library.FolderTreeScanner.RefreshShallowAsync(root);
+                _shownRootMtime = DirMtime(root.Path);
+            }
+            await MangaAgent.Core.Library.FolderTreeScanner.RefreshShallowAsync(folder);
+            if (!_searchActive && ReferenceEquals(CurrentFolder, folder)) ShowFolderContents(folder);
+            else _shownFolderMtime = DirMtime(folder.Path);
+        }
+        catch (Exception ex) { App.SLog($"REFRESH_STALE FAIL {folder.Path}: {ex.Message}"); }
+    }
+
+    /// <summary>v4.19：为当前显示的文件型书后台补页数（每本只读一次索引，不阻塞界面）。
+    /// 打开的压缩包失败（损坏/加密）则保持 "… 页"。</summary>
+    public async Task EnrichPageCountsAsync(CancellationToken ct = default)
+    {
+        var version = ++_enrichVersion;
+        var targets = FolderEntries
+            .Where(e => !e.IsFolder && e.Book is { } b && b.IsFileKind && e.ResolvedPageCount <= 0)
+            .Take(200).ToList();
+        if (targets.Count == 0) return;
+        foreach (var item in targets)
+        {
+            if (ct.IsCancellationRequested || version != _enrichVersion) return;
+            var book = item.Book;
+            if (book is null) continue;
+            int pages = 0;
+            try
+            {
+                // 开包读索引放到线程池（ZipArchive 初始化/中央目录读取可能耗时，不能占 UI 线程）
+                pages = await Task.Run(async () =>
+                {
+                    await using var src = global::MangaAgent.Core.Comics.ComicSourceFactory.Open(book.Path);
+                    return src.PageCount;
+                }, ct);
+            }
+            catch { continue; }
+            if (pages <= 0) continue;
+            if (version != _enrichVersion) return;
+            var captured = pages;
+            await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                if (version != _enrichVersion) return;
+                item.SetPageCount(captured);
+                // 同步节点记录：重渲染/排序时也保留已解析页数
+                if (CurrentFolder is { } cur)
+                    for (int i = 0; i < cur.Books.Count; i++)
+                    {
+                        var b = cur.Books[i];
+                        if (!ReferenceEquals(b, book) && !b.Path.Equals(book.Path, StringComparison.OrdinalIgnoreCase)) continue;
+                        cur.Books[i] = b with { PageCount = captured };
+                        break;
+                    }
+            });
+        }
+    }
+
+    /// <summary>v4.19：关窗/切换库时释放目录监听。</summary>
+    public void StopWatching() => _watcher.Dispose();
+
+    /// <summary>v4.19：窗口就绪后补挂当前目录监听（首次渲染可能早于 GetOwnerWindow 注入）。</summary>
+    public void RefreshWatcherTarget()
+    {
+        if (GetOwnerWindow is null || CurrentFolder is null) return;
+        _watcher.Watch(CurrentFolder.Path, () => _ = RefreshCurrentFolderAsync());
+        _ = RefreshIfStaleAsync();   // 顺带校准一次"窗口打开时的外部改动"
     }
 
     [ObservableProperty] private MangaAgent.Core.Library.FolderNode? _currentFolder;
@@ -195,7 +328,13 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     private void GoUp()
     {
-        if (CurrentFolder?.Parent is { } parent) { PushHistory(); _forwardStack.Clear(); ShowFolderContents(parent); }
+        if (CurrentFolder?.Parent is { } parent)
+        {
+            PushHistory();
+            _forwardStack.Clear();
+            ShowFolderContents(parent);
+            _ = RefreshNodeAndRenderAsync(parent);   // v4.19：返回上级也浅刷新（兄弟目录可能已变化）
+        }
     }
 
     // ---------- v3 #4：多选快捷键（复制/剪切/粘贴/删除 + 鼠标侧键导航历史） ----------
@@ -210,6 +349,7 @@ public partial class MainWindowViewModel : ViewModelBase
         if (folder is null) return;
         if (!ReferenceEquals(folder, CurrentFolder)) { PushHistory(); _forwardStack.Clear(); }
         ShowFolderContents(folder);
+        _ = RefreshNodeAndRenderAsync(folder);   // v4.19：进入目录即浅刷新（外部新建/移动进来的内容马上可见）
     }
 
     private void PushHistory()
@@ -335,45 +475,33 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
-    /// <summary>重建当前库树并保持当前目录位置（新建/删除文件夹后调用，避免跳到库根）。
-    /// v3 小改：公开为 RefreshCurrentViewAsync，供删除/移动/复制/新建统一自动刷新（原 RefreshAction 用旧树快照重建 → 文件系统已变但节点不变，界面"不刷新"）。
-    /// 库根取 CurrentFolder.PathChain[0]，不依赖 SelectedLibrary（测试/未选库场景也可用）。</summary>
+    /// <summary>重建当前视图（v4.19：改为"浅刷新" —— 只重列当前目录一层 + 直接子目录的书，毫秒级；
+    /// 不再重建整棵库树、也不再打开压缩包读页数）。删除/移动/复制/新建后统一调用。
+    /// 若当前目录已被外部移走/删除 → 回退到最近仍存在的祖先（不再残留幽灵目录）。</summary>
     public async Task RefreshCurrentViewAsync()
     {
-        if (CurrentFolder is null) return;
-        try
+        var node = CurrentFolder;
+        if (node is null) return;
+        if (!Directory.Exists(node.Path))
         {
-            var libRoot = CurrentFolder.PathChain[0].Path;
-            var tree = await MangaAgent.Core.Library.FolderTreeScanner.ScanAsync(libRoot);
-            FolderTree.Clear();
-            FolderTree.Add(tree);
-            if (_searchActive)
-            {
-                // 搜索态：基于新树重算命中
-                ApplyFilter();
-                return;
-            }
-            // 沿当前路径（根后各级名称）找新节点
-            var names = CurrentFolder.PathChain.Select(n => n.Name).Skip(1).ToList();
-            var node = tree;
-            foreach (var n in names)
-            {
-                node = node.Children.FirstOrDefault(c => c.Name == n);
-                if (node is null) break;
-            }
-            if (node is not null) ShowFolderContents(node);
+            var fallback = node.Parent;
+            while (fallback is not null && !Directory.Exists(fallback.Path)) fallback = fallback.Parent;
+            if (fallback is null) return;
+            App.SLog($"REFRESH_FALLBACK {node.Path} -> {fallback.Path}");
+            ShowFolderContents(fallback);
+            node = fallback;
         }
-        catch (Exception ex)
-        {
-            App.SLog($"REFRESH_TREE_KEEP FAIL: {ex.Message}");
-        }
+        await RefreshNodeAndRenderAsync(node);
+        _shownRootMtime = FolderTree.Count > 0 ? DirMtime(FolderTree[0].Path) : DateTime.MinValue;
     }
 
     /// <summary>面包屑跳转。</summary>
     [RelayCommand]
     private void NavigateBreadcrumb(MangaAgent.Core.Library.FolderNode? folder)
     {
-        if (folder is not null) ShowFolderContents(folder);
+        if (folder is null) return;
+        ShowFolderContents(folder);
+        _ = RefreshNodeAndRenderAsync(folder);   // v4.19：进入即浅刷新（外部新内容立即可见）
     }
 
     private FolderEntryItemViewModel WireEntry(FolderEntryItemViewModel item)

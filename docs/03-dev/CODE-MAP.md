@@ -31,8 +31,8 @@ D:\MangaAgent\
 
 | 文件 | 职责 | 常见修改场景 |
 |---|---|---|
-| Library\LibraryScanner.cs | 全库递归扫描 → List<BookInfo> | 扫描规则 / 进度回调 / 系列聚合 |
-| Library\FolderTree.cs | 目录树扫描 → FolderNode（保留所有子文件夹） | 目录浏览器数据结构 |
+| Library\LibraryScanner.cs | 全库递归扫描 → List<BookInfo>（v4.19 轻量模式：不打开压缩包，每层只枚举一次） | 扫描规则 / 进度回调 / 系列聚合 |
+| Library\FolderTree.cs | 目录树扫描 → FolderNode（v4.19：浅结构扫描 + `RefreshShallowAsync` 原地浅刷新） | 目录浏览器数据结构 / 自动更新机制（[设计](../02-design/auto-refresh.md)） |
 | Library\FolderNode.cs | 树节点（Children/Books/Parent/PathChain） | 面包屑 / 导航 |
 | Library\BookInfo.cs | 书实体（Kind: Zip/Folder） | 元数据字段 |
 | Library\FileOps.cs | 删除(回收站)/重命名/资源管理器显示 | 右键操作（复制/移动待加） |

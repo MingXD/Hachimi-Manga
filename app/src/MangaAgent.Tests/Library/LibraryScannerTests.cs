@@ -12,7 +12,7 @@ public class LibraryScannerTests
     [Fact]
     public async Task Scans_Cbz_And_Folder_Books()
     {
-        var books = await LibraryScanner.ScanAsync(Fixtures, TestContext.Current.CancellationToken);
+        var books = await LibraryScanner.ScanAsync(Fixtures, TestContext.Current.CancellationToken, readPageCounts: true);
         Assert.True(books.Count >= 7, $"应找到 ≥7 本书，实际 {books.Count}");
         // 7 本 CBZ（3 系列 + 压力书）+ 1 个文件夹书
         var zips = books.Count(b => b.Kind == BookKind.Zip);
@@ -34,7 +34,7 @@ public class LibraryScannerTests
     public async Task Scans_Pdf_Books()
     {
         if (!MangaAgent.Core.Comics.Pdf.PdfiumLibrary.IsAvailable) return;   // dll 缺失：跳过（不中断基线）
-        var books = await LibraryScanner.ScanAsync(Fixtures, TestContext.Current.CancellationToken);
+        var books = await LibraryScanner.ScanAsync(Fixtures, TestContext.Current.CancellationToken, readPageCounts: true);
         var pdfs = books.Where(b => b.Kind == BookKind.Pdf).ToList();
         // TestSeriesA 目录含 TestSeriesA_vol4.pdf（2 页：矢量页 + 内嵌 JPEG 页）
         var vol4 = pdfs.SingleOrDefault(b => b.Path.EndsWith("TestSeriesA_vol4.pdf"));

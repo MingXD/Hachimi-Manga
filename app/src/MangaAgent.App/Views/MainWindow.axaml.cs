@@ -26,7 +26,11 @@ public partial class MainWindow : Window
             _vm = vm;
             vm.GetOwnerWindow = () => this;
             // 布局完成后加载可见区缩略图（BUG-002）
-            Dispatcher.UIThread.Post(LoadVisibleThumbnails);
+            Dispatcher.UIThread.Post(() =>
+            {
+                LoadVisibleThumbnails();
+                vm.RefreshWatcherTarget();   // v4.19：窗口就绪 → 挂当前目录监听 + 校准外部改动
+            });
             // F12 调试面板
             KeyDown += (_, ke) => { if (ke.Key == Avalonia.Input.Key.F12) ToggleMainDebug(); };
             // v3 #4：文件管理器式快捷键（Ctrl+C/X/V、Delete、F2、Enter、Ctrl+A、Backspace/Alt+↑）
@@ -40,6 +44,10 @@ public partial class MainWindow : Window
                 if (props.IsXButton1Pressed) _vm?.GoBackCommand.Execute(null);
                 else if (props.IsXButton2Pressed) _vm?.GoForwardCommand.Execute(null);
             }, Avalonia.Interactivity.RoutingStrategies.Bubble);
+            // v4.19（P2②）：窗口重新激活 → 若当前目录/库根被外部改动（时间戳变化）则浅刷新
+            Activated += (_, _) => _ = vm.RefreshIfStaleAsync();
+            // v4.19（P3）：关窗释放目录监听（避免句柄泄漏）
+            Closed += (_, _) => vm.StopWatching();
         }
     }
 

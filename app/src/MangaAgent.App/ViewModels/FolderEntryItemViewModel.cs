@@ -96,6 +96,28 @@ public partial class FolderEntryItemViewModel : ViewModelBase
     /// <summary>详情模式行式图标（文件夹 / 书本）。</summary>
     public string IconText => IsFolder ? "📁" : "📖";
 
+    /// <summary>已解析页数（v4.19：扫描不再打开压缩包 → 文件型书页数由界面后台懒补；0 = 尚未解析）。</summary>
+    [ObservableProperty]
+    private int _resolvedPageCount;
+
+    partial void OnResolvedPageCountChanged(int value)
+    {
+        OnPropertyChanged(nameof(Subtitle));
+        OnPropertyChanged(nameof(SubtitleOneLine));
+        OnPropertyChanged(nameof(PageCountText));
+    }
+
+    /// <summary>页数文本：文件夹书=图片数（扫描即得）；文件型书已解析 → "N 页"，未解析 → "… 页"（懒补后自动更新）。</summary>
+    public string PageCountText => Book is null ? ""
+        : (ResolvedPageCount > 0 ? $"{ResolvedPageCount} 页" : (Book.Kind == BookKind.Folder ? "0 页" : "… 页"));
+
+    /// <summary>后台懒补页数后回填（驱动 Subtitle 刷新；重渲染时由主窗口同步节点 Books 记录）。</summary>
+    public void SetPageCount(int count)
+    {
+        if (count <= 0 || count == ResolvedPageCount) return;
+        ResolvedPageCount = count;
+    }
+
     /// <summary>副标题第 1 行：文件夹 = 本层 M 本漫画 · N 个子文件夹（M/N 只统计这一层）；书 = 页数（纯图片无后缀，CBZ 带 · CBZ）。</summary>
     public string Subtitle
     {
@@ -112,7 +134,7 @@ public partial class FolderEntryItemViewModel : ViewModelBase
                 return "";
             }
             // v4-PDF：文件型书（Zip/PDF）显示类型后缀；文件夹书无后缀
-            return Book is null ? "" : $"{Book.PageCount} 页" + (Book.IsFileKind ? $" · {Book.KindLabel}" : "");
+            return Book is null ? "" : PageCountText + (Book.IsFileKind ? $" · {Book.KindLabel}" : "");
         }
     }
 
@@ -183,6 +205,7 @@ public partial class FolderEntryItemViewModel : ViewModelBase
     {
         IsFolder = false;
         Book = book;
+        _resolvedPageCount = book.PageCount;   // 文件夹书=图片数（扫描即得）；文件型书 0 → 后台懒补
     }
 
     /// <summary>懒加载封面（BUG-002 同款按需加载）：漫画=首图缩略图；文件夹=自定义封面图（无则保持 📁）。

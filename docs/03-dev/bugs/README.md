@@ -15,5 +15,6 @@
 | [BUG-008](BUG-008-pdf-title-blank.md) | ✅ 已修复 | v4-PDF 目录书名空白（/Info Title 解析出 NUL） |
 | [BUG-009](BUG-009-pdf-black-edge-background.md) | ✅ 已修复 | v4-PDF 双页固定黑带（渲染背景未预填白，白边输出为黑） |
 | [BUG-010](BUG-010-zip-folder-collapsed-as-book.md) | ✅ 已修复 | 装 zip 的分类文件夹被折叠成一本漫画（文件夹"消失"+移动反复失败，v4.18） |
+| [BUG-011](BUG-011-ghost-folder-book.md) | ✅ 已修复 | 分类目录里的散图被当成"一本漫画"（幽灵书 `zhongzi` 指向目录自身，v4.19） |
 
 > v2.x 的修复（预览栏 CPU/内存拉满、白天按钮黑、双页高度不匹配等）记录在 [v2-changes-record.md](../v2-changes-record.md)。

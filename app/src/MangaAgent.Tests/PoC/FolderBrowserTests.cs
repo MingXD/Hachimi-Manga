@@ -197,7 +197,7 @@ public class FolderBrowserTests
         var root = Path.Combine(Path.GetTempPath(), $"manga_mixed_{Guid.NewGuid():N}");
         try
         {
-            // 根/B：内有子文件夹 C（非漫画）+ 直接图片 → B 是文件夹，统计 1 个子文件夹 + 1 本漫画（直接图片）
+            // 根/B：内有子文件夹 C（非漫画）+ 直接图片 → B 是文件夹；v4.19：分类目录里的散图不再自成一本（幽灵书修复）
             Directory.CreateDirectory(Path.Combine(root, "B", "C"));
             File.WriteAllBytes(Path.Combine(root, "B", "p1.jpg"), new byte[8]);
             File.WriteAllBytes(Path.Combine(root, "B", "p2.jpg"), new byte[8]);
@@ -210,9 +210,9 @@ public class FolderBrowserTests
             var bEntry = Assert.Single(vm.FolderEntries);
             Assert.True(bEntry.IsFolder, "有子文件夹 → 文件夹，不是漫画");
             Assert.Contains("1 个子文件夹", bEntry.Subtitle);
-            // B 的直接图片漫画页数正确（2 页）
-            var folderBook = bEntry.Folder!.Books.First(b => b.Kind == BookKind.Folder);
-            Assert.Equal(2, folderBook.PageCount);
+            Assert.DoesNotContain("本漫画", bEntry.Subtitle);
+            // v4.19：目录里有子文件夹 → 不生成"目录本身"这本散图书
+            Assert.DoesNotContain(bEntry.Folder!.Books, b => b.Kind == BookKind.Folder);
         }
         finally
         {
