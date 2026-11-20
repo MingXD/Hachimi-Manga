@@ -35,6 +35,7 @@ public class LibraryCoverTests
             var tree = await FolderTreeScanner.ScanAsync(root);
             var vm = new MainWindowViewModel();
             vm.FolderTree.Add(tree);
+            vm.Libraries.Add(new LibraryItemViewModel(root, new List<BookInfo>()));
             vm.ShowFolderContents(tree);
 
             var entry = vm.FolderEntries.Single(e => e.IsFolder && e.DisplayName == "Gallery");
@@ -71,6 +72,8 @@ public class LibraryCoverTests
             var tree = await FolderTreeScanner.ScanAsync(bz);
             var vm = new MainWindowViewModel();
             vm.FolderTree.Add(tree);
+            vm.Libraries.Add(new LibraryItemViewModel(inner, new List<BookInfo>()));
+            vm.Libraries.Add(new LibraryItemViewModel(bz, new List<BookInfo>()));
             vm.ShowFolderContents(tree.Children.Single(c => c.Name == "25.08"));
 
             var entry = vm.FolderEntries.Single(e => e.IsFolder && e.DisplayName == "Gallery");
@@ -109,6 +112,8 @@ public class LibraryCoverTests
             var tree = await FolderTreeScanner.ScanAsync(bz);
             var vm = new MainWindowViewModel();
             vm.FolderTree.Add(tree);
+            vm.Libraries.Add(new LibraryItemViewModel(inner, new List<BookInfo>()));
+            vm.Libraries.Add(new LibraryItemViewModel(bz, new List<BookInfo>()));
             vm.ShowFolderContents(tree.Children.Single(c => c.Name == "25.08"));
             var entry = vm.FolderEntries.Single(e => e.IsFolder && e.DisplayName == "Gallery");
             Assert.Equal(innerCover, entry.FolderCoverPath);   // 最具体库根优先

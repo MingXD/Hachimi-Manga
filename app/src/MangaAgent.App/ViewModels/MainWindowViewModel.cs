@@ -114,7 +114,8 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
-    /// <summary>清空所有资料库：移除库列表 + 树/目录/面包屑 + 清空 libraries.txt。</summary>
+    /// <summary>清空所有资料库：移除库列表 + 树/目录/面包屑 + 清空 libraries.txt。
+    /// v4.20：同时重置内存库根列表（否则下次添加库时封面读取仍用旧库根 → 首次加库看不到封面）。</summary>
     [RelayCommand]
     private async Task ClearLibraries()
     {
@@ -127,6 +128,8 @@ public partial class MainWindowViewModel : ViewModelBase
         SearchText = string.Empty;
         SelectedLibrary = null;
         CurrentFolder = null;
+        MangaAgent.Core.Storage.ReadingStateStore.SetLibraryRoots(Array.Empty<string>());
+        _coverConfigs.Clear();
         try { File.WriteAllText(LibrariesFile, string.Empty); }
         catch (Exception ex) { App.SLog($"CLEAR LIB FAIL: {ex.Message}"); }
         StatusText = "已清空资料库";
@@ -141,6 +144,7 @@ public partial class MainWindowViewModel : ViewModelBase
     /// <summary>目录浏览器：展示指定文件夹的混合内容（子文件夹在前 + 漫画书），同步面包屑与侧边栏选中。</summary>
     public void ShowFolderContents(MangaAgent.Core.Library.FolderNode folder)
     {
+        SyncLibraryRootsFromLibraries();   // v4.20：渲染前先同步库根（否则刚添加的库读不到封面）
         CurrentFolder = folder;
         FolderEntries.Clear();
         // BUG-D v1.9（v4.18 细化）：子文件夹判定 —— 有子文件夹 → 文件夹条目；
@@ -228,6 +232,23 @@ public partial class MainWindowViewModel : ViewModelBase
         cfg = MangaAgent.Core.Storage.FolderCoverConfig.Load(root);
         _coverConfigs[root] = cfg;
         return cfg;
+    }
+
+    /// <summary>v4.20（bug 修复）：把"当前库列表"同步进 <see cref="MangaAgent.Core.Storage.ReadingStateStore.LibraryRoots"/>。
+    /// 封面的相对路径解析完全依赖这个库根列表；若"先渲染、后更新库根"（添加库时的调用顺序），
+    /// 新加的库会把封面全部读不到（用户实测：清空后第一次加库没封面、第二次才好）。渲染前调用即可根治。</summary>
+    private void SyncLibraryRootsFromLibraries()
+    {
+        var roots = Libraries.Select(l => l.Path).ToList();
+        var current = MangaAgent.Core.Storage.ReadingStateStore.LibraryRoots;
+        if (roots.Count == current.Count && roots.SequenceEqual(current, StringComparer.OrdinalIgnoreCase)) return;
+        try
+        {
+            MangaAgent.Core.Storage.ReadingStateStore.SetLibraryRoots(roots);
+            _coverConfigs.Clear();   // 库根变化 → 丢弃封面配置缓存
+            App.SLog($"SYNC_LIB_ROOTS {roots.Count} 个：{string.Join(" | ", roots)}");
+        }
+        catch (Exception ex) { App.SLog($"SYNC_LIB_ROOTS FAIL: {ex.Message}"); }
     }
 
     /// <summary>v4.20：把封面注入文件夹条目 —— 按"最具体 → 最外层"库根的 covers.json 逐级查找，谁有键用谁。</summary>
@@ -915,6 +936,7 @@ public partial class MainWindowViewModel : ViewModelBase
                         StatusText = $"正在扫描… 已发现 {found} 本（{Path.GetFileName(dir.TrimEnd('\\'))}）");
                 })));
             Libraries.Add(lib);
+            RefreshLibraryRootsAndMigrate();   // v4.20 bug 修复：先同步库根，再选中/建树/渲染（否则封面读不到）
             SelectedLibrary = lib;
             // 构建文件夹树
             var tree = await MangaAgent.Core.Library.FolderTreeScanner.ScanAsync(path);
@@ -922,8 +944,6 @@ public partial class MainWindowViewModel : ViewModelBase
             FolderTree.Add(tree);
             SelectedFolder = tree;
             StatusText = $"已添加：{lib.Name}（{lib.Books.Count} 本）";
-            // v4.13：新库根加入 → 更新相对路径基准并迁移旧绝对记录（幂等）
-            RefreshLibraryRootsAndMigrate();
             // 持久化库根
             var existing = File.Exists(LibrariesFile) ? await File.ReadAllLinesAsync(LibrariesFile) : Array.Empty<string>();
             await File.WriteAllLinesAsync(LibrariesFile, existing.Append(path).Distinct(StringComparer.OrdinalIgnoreCase));
