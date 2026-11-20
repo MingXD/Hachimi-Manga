@@ -209,69 +209,49 @@ public class CoverConfigTests
         finally { try { Directory.Delete(root, true); } catch { } }
     }
 
-    // ---------- v4.20 迁移：reading.db → 库内 covers.json ----------
+    // ---------- v4.20：历史 FolderCovers 表 → 备份 JSON 后删除 ----------
 
     [Fact]
-    public void Migrate_From_Database_Writes_Library_File_And_Clears_Db()
+    public void Legacy_FolderCovers_Table_Is_Backed_Up_Then_Dropped()
     {
-        var root = NewRoot("migrate");
-        var db = Path.Combine(Path.GetTempPath(), $"manga_coverdb_{Guid.NewGuid():N}.db");
+        var backupDir = NewRoot("legacybak");
+        var db = Path.Combine(Path.GetTempPath(), $"manga_legacydb_{Guid.NewGuid():N}.db");
         try
         {
-            var folder = Path.Combine(root, "Book"); Directory.CreateDirectory(folder);
-            var cover = MakeImage(folder, "cover.png");
+            // 手工建出旧表并塞一条记录（模拟 v4.19 及以前的数据）
+            using (var conn = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={db}"))
+            {
+                conn.Open();
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = """
+                    CREATE TABLE FolderCovers (FolderPath TEXT PRIMARY KEY, RelPath TEXT NOT NULL, UpdatedAt TEXT NOT NULL);
+                    INSERT INTO FolderCovers VALUES ('25.08/作者A', 'cover.png', '2026-01-01T00:00:00Z');
+                    """;
+                cmd.ExecuteNonQuery();
+            }
 
-            ReadingStateStore.SetLibraryRoots(new[] { root });
-            using (var s = new ReadingStateStore(db))
-                Assert.True(s.SetFolderCover(folder, "cover.png"));   // 旧语义：图片相对该文件夹
+            var backup = ReadingStateStore.BackupLegacyFolderCovers(db, backupDir);
+            Assert.NotNull(backup);
+            Assert.True(File.Exists(backup));
+            // JSON 默认转义非 ASCII，用解析方式校验内容
+            var node = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(backup!));
+            var covers = node?["covers"] as System.Text.Json.Nodes.JsonArray;
+            Assert.NotNull(covers);
+            Assert.Single(covers!);
+            Assert.Equal("25.08/作者A", covers![0]?["Folder"]?.GetValue<string>());
 
-            var (migrated, kept) = FolderCoverConfig.MigrateFromDatabase(db);
-            Assert.Equal(1, migrated);
-            Assert.Equal(0, kept);
-            Assert.Equal(cover, FolderCoverConfig.Load(root).GetCoverFullPath(folder));
-            using (var s = new ReadingStateStore(db))
-                Assert.Empty(s.LoadAllFolderCovers());   // db 记录已删除
+            // 幂等：表已删 → 再次调用返回 null
+            Assert.Null(ReadingStateStore.BackupLegacyFolderCovers(db, backupDir));
+            // db 仍可正常打开（阅读进度/书签不受影响）
+            using var store = new ReadingStateStore(db);
+            Assert.Null(store.LoadState(@"C:\x\a.cbz"));
         }
         finally
         {
-            ReadingStateStore.ResetLibraryRootsForTests();
-            try { Directory.Delete(root, true); } catch { }
+            try { Directory.Delete(backupDir, true); } catch { }
             try { File.Delete(db); } catch { }
         }
     }
-
-    [Fact]
-    public void Migrate_Keeps_Records_Not_Belonging_To_Any_Library()
-    {
-        var root = NewRoot("migrate2");
-        var elsewhere = NewRoot("elsewhere");
-        var db = Path.Combine(Path.GetTempPath(), $"manga_coverdb_{Guid.NewGuid():N}.db");
-        try
-        {
-            var folder = Path.Combine(elsewhere, "Book"); Directory.CreateDirectory(folder);
-            MakeImage(folder, "cover.png");
-
-            // 无库根时写入 → 存绝对路径；之后即使设置了库根也不属于该库
-            ReadingStateStore.ResetLibraryRootsForTests();
-            using (var s = new ReadingStateStore(db))
-                Assert.True(s.SetFolderCover(folder, "cover.png"));
-
-            ReadingStateStore.SetLibraryRoots(new[] { root });
-            var (migrated, kept) = FolderCoverConfig.MigrateFromDatabase(db);
-            Assert.Equal(0, migrated);
-            Assert.Equal(1, kept);
-            using (var s = new ReadingStateStore(db))
-                Assert.Single(s.LoadAllFolderCovers());   // 保留在 db
-        }
-        finally
-        {
-            ReadingStateStore.ResetLibraryRootsForTests();
-            try { Directory.Delete(root, true); } catch { }
-            try { Directory.Delete(elsewhere, true); } catch { }
-            try { File.Delete(db); } catch { }
-        }
-    }
-
     [Fact]
     public void Flush_Fails_On_ReadOnly_Library_File()
     {

@@ -425,78 +425,28 @@ public class SettingsDialog : Window
 
     // ================= 通用辅助 =================
 
-    /// <summary>v4.14 数据管理卡片：导出/导入封面与阅读进度（JSON；库内相对路径，跨电脑可迁移）。</summary>
+    /// <summary>v4.20 数据管理卡片：封面/阅读记录都随库保存，这里只做说明（不再有导出/导入）。</summary>
     private Border BuildDataManagementCard()
     {
-        var exportBtn = new Button { Content = "导出封面与进度…", MinWidth = 140, HorizontalAlignment = HorizontalAlignment.Left };
-        var importBtn = new Button { Content = "导入…", MinWidth = 70, HorizontalAlignment = HorizontalAlignment.Left };
-        var overwriteChk = new CheckBox { Content = "导入时覆盖已存在记录", VerticalAlignment = VerticalAlignment.Center };
-        var status = new TextBlock { FontSize = 11, Foreground = Brushes.Gray, TextWrapping = TextWrapping.Wrap };
-        static string DbPath() => Path.Combine(SettingsStore.BaseDir, "reading.db");
-        // v4.20：导出/导前先载入库根（文件路径解析与库内 covers.json 汇总都依赖它）
-        static void EnsureLibraryRoots()
-            => MangaAgent.Core.Storage.ReadingStateStore.TryLoadLibraryRootsFromFile(
-                Path.Combine(SettingsStore.BaseDir, "libraries.txt"));
-
-        exportBtn.Click += async (_, _) =>
+        var pathText = new TextBlock
         {
-            try
-            {
-                var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
-                {
-                    Title = "导出封面与进度",
-                    SuggestedFileName = "HachimiManga-data.json",
-                    DefaultExtension = "json",
-                    FileTypeChoices = new[] { new FilePickerFileType("JSON 文件") { Patterns = new[] { "*.json" } } },
-                });
-                var path = file?.TryGetLocalPath();
-                if (string.IsNullOrEmpty(path)) return;
-                EnsureLibraryRoots();
-                // v4.20：导出 = reading.db 记录 + 各库 covers.json 中的封面（封面已随库保存）
-                int extra = MangaAgent.Core.Storage.FolderCoverConfig.ExportWithLibraryCovers(DbPath(), path);
-                status.Text = $"已导出：{path}" + (extra > 0 ? $"（含库内 covers.json 封面 {extra} 条）" : "");
-            }
-            catch (Exception ex)
-            {
-                status.Text = $"导出失败：{ex.Message}";
-            }
+            Text = "封面：<资料库目录>\\covers.json\n阅读进度/书签：" + Path.Combine(SettingsStore.BaseDir, "reading.db"),
+            FontSize = 11,
+            Foreground = Brushes.Gray,
+            TextWrapping = TextWrapping.Wrap,
         };
-        importBtn.Click += async (_, _) =>
-        {
-            try
-            {
-                var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
-                {
-                    Title = "导入封面与进度",
-                    AllowMultiple = false,
-                    FileTypeFilter = new[] { new FilePickerFileType("JSON 文件") { Patterns = new[] { "*.json" } } },
-                });
-                var path = files.Count > 0 ? files[0].TryGetLocalPath() : null;
-                if (string.IsNullOrEmpty(path)) return;
-                EnsureLibraryRoots();
-                using var db = new MangaAgent.Core.Storage.ReadingStateStore(DbPath());
-                var (applied, skipped, unmatched) = db.ImportFromJson(path, overwriteChk.IsChecked == true);
-                // v4.20：导入的封面先落在 db，随即搬进各库 covers.json（幂等）
-                var (migrated, kept) = MangaAgent.Core.Storage.FolderCoverConfig.MigrateFromDatabase(DbPath());
-                status.Text = $"导入完成：应用 {applied}，跳过 {skipped}，未匹配 {unmatched}"
-                              + (migrated > 0 ? $"；封面 {migrated} 条已写入库内 covers.json" : "")
-                              + (kept > 0 ? $"；{kept} 条暂存本地 db（库不可写或不在库内）" : "");
-            }
-            catch (Exception ex)
-            {
-                status.Text = $"导入失败：{ex.Message}";
-            }
-        };
-
         return Card("数据管理",
-            SettingRow("导出 / 导入",
-                new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { exportBtn, importBtn } },
-                null,
-                "封面/进度平时随库保存（库根下 covers.json，可随意改库名或移动库）；这里导出的 JSON 用于备份/换机，不含图片"),
-            overwriteChk,
-            status);
+            SettingRow("存储位置", pathText, null,
+                "封面配置随资料库保存（库根下 covers.json），移动/改名资料库后重新添加即可自动生效；" +
+                "备份或换电脑：直接复制资料库目录即可（covers.json 就在里面）"),
+            new TextBlock
+            {
+                Text = "提示：covers.json 可直接用文本编辑器修改（键=文件夹相对路径，值=封面图相对路径，分隔符用 /）。",
+                FontSize = 11,
+                Foreground = Brushes.Gray,
+                TextWrapping = TextWrapping.Wrap,
+            });
     }
-
     /// <summary>分组卡片（圆角 Border + 标题 + 内容），随宽度拉伸 —— 阅读/快捷键/介绍三页统一样式。</summary>
     private static Border Card(string title, params Control[] children)
     {

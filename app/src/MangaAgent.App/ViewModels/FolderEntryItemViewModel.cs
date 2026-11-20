@@ -73,15 +73,7 @@ public partial class FolderEntryItemViewModel : ViewModelBase
         OnPropertyChanged(nameof(FolderWithoutCover));
     }
 
-    /// <summary>设置文件夹封面（相对路径必须在该文件夹内且图片存在；失败无副作用）。</summary>
-    public void SetFolderCover(string folderPath, string relPath)
-    {
-        if (!MangaAgent.Core.Storage.ReadingStateStore.ValidateFolderCoverRelPath(folderPath, relPath, out var full))
-            return;
-        SetFolderCoverPath(full);
-    }
-
-    /// <summary>v4.20：直接注入封面图片绝对路径（库内 covers.json 与 db 回退记录的统一入口）。</summary>
+    /// <summary>v4.20：注入封面图片绝对路径（唯一入口；相对/合法性由库内 covers.json 侧负责）。</summary>
     public void SetFolderCoverPath(string? fullPath)
     {
         if (string.IsNullOrEmpty(fullPath) || !File.Exists(fullPath)) return;

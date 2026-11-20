@@ -137,39 +137,4 @@ public class PathStorageTests
             try { File.Delete(db); } catch { }
         }
     }
-
-    [Fact]
-    public void FolderCover_Stored_Relative_And_Survives_Move()
-    {
-        var oldRoot = MakeDir();
-        var newRoot = MakeDir();
-        var db = Path.Combine(Path.GetTempPath(), $"manga_path_cov_{Guid.NewGuid():N}.db");
-        try
-        {
-            var oldFolder = Path.Combine(oldRoot, "作者B");
-            Directory.CreateDirectory(oldFolder);
-            File.WriteAllBytes(Path.Combine(oldFolder, "c.png"),
-                Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="));
-            ReadingStateStore.SetLibraryRoots(new[] { oldRoot });
-            using (var store = new ReadingStateStore(db))
-            {
-                Assert.True(store.SetFolderCover(oldFolder, "c.png"));
-                Assert.Equal("c.png", store.LoadFolderCover(oldFolder));
-            }
-            // 库整体移动（文件夹随库移动）
-            var newFolder = Path.Combine(newRoot, "作者B");
-            Directory.CreateDirectory(newFolder);
-            File.Move(Path.Combine(oldFolder, "c.png"), Path.Combine(newFolder, "c.png"));
-            ReadingStateStore.SetLibraryRoots(new[] { newRoot });
-            using (var store = new ReadingStateStore(db))
-                Assert.Equal("c.png", store.LoadFolderCover(newFolder));
-        }
-        finally
-        {
-            ReadingStateStore.ResetLibraryRootsForTests();
-            try { Directory.Delete(oldRoot, true); } catch { }
-            try { Directory.Delete(newRoot, true); } catch { }
-            try { File.Delete(db); } catch { }
-        }
-    }
 }
