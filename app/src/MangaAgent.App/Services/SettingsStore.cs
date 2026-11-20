@@ -23,6 +23,10 @@ public enum ReaderAction
     TogglePreview,     // 预览栏开关
     GoHome,            // 一键首页（v3 #8）
     GoEnd,             // 一键末页（v3 #8）
+    ToggleBookmark,    // v4.21：当前页加/取消书签
+    NextBookmark,      // v4.21：下一个书签
+    PrevBookmark,      // v4.21：上一个书签
+    ToggleBookmarkPanel, // v4.21：书签列表面板开关
 }
 
 /// <summary>应用设置（settings.json 持久化；用户可直接编辑文件）。</summary>
@@ -95,6 +99,11 @@ public class AppSettings
             [nameof(ReaderAction.TogglePreview)] = new() { "P" },
             [nameof(ReaderAction.GoHome)] = new() { "Home" },
             [nameof(ReaderAction.GoEnd)] = new() { "End" },
+            // v4.21：书签重新上架（B 加/取消，N 下一个，Shift+N 上一个，L 列表）
+            [nameof(ReaderAction.ToggleBookmark)] = new() { "B" },
+            [nameof(ReaderAction.NextBookmark)] = new() { "N" },
+            [nameof(ReaderAction.PrevBookmark)] = new() { "Shift+N" },
+            [nameof(ReaderAction.ToggleBookmarkPanel)] = new() { "L" },
         };
         return new()
         {

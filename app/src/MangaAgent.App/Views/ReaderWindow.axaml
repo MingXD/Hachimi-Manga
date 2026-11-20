@@ -111,9 +111,10 @@
         <Button Content="复位" Click="OnResetZoomClick" ToolTip.Tip="适应宽度" Foreground="{Binding ForegroundHex}"/>
         <Button x:Name="SensitivityButton" Content="缩放速度×1" MinWidth="84" Click="OnSensitivityClick" ToolTip.Tip="滚轮缩放灵敏度（快/中/慢）" Foreground="{Binding ForegroundHex}"/>
         <Button x:Name="WebtoonSpeedButton" Content="滚动速度×1" MinWidth="84" Click="OnWebtoonSpeedClick" ToolTip.Tip="滚动模式滚动速度（快/中/慢）" Foreground="{Binding ForegroundHex}" IsVisible="False"/>
-        <Button Content="书签" Command="{Binding ToggleBookmarkCommand}" ToolTip.Tip="当前页书签 (B)" IsVisible="False" Foreground="{Binding ForegroundHex}"/>
-        <Button Content="◀书签" Command="{Binding PrevBookmarkCommand}" ToolTip.Tip="上一个书签" IsVisible="False" Foreground="{Binding ForegroundHex}"/>
-        <Button Content="书签▶" Command="{Binding NextBookmarkCommand}" ToolTip.Tip="下一个书签" IsVisible="False" Foreground="{Binding ForegroundHex}"/>
+        <Button Content="书签" Command="{Binding ToggleBookmarkCommand}" ToolTip.Tip="当前页加/取消书签 (B)" Foreground="{Binding ForegroundHex}"/>
+        <Button Content="◀书签" Command="{Binding PrevBookmarkCommand}" ToolTip.Tip="上一个书签 (Shift+N)" Foreground="{Binding ForegroundHex}"/>
+        <Button Content="书签▶" Command="{Binding NextBookmarkCommand}" ToolTip.Tip="下一个书签 (N)" Foreground="{Binding ForegroundHex}"/>
+        <Button Content="{Binding BookmarkSummary}" Command="{Binding ToggleBookmarkPanelCommand}" ToolTip.Tip="书签列表（点击跳转 / 删除）" Foreground="{Binding ForegroundHex}"/>
       </StackPanel>
     </Border>
 
@@ -180,6 +181,44 @@
             <Button Grid.Row="2" Content="▼" Click="OnPreviewStripNext" Background="Transparent" Foreground="{Binding PreviewStripLabel}" Width="124" Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
                     FontSize="16" Height="32" HorizontalAlignment="Center"/>
           </Grid>
+        </Border>
+        <!-- v4.21：书签面板（工具栏"书签（N）"切换；点击条目跳转，右侧 × 删除） -->
+        <Border x:Name="BookmarkPanel" Width="230" Background="{Binding PreviewStripBg}"
+                IsVisible="{Binding IsBookmarkPanelOpen}"
+                HorizontalAlignment="Left" VerticalAlignment="Stretch" Padding="8">
+          <DockPanel>
+            <TextBlock DockPanel.Dock="Top" Text="{Binding BookmarkSummary}" FontSize="12" FontWeight="SemiBold"
+                       Foreground="{Binding PreviewStripLabel}" Margin="2,2,2,8"/>
+            <Button DockPanel.Dock="Top" Content="关闭" Click="OnBookmarkPanelClose" FontSize="11" Padding="6,2"
+                    HorizontalAlignment="Right" Margin="0,0,0,8" Background="Transparent"
+                    Foreground="{Binding PreviewStripLabel}"/>
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+              <ItemsControl ItemsSource="{Binding BookmarkItems}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:BookmarkItemViewModel">
+                    <Border Background="{Binding $parent[Window].((vm:ReaderViewModel)DataContext).PreviewStripItemBg}"
+                            CornerRadius="3" Margin="0,0,0,6" Padding="6,4">
+                      <Grid ColumnDefinitions="*,Auto">
+                        <Button Grid.Column="0" Background="Transparent" Padding="0" BorderThickness="0"
+                                Command="{Binding JumpCommand}" HorizontalAlignment="Left">
+                          <StackPanel>
+                            <TextBlock Text="{Binding Label}" Foreground="{Binding $parent[Window].((vm:ReaderViewModel)DataContext).PreviewStripLabel}" FontSize="12"/>
+                            <TextBlock Text="{Binding NoteText}" IsVisible="{Binding HasNote}" FontSize="10"
+                                       Foreground="{Binding $parent[Window].((vm:ReaderViewModel)DataContext).PreviewStripLabel}"
+                                       TextTrimming="CharacterEllipsis" MaxLines="2"/>
+                          </StackPanel>
+                        </Button>
+                        <Button Grid.Column="1" Content="×" Command="{Binding DeleteCommand}" FontSize="12"
+                                Padding="6,0" Background="Transparent" BorderThickness="0"
+                                Foreground="{Binding $parent[Window].((vm:ReaderViewModel)DataContext).PreviewStripLabel}"
+                                ToolTip.Tip="删除该书签"/>
+                      </Grid>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </ScrollViewer>
+          </DockPanel>
         </Border>
       </Grid>
     </Border>

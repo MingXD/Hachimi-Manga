@@ -1,3 +1,4 @@
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using MangaAgent.Core.Storage;
 
@@ -164,12 +165,45 @@ public partial class ReaderViewModel
         if (Bookmarks.Contains(page)) _state.RemoveBookmark(Book.Path, page);
         else _state.AddBookmark(Book.Path, page);
         LoadBookmarks();
+        App.SLog($"BOOKMARK toggle page={page + 1} total={Bookmarks.Count}");
     }
 
+    /// <summary>刷新书签集合（页码用于上一/下一跳转；带备注的条目用于面板展示）。</summary>
     private void LoadBookmarks()
     {
         Bookmarks.Clear();
-        foreach (var b in _state.LoadBookmarks(Book.Path)) Bookmarks.Add(b);
+        BookmarkItems.Clear();
+        foreach (var entry in _state.LoadBookmarkEntries(Book.Path))
+        {
+            Bookmarks.Add(entry.Page);
+            BookmarkItems.Add(new BookmarkItemViewModel(this, entry.Page, entry.Note));
+        }
+        OnPropertyChanged(nameof(HasBookmarks));
+        OnPropertyChanged(nameof(BookmarkSummary));
+    }
+
+    public bool HasBookmarks => Bookmarks.Count > 0;
+
+    /// <summary>面板标题：书签（N）。</summary>
+    public string BookmarkSummary => Bookmarks.Count > 0 ? $"书签（{Bookmarks.Count}）" : "书签";
+
+    /// <summary>书签面板开关（工具栏"书签列表"按钮）。</summary>
+    [ObservableProperty]
+    private bool _isBookmarkPanelOpen;
+
+    /// <summary>面板里删除某条书签（由 <see cref="BookmarkItemViewModel"/> 调用）。</summary>
+    public void RemoveBookmarkAt(int page)
+    {
+        _state.RemoveBookmark(Book.Path, page);
+        LoadBookmarks();
+    }
+
+    [RelayCommand]
+    private void ToggleBookmarkPanel()
+    {
+        IsBookmarkPanelOpen = !IsBookmarkPanelOpen;
+        if (IsBookmarkPanelOpen) LoadBookmarks();
+        App.SLog($"BOOKMARK panel={(IsBookmarkPanelOpen ? "open" : "close")}");
     }
 
     [RelayCommand]
@@ -196,6 +230,16 @@ public partial class ReaderViewModel
     private void JumpToBookmark(int page)
     {
         if (page >= 0 && page < TotalLogical) { CurrentIndex = page; SaveState(); }
+    }
+
+    /// <summary>面板点击某条书签 → 跳到该物理页（分页/滚动模式都走 SetCurrentPhysical，滚动定位由视图层跟随）。</summary>
+    [RelayCommand]
+    public void GoToBookmarkPage(int page)
+    {
+        if (page < 0 || page >= PhysicalPageCount) return;
+        SetCurrentPhysical(page);
+        SaveState();
+        App.SLog($"BOOKMARK jump page={page + 1}");
     }
 
     /// <summary>一键首页（v3 #8）：单页=物理页0；双页/滚动=逻辑页0（封面）。滚动模式的视图滚动由视图层负责。</summary>

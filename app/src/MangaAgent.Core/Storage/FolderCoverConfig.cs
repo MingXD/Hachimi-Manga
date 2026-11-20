@@ -208,6 +208,46 @@ public sealed class FolderCoverConfig
         }
     }
 
+    /// <summary>v4.21（P1-4）：检查本条库的封面记录健康度（键对应文件夹是否还在、封面图是否还在）。
+    /// 返回 (文件夹缺失数, 图缺失数, 样例)；只读不修改，供设置页提示。</summary>
+    public (int MissingFolder, int MissingImage, List<string> Samples) Inspect()
+    {
+        var samples = new List<string>();
+        int missingFolder = 0, missingImage = 0;
+        foreach (var (key, rel) in All)
+        {
+            var folderAbs = key == "." ? LibraryRoot : Path.Combine(LibraryRoot, key.Replace('/', Path.DirectorySeparatorChar));
+            bool folderOk;
+            try { folderOk = Directory.Exists(folderAbs); } catch { folderOk = false; }
+            bool imageOk;
+            try { imageOk = File.Exists(Path.Combine(LibraryRoot, rel.Replace('/', Path.DirectorySeparatorChar))); }
+            catch { imageOk = false; }
+            if (!folderOk) { missingFolder++; if (samples.Count < 5) samples.Add($"文件夹不存在：{key}"); }
+            else if (!imageOk) { missingImage++; if (samples.Count < 5) samples.Add($"封面图不存在：{key} → {rel}"); }
+        }
+        return (missingFolder, missingImage, samples);
+    }
+
+    /// <summary>v4.21（P1-4）：清理无效封面记录（文件夹或图已不存在）。返回清理条数，需调用 <see cref="Flush"/>。</summary>
+    public int RemoveInvalid()
+    {
+        int removed = 0;
+        foreach (var (key, rel) in All)
+        {
+            var folderAbs = key == "." ? LibraryRoot : Path.Combine(LibraryRoot, key.Replace('/', Path.DirectorySeparatorChar));
+            bool folderOk, imageOk;
+            try { folderOk = Directory.Exists(folderAbs); } catch { folderOk = false; }
+            try { imageOk = File.Exists(Path.Combine(LibraryRoot, rel.Replace('/', Path.DirectorySeparatorChar))); }
+            catch { imageOk = false; }
+            if (folderOk && imageOk) continue;
+            lock (_gate)
+            {
+                if (_covers.Remove(key)) { _removed.Add(key); _dirty = true; removed++; }
+            }
+        }
+        return removed;
+    }
+
     /// <summary>快照：某文件夹当前的配置键与封面相对路径（不校验存在；移动前捕获用）。</summary>
     public bool TrySnapshot(string folderAbsPath, out string key, out string rel)
     {

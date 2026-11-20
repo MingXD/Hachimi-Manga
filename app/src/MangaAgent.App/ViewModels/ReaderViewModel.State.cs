@@ -8,12 +8,22 @@ namespace MangaAgent.App.ViewModels;
 /// <summary>ReaderViewModel：构造/续读恢复/状态保存/释放（P1-2 拆分自 ReaderViewModel.cs，纯搬移，行为零变化）。</summary>
 public partial class ReaderViewModel
 {
-    private readonly ReadingStateStore _state;
+    /// <summary>阅读状态存储（v4.21：正常为库内 progress.json 的共享服务；测试/库外路径为 db 回退）。</summary>
+    private readonly ILibraryStateStore _state;
+    private readonly bool _ownsState;
 
+    /// <summary>便捷构造：自行创建 <see cref="LibraryStateService"/>（测试/无共享服务场景），随阅读器一起释放。</summary>
     public ReaderViewModel(BookInfo book, string stateDbPath)
+        : this(book, new LibraryStateService(stateDbPath), ownsState: true)
+    {
+    }
+
+    /// <summary>v4.21：注入共享存储（主窗口的 <see cref="LibraryStateService"/>）；<paramref name="ownsState"/>=false 时不释放它。</summary>
+    public ReaderViewModel(BookInfo book, ILibraryStateStore state, bool ownsState = false)
     {
         Book = book;
-        _state = new ReadingStateStore(stateDbPath);
+        _state = state;
+        _ownsState = ownsState;
         _source = ComicSourceFactory.Open(book.Path);
         // v4.1-PDF：裁切默认（设置注入，打开书前设置）—— 需在 LoadSizes 读尺寸前应用（尺寸语义随之切换）
         if (_source is MangaAgent.Core.Comics.Pdf.PdfComicSource pdfSource)
@@ -182,8 +192,9 @@ public partial class ReaderViewModel
         if (Interlocked.Exchange(ref _disposeGuard, 1) == 1) return;
         _disposed = true;
         SaveState();
+        _state.Flush();                                   // v4.21：关书立即落盘（节流写入的兜底）
         await _source.DisposeAsync();
-        _state.Dispose();
+        if (_ownsState && _state is IDisposable disposable) disposable.Dispose();
         // 关闭时 UI 即将销毁：Dispose 全部位图（含 UI 引用中的 —— BUG-004 计数清零）
         foreach (var bmp in _pageCache.Values)
             bmp.Dispose();

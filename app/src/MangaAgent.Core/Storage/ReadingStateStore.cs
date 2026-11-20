@@ -9,7 +9,7 @@ public enum ReadingDirection2 { Ltr, Rtl }
 /// v4.13：路径统一以「库根相对路径」存储（见 LibraryRoots）——整个资源库移动后重新添加库即可匹配。
 /// v4.20：文件夹自定义封面已迁出到库内 <c>covers.json</c>（<see cref="FolderCoverConfig"/>），
 /// 本类不再处理封面；历史 <c>FolderCovers</c> 表由 <see cref="BackupLegacyFolderCovers"/> 备份后删除。</summary>
-public sealed class ReadingStateStore : IDisposable
+public sealed class ReadingStateStore : ILibraryStateStore, IDisposable
 {
     private readonly SqliteConnection _conn;
 
@@ -172,6 +172,66 @@ public sealed class ReadingStateStore : IDisposable
         using var r = cmd.ExecuteReader();
         while (r.Read()) list.Add(r.GetInt32(0));
         return list;
+    }
+
+    /// <summary>v4.21：带备注的书签列表（库文件未命中时的回退读取）。</summary>
+    public IReadOnlyList<BookmarkEntryInfo> LoadBookmarkEntries(string bookPath)
+    {
+        var list = new List<BookmarkEntryInfo>();
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "SELECT LogicalPage, Note, CreatedAt FROM Bookmarks WHERE Path = $p ORDER BY LogicalPage";
+        cmd.Parameters.AddWithValue("$p", ToStoragePath(bookPath));
+        using var r = cmd.ExecuteReader();
+        while (r.Read())
+            list.Add(new BookmarkEntryInfo(r.GetInt32(0), r.IsDBNull(1) ? null : r.GetString(1),
+                r.IsDBNull(2) ? null : r.GetString(2)));
+        return list;
+    }
+
+    /// <summary>v4.21：本存储是即时提交的 SQLite，<see cref="ILibraryStateStore.Flush"/> 无需额外动作。</summary>
+    public void Flush() { }
+
+    // ---------- v4.21：一次性迁移用（db → 各库 progress.json） ----------
+
+    /// <summary>读出全部阅读状态（存储键 + 页码/模式/方向）。</summary>
+    public List<(string Path, int Page, string Mode, string Direction)> LoadAllStates()
+    {
+        var list = new List<(string, int, string, string)>();
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "SELECT Path, LogicalPage, Mode, Direction FROM ReadingState";
+        using var r = cmd.ExecuteReader();
+        while (r.Read()) list.Add((r.GetString(0), r.GetInt32(1), r.GetString(2), r.GetString(3)));
+        return list;
+    }
+
+    /// <summary>读出全部书签（存储键 + 页码 + 备注）。</summary>
+    public List<(string Path, int Page, string? Note)> LoadAllBookmarks()
+    {
+        var list = new List<(string, int, string?)>();
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "SELECT Path, LogicalPage, Note FROM Bookmarks";
+        using var r = cmd.ExecuteReader();
+        while (r.Read()) list.Add((r.GetString(0), r.GetInt32(1), r.IsDBNull(2) ? null : r.GetString(2)));
+        return list;
+    }
+
+    /// <summary>按「存储键」删除一条阅读状态（迁移成功后调用）。</summary>
+    public bool DeleteStateByStorageKey(string pathKey, int page)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "DELETE FROM ReadingState WHERE Path = $p";
+        cmd.Parameters.AddWithValue("$p", pathKey);
+        return cmd.ExecuteNonQuery() > 0;
+    }
+
+    /// <summary>按「存储键 + 页码」删除一条书签（迁移成功后调用）。</summary>
+    public bool DeleteBookmarkByStorageKey(string pathKey, int page)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "DELETE FROM Bookmarks WHERE Path = $p AND LogicalPage = $l";
+        cmd.Parameters.AddWithValue("$p", pathKey);
+        cmd.Parameters.AddWithValue("$l", page);
+        return cmd.ExecuteNonQuery() > 0;
     }
 
     /// <summary>v4.13：把三张表中已存的绝对路径记录迁移为库根相对路径（幂等；已相对的不动）。

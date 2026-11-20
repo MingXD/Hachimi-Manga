@@ -42,8 +42,11 @@ D:\MangaAgent\
 | Comics\ImageInfo.cs | 图片头解析（尺寸/比例）+ 自然排序 | 双页判宽 / 封面 |
 | Paging\PageLayouter.cs | 双页布局纯函数（封面单页/配对/横向页单页/FirstPairOffset） | 配对规则修改 |
 | Storage\LibraryDb.cs | 资料库索引（sqlite） | 索引查询 |
-| Storage\ReadingStateStore.cs | 阅读进度/书签/模式持久化 + ReadingMode/ReadingDirection2 枚举 | 续读逻辑 |
+| Storage\ReadingStateStore.cs | 阅读状态/书签的 SQLite 实现（v4.21 起作库外路径与只读库的回退存储）+ 迁移查询 API + ReadingMode/ReadingDirection2 枚举 | 续读逻辑 / 回退 |
 | Storage\FolderCoverConfig.cs | v4.20 库内封面配置 `<库根>\covers.json`（读写/校验/原子写/多级库根回退；唯一存储，无迁移/导出入） | 文件夹封面（[设计](../02-design/library-cover-config.md)） |
+| Storage\LibraryProgressConfig.cs | v4.21 库内进度配置 `<库根>\progress.json`（books 状态 + bookmarks；节流由 Service 负责） | 续读/书签（[设计](../02-design/progress-in-library.md)） |
+| Storage\LibraryStateService.cs | v4.21 进度/书签按库路由服务（写最具体库根、读逐级回退、db 回退、2s 节流、一次性迁移、删除清键） | `SaveState` `MigrateFromDatabase` `ClearBook` |
+| Storage\ILibraryStateStore.cs | 阅读状态存储抽象（ReaderViewModel 只依赖它） | 换存储实现 |
 
 ---
 

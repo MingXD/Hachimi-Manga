@@ -38,6 +38,10 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty] private bool _isScanning;
     [ObservableProperty] private GalleryMode _galleryMode = GalleryMode.Medium;
 
+    /// <summary>v4.21：阅读进度/书签的共享服务（库内 progress.json；库外路径与只读库回退 reading.db）。
+    /// 由主窗口创建、所有阅读器共用；关窗时 Flush + Dispose。</summary>
+    public LibraryStateService StateService { get; }
+
     /// <summary>展示模式按钮文案（功能-1 v1.9）。</summary>
     /// <summary>详情模式标识（内容区切换：详情 ListBox vs 卡片 ListBox）。</summary>
     public bool IsDetailView => GalleryMode == GalleryMode.Detail;
@@ -86,7 +90,22 @@ public partial class MainWindowViewModel : ViewModelBase
     public MainWindowViewModel()
     {
         Directory.CreateDirectory(AppData);
+        StateService = new LibraryStateService(StateDbPath);
+        StateService.OnWarning = msg => Avalonia.Threading.Dispatcher.UIThread.Post(() => StatusText = msg);
         _ = LoadSavedLibrariesAsync();
+    }
+
+    /// <summary>v4.21：主窗口关闭前调用 —— 把节流中的进度/书签强制落盘并释放 db 连接。</summary>
+    public void ShutdownStateService()
+    {
+        try { StateService.Flush(); } catch { }
+        try { StateService.Dispose(); } catch { }
+    }
+
+    /// <summary>v4.21：低频兜底落盘（主窗口定时器每 3 秒调用一次），避免异常退出丢最近页码。</summary>
+    public void FlushStateIfDirty()
+    {
+        try { StateService.FlushIfDirty(); } catch { }
     }
 
     partial void OnSearchTextChanged(string value) => ApplyFilter();
@@ -333,6 +352,7 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             MangaAgent.Core.Storage.ReadingStateStore.SetLibraryRoots(roots);
             _coverConfigs.Clear();   // 库根变化 → 丢弃封面配置缓存
+            StateService.InvalidateCache();   // v4.21：进度配置缓存同理
             App.SLog($"SYNC_LIB_ROOTS {roots.Count} 个：{string.Join(" | ", roots)}");
         }
         catch (Exception ex) { App.SLog($"SYNC_LIB_ROOTS FAIL: {ex.Message}"); }
@@ -582,16 +602,35 @@ public partial class MainWindowViewModel : ViewModelBase
         return done;
     }
 
-    /// <summary>批量删除到回收站。返回成功数。</summary>
+    /// <summary>批量删除到回收站。返回成功数。v4.21：同时清理被删项的封面配置键与阅读进度/书签键。</summary>
     public int DeletePaths(IEnumerable<string> paths)
     {
         var list = paths.Where(p => File.Exists(p) || Directory.Exists(p)).ToList();
         int done = 0;
         foreach (var p in list)
-            if (MangaAgent.Core.Library.FileOps.DeleteToRecycleBin(p)) done++;
+        {
+            if (!MangaAgent.Core.Library.FileOps.DeleteToRecycleBin(p)) continue;
+            done++;
+            CleanStoredKeysFor(p);
+        }
         if (done > 0) _ = RefreshCurrentViewAsync();
         StatusText = $"已删除 {done}/{list.Count} 项（回收站）";
         return done;
+    }
+
+    /// <summary>v4.21：删除后清理该路径（或该文件夹）在库配置里的封面键与进度/书签键。</summary>
+    private void CleanStoredKeysFor(string path)
+    {
+        try
+        {
+            foreach (var root in CandidateRoots(path))
+            {
+                var cfg = CoverConfigFor(root);
+                if (cfg.TryClear(path) && !cfg.Flush()) WarnCoverWriteFailed(root, cfg.LastError);
+            }
+            StateService.ClearBook(path);
+        }
+        catch (Exception ex) { App.SLog($"CLEAN_KEYS FAIL {path}: {ex.Message}"); }
     }
 
     /// <summary>新建文件夹（v3 #6）：弹对话框输入名称 → 在当前目录创建 → 刷新并保持位置。
@@ -966,12 +1005,20 @@ public partial class MainWindowViewModel : ViewModelBase
             App.SLog($"LIB_ROOTS FAIL: {ex.Message}");
         }
         _coverConfigs.Clear();   // 库根可能变化 → 丢弃旧的配置缓存（下次读取按 mtime 重新加载）
+        StateService.InvalidateCache();   // v4.21：进度配置缓存同理
         try
         {
             var backup = MangaAgent.Core.Storage.ReadingStateStore.BackupLegacyFolderCovers(StateDbPath, AppData);
             if (backup is not null) App.SLog($"LEGACY_COVER_BACKUP {backup}");
         }
         catch (Exception ex) { App.SLog($"LEGACY_COVER_BACKUP FAIL: {ex.Message}"); }
+        // v4.21：一次性把 reading.db 里的阅读进度/书签搬进各库 progress.json（幂等，之后 db 只做回退）
+        try
+        {
+            var (migrated, kept) = MangaAgent.Core.Storage.LibraryStateService.MigrateFromDatabase(StateDbPath);
+            if (migrated > 0 || kept > 0) App.SLog($"STATE_MIGRATE {migrated} 条 → progress.json（保留 {kept} 条在 db）");
+        }
+        catch (Exception ex) { App.SLog($"STATE_MIGRATE FAIL: {ex.Message}"); }
     }
 
     [RelayCommand]
@@ -1161,7 +1208,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 : MangaAgent.Core.Storage.ReadingDirection2.Rtl;
             ReaderViewModel.ResumePosition = s.ResumePosition;
             ReaderViewModel.PdfCropDefault = s.PdfCropDefault;   // v4.1-PDF：裁切默认（仅 PDF 生效）
-            var vm = new ReaderViewModel(book.Book, StateDbPath);
+            var vm = new ReaderViewModel(book.Book, StateService);   // v4.21：共享进度服务（库内 progress.json）
             new ReaderWindow { DataContext = vm }.Show();
         }
         catch (Exception ex)

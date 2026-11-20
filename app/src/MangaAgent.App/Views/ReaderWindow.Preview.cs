@@ -142,4 +142,10 @@ public partial class ReaderWindow : Window
         else ShowPreviewStrip();
     }
 
+    /// <summary>v4.21：书签面板"关闭"按钮（只切 VM 属性，IsVisible 由绑定驱动）。</summary>
+    private void OnBookmarkPanelClose(object? sender, RoutedEventArgs e)
+    {
+        if (_vm is not null) _vm.IsBookmarkPanelOpen = false;
+    }
+
 }

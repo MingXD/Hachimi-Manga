@@ -54,6 +54,8 @@ public class SettingsDialog : Window
             nameof(ReaderAction.ResetView), nameof(ReaderAction.ZoomIn), nameof(ReaderAction.ZoomOut),
             nameof(ReaderAction.TogglePreview),
             nameof(ReaderAction.GoHome), nameof(ReaderAction.GoEnd),
+            nameof(ReaderAction.ToggleBookmark), nameof(ReaderAction.NextBookmark),
+            nameof(ReaderAction.PrevBookmark), nameof(ReaderAction.ToggleBookmarkPanel),
         }),
         ("PagedLtr", new[] { nameof(ReaderAction.NextPage), nameof(ReaderAction.PrevPage) }),
         ("PagedRtl", new[] { nameof(ReaderAction.NextPage), nameof(ReaderAction.PrevPage) }),
@@ -425,23 +427,77 @@ public class SettingsDialog : Window
 
     // ================= 通用辅助 =================
 
-    /// <summary>v4.20 数据管理卡片：封面/阅读记录都随库保存，这里只做说明（不再有导出/导入）。</summary>
+    /// <summary>v4.20 数据管理卡片：封面/阅读记录都随库保存，这里只做说明（不再有导出/导入）。
+    /// v4.21：附"封面配置健康检查"（指向已不存在文件夹/图片的条目数，可一键清理）。</summary>
     private Border BuildDataManagementCard()
     {
         var pathText = new TextBlock
         {
-            Text = "封面：<资料库目录>\\covers.json\n阅读进度/书签：" + Path.Combine(SettingsStore.BaseDir, "reading.db"),
+            Text = "封面：<资料库目录>\\covers.json\n阅读进度/书签：<资料库目录>\\progress.json",
             FontSize = 11,
             Foreground = Brushes.Gray,
             TextWrapping = TextWrapping.Wrap,
         };
+        var checkText = new TextBlock { FontSize = 11, Foreground = Brushes.Gray, TextWrapping = TextWrapping.Wrap, Text = "封面配置检查：未运行" };
+        var checkBtn = new Button { Content = "检查封面配置", FontSize = 11, Padding = new Thickness(8, 3), HorizontalAlignment = HorizontalAlignment.Left };
+        var cleanBtn = new Button { Content = "清理无效条目", FontSize = 11, Padding = new Thickness(8, 3), HorizontalAlignment = HorizontalAlignment.Left, IsEnabled = false };
+        var lastInvalid = 0;
+
+        checkBtn.Click += (_, _) =>
+        {
+            try
+            {
+                var roots = MangaAgent.Core.Storage.ReadingStateStore.LibraryRoots;
+                if (roots.Count == 0) { checkText.Text = "封面配置检查：当前没有资料库"; return; }
+                int missingFolder = 0, missingImage = 0;
+                var samples = new List<string>();
+                foreach (var root in roots)
+                {
+                    var (mf, mi, s) = MangaAgent.Core.Storage.FolderCoverConfig.Load(root).Inspect();
+                    missingFolder += mf;
+                    missingImage += mi;
+                    if (samples.Count < 5) samples.AddRange(s.Take(5 - samples.Count));
+                }
+                lastInvalid = missingFolder + missingImage;
+                cleanBtn.IsEnabled = lastInvalid > 0;
+                checkText.Text = lastInvalid == 0
+                    ? "封面配置检查：全部正常（无失效条目）"
+                    : $"封面配置检查：{missingFolder} 条指向不存在的文件夹、{missingImage} 条封面图缺失"
+                      + (samples.Count > 0 ? "\n  例：" + string.Join("\n  例：", samples) : "");
+            }
+            catch (Exception ex) { checkText.Text = $"封面配置检查失败：{ex.Message}"; }
+        };
+
+        cleanBtn.Click += (_, _) =>
+        {
+            try
+            {
+                int removed = 0;
+                foreach (var root in MangaAgent.Core.Storage.ReadingStateStore.LibraryRoots)
+                {
+                    var cfg = MangaAgent.Core.Storage.FolderCoverConfig.Load(root);
+                    int n = cfg.RemoveInvalid();
+                    if (n > 0 && cfg.Flush()) removed += n;
+                }
+                cleanBtn.IsEnabled = false;
+                checkText.Text = $"已清理 {removed} 条无效封面记录";
+                MangaAgent.App.App.SLog($"COVER_CLEAN_INVALID {removed}");
+            }
+            catch (Exception ex) { checkText.Text = $"清理失败：{ex.Message}"; }
+        };
+
         return Card("数据管理",
             SettingRow("存储位置", pathText, null,
-                "封面配置随资料库保存（库根下 covers.json），移动/改名资料库后重新添加即可自动生效；" +
-                "备份或换电脑：直接复制资料库目录即可（covers.json 就在里面）"),
+                "封面与阅读记录都随资料库保存（库根下 covers.json / progress.json），移动/改名资料库后重新关联即可自动生效；" +
+                "备份或换电脑：直接复制资料库目录即可"),
+            SettingRow("封面配置检查",
+                new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { checkBtn, cleanBtn } },
+                null,
+                "检查 covers.json 里是否有指向已删除文件夹/已删除图片的条目（资源管理器里改名/删图后可能出现）"),
+            checkText,
             new TextBlock
             {
-                Text = "提示：covers.json 可直接用文本编辑器修改（键=文件夹相对路径，值=封面图相对路径，分隔符用 /）。",
+                Text = "提示：covers.json / progress.json 都是普通 JSON，可直接用文本编辑器查看（键=相对库根的路径，分隔符用 /）。",
                 FontSize = 11,
                 Foreground = Brushes.Gray,
                 TextWrapping = TextWrapping.Wrap,
@@ -560,6 +616,10 @@ public class SettingsDialog : Window
         nameof(ReaderAction.TogglePreview) => "预览栏开关",
         nameof(ReaderAction.GoHome) => "一键首页",
         nameof(ReaderAction.GoEnd) => "一键末页",
+        nameof(ReaderAction.ToggleBookmark) => "当前页加/取消书签",
+        nameof(ReaderAction.NextBookmark) => "下一个书签",
+        nameof(ReaderAction.PrevBookmark) => "上一个书签",
+        nameof(ReaderAction.ToggleBookmarkPanel) => "书签列表开关",
         _ => action,
     };
 

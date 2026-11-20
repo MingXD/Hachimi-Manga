@@ -46,10 +46,21 @@ public partial class MainWindow : Window
             }, Avalonia.Interactivity.RoutingStrategies.Bubble);
             // v4.19（P2②）：窗口重新激活 → 若当前目录/库根被外部改动（时间戳变化）则浅刷新
             Activated += (_, _) => _ = vm.RefreshIfStaleAsync();
-            // v4.19（P3）：关窗释放目录监听（避免句柄泄漏）
-            Closed += (_, _) => vm.StopWatching();
+            // v4.21：每 3 秒兜底落盘阅读进度（节流写入的补充；异常退出最多丢 3 秒内的页码）
+            _stateFlushTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
+            _stateFlushTimer.Tick += (_, _) => vm.FlushStateIfDirty();
+            _stateFlushTimer.Start();
+            // v4.19（P3）：关窗释放目录监听（避免句柄泄漏）；v4.21：强制落盘进度并释放存储
+            Closed += (_, _) =>
+            {
+                try { _stateFlushTimer?.Stop(); } catch { }
+                vm.StopWatching();
+                vm.ShutdownStateService();
+            };
         }
     }
+
+    private DispatcherTimer? _stateFlushTimer;
 
     /// <summary>v3 #4：资源管理器式快捷键分发（焦点在文本框时不劫持——搜索框内 Ctrl+C/V 是文本操作）。</summary>
     private void OnMainKeyDown(object? sender, KeyEventArgs e)

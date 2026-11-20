@@ -59,6 +59,8 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
     [ObservableProperty] private double _zoomPercent = 100;
     public string ZoomPercentText => $"{ZoomPercent:F0}%";
     [ObservableProperty] private ObservableCollection<int> _bookmarks = new();
+    /// <summary>书签面板展示用条目（页码 + 备注；v4.21 重新上架）。</summary>
+    public ObservableCollection<BookmarkItemViewModel> BookmarkItems { get; } = new();
     [ObservableProperty] private string _statusText = string.Empty;
     [ObservableProperty] private bool _hasStatus;
 
