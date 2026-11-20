@@ -35,6 +35,23 @@ public sealed class ReadingStateStore : IDisposable
     /// <summary>测试用：清空库根（恢复绝对路径存储）。</summary>
     public static void ResetLibraryRootsForTests() => LibraryRoots = Array.Empty<string>();
 
+    /// <summary>v4.20：从 libraries.txt 载入库根（设置页导出/导入等非主窗口场景用）。
+    /// 返回是否读到至少一条；不校验目录是否存在（迁移时会逐条校验）。</summary>
+    public static bool TryLoadLibraryRootsFromFile(string librariesFile)
+    {
+        try
+        {
+            if (!File.Exists(librariesFile)) return false;
+            var roots = File.ReadAllLines(librariesFile)
+                .Where(l => !string.IsNullOrWhiteSpace(l))
+                .ToList();
+            if (roots.Count == 0) return false;
+            SetLibraryRoots(roots);
+            return true;
+        }
+        catch { return false; }
+    }
+
     /// <summary>绝对路径 → 存储路径：最长匹配库根 → 相对路径；无匹配 → 绝对路径原样。</summary>
     public static string ToStoragePath(string absPath)
     {
@@ -248,6 +265,26 @@ public sealed class ReadingStateStore : IDisposable
         cmd.CommandText = "DELETE FROM FolderCovers WHERE FolderPath = $p";
         cmd.Parameters.AddWithValue("$p", ToStoragePath(folderPath));
         cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>v4.20：按「存储键」直接删除封面记录（迁移用；键可能是历史绝对路径，不能再用 ToStoragePath 换算）。</summary>
+    public bool DeleteFolderCoverByStorageKey(string folderKey)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "DELETE FROM FolderCovers WHERE FolderPath = $p";
+        cmd.Parameters.AddWithValue("$p", folderKey);
+        return cmd.ExecuteNonQuery() > 0;
+    }
+
+    /// <summary>v4.20：读出全部封面记录（存储键 + 相对该文件夹的图片路径），供迁移到库内 covers.json。</summary>
+    public List<(string FolderKey, string RelPath)> LoadAllFolderCovers()
+    {
+        var list = new List<(string, string)>();
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "SELECT FolderPath, RelPath FROM FolderCovers";
+        using var r = cmd.ExecuteReader();
+        while (r.Read()) list.Add((r.GetString(0), r.GetString(1)));
+        return list;
     }
 
     /// <summary>v4.12：目录移动后迁移封面记录（旧文件夹路径 → 新路径；相对路径不变，目录内部结构未动）。

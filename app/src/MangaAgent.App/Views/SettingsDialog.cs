@@ -433,6 +433,10 @@ public class SettingsDialog : Window
         var overwriteChk = new CheckBox { Content = "导入时覆盖已存在记录", VerticalAlignment = VerticalAlignment.Center };
         var status = new TextBlock { FontSize = 11, Foreground = Brushes.Gray, TextWrapping = TextWrapping.Wrap };
         static string DbPath() => Path.Combine(SettingsStore.BaseDir, "reading.db");
+        // v4.20：导出/导前先载入库根（文件路径解析与库内 covers.json 汇总都依赖它）
+        static void EnsureLibraryRoots()
+            => MangaAgent.Core.Storage.ReadingStateStore.TryLoadLibraryRootsFromFile(
+                Path.Combine(SettingsStore.BaseDir, "libraries.txt"));
 
         exportBtn.Click += async (_, _) =>
         {
@@ -447,9 +451,10 @@ public class SettingsDialog : Window
                 });
                 var path = file?.TryGetLocalPath();
                 if (string.IsNullOrEmpty(path)) return;
-                using var db = new MangaAgent.Core.Storage.ReadingStateStore(DbPath());
-                db.ExportToJson(path);
-                status.Text = $"已导出：{path}";
+                EnsureLibraryRoots();
+                // v4.20：导出 = reading.db 记录 + 各库 covers.json 中的封面（封面已随库保存）
+                int extra = MangaAgent.Core.Storage.FolderCoverConfig.ExportWithLibraryCovers(DbPath(), path);
+                status.Text = $"已导出：{path}" + (extra > 0 ? $"（含库内 covers.json 封面 {extra} 条）" : "");
             }
             catch (Exception ex)
             {
@@ -468,9 +473,14 @@ public class SettingsDialog : Window
                 });
                 var path = files.Count > 0 ? files[0].TryGetLocalPath() : null;
                 if (string.IsNullOrEmpty(path)) return;
+                EnsureLibraryRoots();
                 using var db = new MangaAgent.Core.Storage.ReadingStateStore(DbPath());
                 var (applied, skipped, unmatched) = db.ImportFromJson(path, overwriteChk.IsChecked == true);
-                status.Text = $"导入完成：应用 {applied}，跳过 {skipped}，未匹配 {unmatched}";
+                // v4.20：导入的封面先落在 db，随即搬进各库 covers.json（幂等）
+                var (migrated, kept) = MangaAgent.Core.Storage.FolderCoverConfig.MigrateFromDatabase(DbPath());
+                status.Text = $"导入完成：应用 {applied}，跳过 {skipped}，未匹配 {unmatched}"
+                              + (migrated > 0 ? $"；封面 {migrated} 条已写入库内 covers.json" : "")
+                              + (kept > 0 ? $"；{kept} 条暂存本地 db（库不可写或不在库内）" : "");
             }
             catch (Exception ex)
             {
@@ -482,7 +492,7 @@ public class SettingsDialog : Window
             SettingRow("导出 / 导入",
                 new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { exportBtn, importBtn } },
                 null,
-                "导出为 JSON（只含设置、不含图片；路径为库内相对，换电脑可迁移）。导入时按相对路径在当前资料库中匹配，未匹配项会汇总提示"),
+                "封面/进度平时随库保存（库根下 covers.json，可随意改库名或移动库）；这里导出的 JSON 用于备份/换机，不含图片"),
             overwriteChk,
             status);
     }

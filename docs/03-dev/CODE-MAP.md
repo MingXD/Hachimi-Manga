@@ -43,6 +43,7 @@ D:\MangaAgent\
 | Paging\PageLayouter.cs | 双页布局纯函数（封面单页/配对/横向页单页/FirstPairOffset） | 配对规则修改 |
 | Storage\LibraryDb.cs | 资料库索引（sqlite） | 索引查询 |
 | Storage\ReadingStateStore.cs | 阅读进度/书签/模式持久化 + ReadingMode/ReadingDirection2 枚举 | 续读逻辑 |
+| Storage\FolderCoverConfig.cs | v4.20 库内封面配置 `<库根>\covers.json`（读写/校验/原子写/迁移/导出汇总） | 文件夹封面（[设计](../02-design/library-cover-config.md)） |
 
 ---
 

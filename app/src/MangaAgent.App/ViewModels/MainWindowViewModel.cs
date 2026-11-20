@@ -165,21 +165,8 @@ public partial class MainWindowViewModel : ViewModelBase
         foreach (var s in sorted) FolderEntries.Add(s);
         // 懒加载可见封面（前 24 个条目；漫画 + 有自定义封面的文件夹）
         foreach (var item in FolderEntries.Take(24)) _ = item.LoadThumbnailAsync();
-        // v4.3：文件夹自定义封面（一次批量查询 FolderCovers 后注入各文件夹条目）
-        var folderPaths = FolderEntries.Where(e => e.IsFolder && e.Folder is not null)
-            .Select(e => e.Folder!.Path).ToList();
-        if (folderPaths.Count > 0)
-        {
-            try
-            {
-                using var coverState = new MangaAgent.Core.Storage.ReadingStateStore(StateDbPath);
-                var covers = coverState.LoadFolderCovers(folderPaths);
-                foreach (var e in FolderEntries.Where(e => e.IsFolder && e.Folder is not null))
-                    if (covers.TryGetValue(e.Folder!.Path, out var rel))
-                        e.SetFolderCover(e.Folder!.Path, rel);
-            }
-            catch { /* 封面记录读取失败不阻塞目录浏览 */ }
-        }
+        // v4.20：文件夹自定义封面 —— 优先库里 covers.json（随库走），db 里迁移失败的旧记录作回退
+        ApplyFolderCovers(FolderEntries.Where(e => e.IsFolder && e.Folder is not null).ToList());
 
         // 面包屑
         Breadcrumbs.Clear();
@@ -202,6 +189,113 @@ public partial class MainWindowViewModel : ViewModelBase
     private DateTime _shownRootMtime = DateTime.MinValue;
     private int _enrichVersion;
     private readonly SemaphoreSlim _refreshLock = new(1, 1);
+
+    // ---------- v4.20 库内封面配置（covers.json，随库移动/改名） ----------
+    private readonly Dictionary<string, MangaAgent.Core.Storage.FolderCoverConfig> _coverConfigs =
+        new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _coverFallbackWarned = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>绝对路径 → 所属库根（最长匹配；无库根返回 false，例如库外临时目录）。</summary>
+    private static bool TryResolveLibraryRoot(string absPath, out string root)
+    {
+        root = "";
+        string full;
+        try { full = Path.GetFullPath(absPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar); }
+        catch { return false; }
+        foreach (var r in MangaAgent.Core.Storage.ReadingStateStore.LibraryRoots.OrderByDescending(x => x.Length))
+        {
+            if (string.IsNullOrEmpty(r)) continue;
+            if (full.Equals(r, StringComparison.OrdinalIgnoreCase)
+                || full.StartsWith(r + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+            {
+                root = r;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /// <summary>取（并缓存）某库根的封面配置实例。</summary>
+    private MangaAgent.Core.Storage.FolderCoverConfig CoverConfigFor(string root)
+    {
+        if (_coverConfigs.TryGetValue(root, out var cfg)) return cfg;
+        cfg = MangaAgent.Core.Storage.FolderCoverConfig.Load(root);
+        _coverConfigs[root] = cfg;
+        return cfg;
+    }
+
+    /// <summary>v4.20：把封面注入文件夹条目 —— ①库内 covers.json（主）②reading.db 回退记录（迁移失败/库不可写/库外路径）。</summary>
+    private void ApplyFolderCovers(List<FolderEntryItemViewModel> folderEntries)
+    {
+        if (folderEntries.Count == 0) return;
+        var byRoot = new Dictionary<string, List<FolderEntryItemViewModel>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var e in folderEntries)
+        {
+            if (TryResolveLibraryRoot(e.Folder!.Path, out var root))
+            {
+                if (!byRoot.TryGetValue(root, out var list)) byRoot[root] = list = new();
+                list.Add(e);
+            }
+        }
+        foreach (var (root, list) in byRoot)
+        {
+            try
+            {
+                var cfg = CoverConfigFor(root);
+                var map = cfg.ResolveFor(list.Select(x => x.Folder!.Path));
+                foreach (var e in list)
+                    if (map.TryGetValue(e.Folder!.Path, out var coverAbs))
+                        e.SetFolderCoverPath(coverAbs);
+            }
+            catch (Exception ex) { App.SLog($"COVER_CFG READ FAIL {root}: {ex.Message}"); }
+        }
+        // db 回退记录（旧语义：图片相对该文件夹）
+        var pending = folderEntries.Where(e => e.FolderCoverPath is null).ToList();
+        if (pending.Count == 0) return;
+        try
+        {
+            using var db = new MangaAgent.Core.Storage.ReadingStateStore(StateDbPath);
+            var covers = db.LoadFolderCovers(pending.Select(e => e.Folder!.Path));
+            foreach (var e in pending)
+                if (covers.TryGetValue(e.Folder!.Path, out var rel)
+                    && MangaAgent.Core.Storage.ReadingStateStore.ValidateFolderCoverRelPath(e.Folder!.Path, rel, out var full))
+                    e.SetFolderCoverPath(full);
+        }
+        catch { /* 回退读取失败不阻塞目录浏览 */ }
+    }
+
+    /// <summary>库根不可写时提示一次（之后静默，避免刷状态栏）。</summary>
+    private void WarnCoverFallback(string root, string? error)
+    {
+        App.SLog($"COVER_CFG WRITE FAIL {root}: {error}");
+        if (!_coverFallbackWarned.Add(root)) return;
+        StatusText = $"该库无法写入 covers.json（{error}），封面已暂存到本地 reading.db";
+    }
+
+    /// <summary>删除 db 里某文件夹的封面回退记录（库文件写入/清除成功后避免回退记录再次生效）。</summary>
+    private void TryDeleteDbCoverRecord(string folderPath)
+    {
+        try
+        {
+            using var db = new MangaAgent.Core.Storage.ReadingStateStore(StateDbPath);
+            db.ClearFolderCover(folderPath);
+            db.DeleteFolderCoverByStorageKey(Path.GetFullPath(folderPath));   // 历史绝对键
+        }
+        catch { }
+    }
+
+    /// <summary>v4.20：把 reading.db 里遗留的封面记录迁进各库 covers.json（幂等，启动/加库/导入后调用）。</summary>
+    private void MigrateCoversFromDatabase()
+    {
+        try
+        {
+            var (migrated, kept) = MangaAgent.Core.Storage.FolderCoverConfig.MigrateFromDatabase(StateDbPath);
+            if (migrated > 0) App.SLog($"COVER_MIGRATE {migrated} 条 → 库内 covers.json（保留 {kept} 条在 db）");
+            if (kept > 0)
+                StatusText = $"{kept} 条封面记录暂存本地（库不可写或路径不在库内），其余已写入库内 covers.json";
+        }
+        catch (Exception ex) { App.SLog($"COVER_MIGRATE FAIL: {ex.Message}"); }
+    }
 
     private static DateTime DirMtime(string path)
     {
@@ -597,13 +691,16 @@ public partial class MainWindowViewModel : ViewModelBase
         for (int i = 0; i < list.Count; i++)
         {
             StatusText = $"正在移动 {i + 1}/{list.Count}…";
+            // v4.20：移动前快照库内封面记录（移动后源路径已不存在，取不到旧值）
+            var coverSnapshot = SnapshotCoverForMove(list[i]);
             var (ok, err, targetPath) = await Task.Run(() => MangaAgent.Core.Library.FileOps.MoveToAsync(list[i], destDir));
             if (ok)
             {
                 done++;
-                // v4.12：目录移动成功 → 迁移该文件夹的封面记录（相对路径不变）；文件无需处理
                 if (targetPath is not null && Directory.Exists(targetPath))
                 {
+                    // v4.20：库内 covers.json 改键（同库改键 / 跨库删除重建）；db 回退记录沿用 v4.12 的迁移
+                    ApplyCoverAfterMove(coverSnapshot, list[i], targetPath);
                     try
                     {
                         using var coverState = new MangaAgent.Core.Storage.ReadingStateStore(StateDbPath);
@@ -619,7 +716,61 @@ public partial class MainWindowViewModel : ViewModelBase
         return done;
     }
 
-    /// <summary>v4.3 为文件夹设置自定义封面：系统文件选择器（初始目录=该文件夹）→ 校验必须在该文件夹内 → 只存相对路径记录。</summary>
+    /// <summary>v4.20：移动前捕获库内封面快照（库根 + 配置键 + 封面相对库根路径）。</summary>
+    private (string Root, string Key, string Rel)? SnapshotCoverForMove(string srcDir)
+    {
+        try
+        {
+            if (!Directory.Exists(srcDir)) return null;
+            if (!TryResolveLibraryRoot(srcDir, out var root)) return null;
+            var cfg = CoverConfigFor(root);
+            if (!cfg.TrySnapshot(srcDir, out var key, out var rel)) return null;
+            return (root, key, rel);
+        }
+        catch { return null; }
+    }
+
+    /// <summary>v4.20：目录移动后迁移库内封面键 —— 同库改键（封面在源目录内则前缀随之替换，否则值不变）；
+    /// 跨库则新库按新位置重建 + 老库删键；移动出库则老库删键。</summary>
+    private void ApplyCoverAfterMove((string Root, string Key, string Rel)? snapshot, string srcDir, string dstDir)
+    {
+        if (snapshot is not { } snap) return;
+        try
+        {
+            var srcCfg = CoverConfigFor(snap.Root);
+            if (!TryResolveLibraryRoot(dstDir, out var dstRoot))
+            {
+                // 移动到库外：库里不再有该文件夹 → 删键（不影响已搬走的图片文件）
+                if (srcCfg.TryClear(srcDir) && !srcCfg.Flush()) WarnCoverFallback(snap.Root, srcCfg.LastError);
+                return;
+            }
+            var dstCfg = CoverConfigFor(dstRoot);
+            bool sameRoot = string.Equals(snap.Root, dstRoot, StringComparison.OrdinalIgnoreCase);
+            if (!dstCfg.TryKeyFor(dstDir, out var dstKey)) return;
+            // 封面若随目录移动（值以源键为前缀）→ 前缀替换为目标键；否则封面在库内别处，值不变
+            var newRel = snap.Rel;
+            if (snap.Rel.Equals(snap.Key, StringComparison.OrdinalIgnoreCase)
+                || snap.Rel.StartsWith(snap.Key + "/", StringComparison.OrdinalIgnoreCase))
+                newRel = dstKey + snap.Rel.Substring(snap.Key.Length);
+            if (!dstCfg.TrySetByRel(dstKey, newRel, out var err))
+            {
+                App.SLog($"COVER_MOVE FAIL {srcDir} -> {dstDir}: {err}");
+                return;
+            }
+            if (sameRoot)
+            {
+                dstCfg.TryClear(srcDir);   // 同一实例：删旧键（srcDir 已不存在，仅按字符串换算键）
+                if (!dstCfg.Flush()) WarnCoverFallback(dstRoot, dstCfg.LastError);
+                return;
+            }
+            if (!dstCfg.Flush()) WarnCoverFallback(dstRoot, dstCfg.LastError);
+            if (srcCfg.TryClear(srcDir) && !srcCfg.Flush()) WarnCoverFallback(snap.Root, srcCfg.LastError);
+        }
+        catch (Exception ex) { App.SLog($"COVER_MOVE FAIL {srcDir} -> {dstDir}: {ex.Message}"); }
+    }
+
+    /// <summary>v4.20 为文件夹设置自定义封面：写进该库根的 covers.json（随库移动/改名）；库不可写时回退 reading.db。
+    /// 封面图片可放在库内任意位置（相对库根记录），不再限制必须在该文件夹内。</summary>
     public async Task SetFolderCoverAsync(FolderEntryItemViewModel entry)
     {
         if (entry.Folder is null) return;
@@ -628,40 +779,77 @@ public partial class MainWindowViewModel : ViewModelBase
         if (top is null) return;
         var files = await top.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
-            Title = "选择文件夹封面图片（限该文件夹内）",
+            Title = "选择文件夹封面图片（须位于资料库内）",
             AllowMultiple = false,
             SuggestedStartLocation = await top.StorageProvider.TryGetFolderFromPathAsync(entry.Folder.Path),
             FileTypeFilter = new[] { FilePickerFileTypes.ImageAll },
         });
         if (files.Count == 0) return;
-        var path = files[0].TryGetLocalPath();
-        if (string.IsNullOrEmpty(path))
+        var chosen = files[0].TryGetLocalPath();
+        if (string.IsNullOrEmpty(chosen))
         {
             StatusText = "无法解析所选文件路径";
             return;
         }
-        var rel = Path.GetRelativePath(entry.Folder.Path, path);
+        var folderPath = entry.Folder.Path;
+        // ① 库内 covers.json（主路径）
+        if (TryResolveLibraryRoot(folderPath, out var root))
+        {
+            var cfg = CoverConfigFor(root);
+            if (!cfg.TrySet(folderPath, chosen, out var err))
+            {
+                StatusText = $"封面无效：{err}";
+                MangaAgent.App.Views.AlertDialog.Show($"封面无效：{err}");
+                return;
+            }
+            if (cfg.Flush())
+            {
+                TryDeleteDbCoverRecord(folderPath);
+                entry.SetFolderCoverPath(chosen);
+                StatusText = "已设置文件夹封面（写入库内 covers.json）";
+                App.SLog($"FOLDER_COVER SET {folderPath} -> {chosen} (covers.json)");
+                return;
+            }
+            WarnCoverFallback(root, cfg.LastError);   // 库不可写 → 落到下面的 db 回退
+        }
+        // ② 回退 reading.db（旧语义：图片须在该文件夹内）
+        var rel = Path.GetRelativePath(folderPath, chosen);
         using var state = new MangaAgent.Core.Storage.ReadingStateStore(StateDbPath);
-        if (!state.SetFolderCover(entry.Folder.Path, rel))
+        if (!state.SetFolderCover(folderPath, rel))
         {
             StatusText = "封面无效：必须选择该文件夹内的图片文件";
             MangaAgent.App.Views.AlertDialog.Show("封面无效：必须选择该文件夹内的图片文件");
             return;
         }
-        entry.SetFolderCover(entry.Folder.Path, rel);
-        StatusText = "已设置文件夹封面";
-        App.SLog($"FOLDER_COVER SET {entry.Folder.Path} -> {rel}");
+        entry.SetFolderCoverPath(chosen);
+        StatusText = "已设置文件夹封面（暂存本地 reading.db）";
+        App.SLog($"FOLDER_COVER SET {folderPath} -> {rel} (db fallback)");
     }
 
-    /// <summary>v4.3 清除文件夹封面（恢复 📁 原样式）。</summary>
+    /// <summary>v4.20 清除文件夹封面（库内 covers.json 主路径；库不可写回退 db）。</summary>
     public void ClearFolderCover(FolderEntryItemViewModel entry)
     {
         if (entry.Folder is null) return;
+        var folderPath = entry.Folder.Path;
+        if (TryResolveLibraryRoot(folderPath, out var root))
+        {
+            var cfg = CoverConfigFor(root);
+            cfg.TryClear(folderPath);
+            if (cfg.Flush())
+            {
+                TryDeleteDbCoverRecord(folderPath);
+                entry.ClearFolderCover();
+                StatusText = "已清除文件夹封面";
+                App.SLog($"FOLDER_COVER CLEAR {folderPath} (covers.json)");
+                return;
+            }
+            WarnCoverFallback(root, cfg.LastError);
+        }
         using var state = new MangaAgent.Core.Storage.ReadingStateStore(StateDbPath);
-        state.ClearFolderCover(entry.Folder.Path);
+        state.ClearFolderCover(folderPath);
         entry.ClearFolderCover();
         StatusText = "已清除文件夹封面";
-        App.SLog($"FOLDER_COVER CLEAR {entry.Folder.Path}");
+        App.SLog($"FOLDER_COVER CLEAR {folderPath}");
     }
 
     private async Task LoadSavedLibrariesAsync()
@@ -708,7 +896,8 @@ public partial class MainWindowViewModel : ViewModelBase
         RefreshLibraryRootsAndMigrate();
     }
 
-    /// <summary>v4.13：更新 ReadingStateStore 的库根列表，并把库根下旧绝对路径记录迁移为相对（幂等）。</summary>
+    /// <summary>v4.13：更新 ReadingStateStore 的库根列表，并把库根下旧绝对路径记录迁移为相对（幂等）。
+    /// v4.20：随后把 db 里的封面记录迁进各库 covers.json（成功的从 db 删除）。</summary>
     private void RefreshLibraryRootsAndMigrate()
     {
         try
@@ -721,7 +910,12 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             App.SLog($"LIB_ROOTS FAIL: {ex.Message}");
         }
+        _coverConfigs.Clear();   // 库根可能变化 → 丢弃旧的配置缓存（下次读取按 mtime 重新加载）
+        MigrateCoversFromDatabase();
     }
+
+    /// <summary>v4.20：设置页导入数据后调用 —— 把新导入到 db 的封面记录搬进各库 covers.json。</summary>
+    public void MigrateCoversToLibraryFiles() => MigrateCoversFromDatabase();
 
     [RelayCommand]
     private async Task AddLibraryAsync()

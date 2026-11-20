@@ -78,8 +78,15 @@ public partial class FolderEntryItemViewModel : ViewModelBase
     {
         if (!MangaAgent.Core.Storage.ReadingStateStore.ValidateFolderCoverRelPath(folderPath, relPath, out var full))
             return;
-        FolderCoverPath = full;
-        ThumbnailService.Invalidate(full);   // 更换封面时强制重新加载
+        SetFolderCoverPath(full);
+    }
+
+    /// <summary>v4.20：直接注入封面图片绝对路径（库内 covers.json 与 db 回退记录的统一入口）。</summary>
+    public void SetFolderCoverPath(string? fullPath)
+    {
+        if (string.IsNullOrEmpty(fullPath) || !File.Exists(fullPath)) return;
+        FolderCoverPath = fullPath;
+        ThumbnailService.Invalidate(fullPath);   // 更换封面时强制重新加载
         _ = LoadThumbnailAsync();
     }
 
