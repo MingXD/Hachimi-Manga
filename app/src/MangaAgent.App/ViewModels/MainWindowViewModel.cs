@@ -93,14 +93,29 @@ public partial class MainWindowViewModel : ViewModelBase
     partial void OnSelectedLibraryChanged(LibraryItemViewModel? value)
     {
         if (value is null) return;
-        ShowBooks(value);
-        // 库切换（资料库下拉选择）：重建该库文件夹树 + 目录浏览
-        _ = RebuildTreeForLibraryAsync(value);
+        if (!value.IsValid)
+        {
+            // v4.20：失效库不建树（否则扫描抛错），提示用"关联"按钮重新指定位置
+            ShowBooks(value);
+            FolderTree.Clear();
+            FolderEntries.Clear();
+            Breadcrumbs.Clear();
+            CurrentFolder = null;
+            StatusText = $"资料库“{value.Name}”路径失效（库可能被改名/移动）：点左侧“关联”按钮选择新位置";
+            return;
+        }
+        _ = ShowLibraryAsync(value);
     }
 
-    /// <summary>库切换：扫描库根建树 → 显示根目录内容。</summary>
-    private async Task RebuildTreeForLibraryAsync(LibraryItemViewModel lib)
+    /// <summary>切换/加载某库：更新封面与书列表 → 扫描库根建树 → 显示根目录内容（失效库直接跳过）。</summary>
+    private async Task ShowLibraryAsync(LibraryItemViewModel lib)
     {
+        ShowBooks(lib);
+        if (!lib.IsValid)
+        {
+            StatusText = $"资料库“{lib.Name}”路径失效：点左侧“关联”按钮选择新位置";
+            return;
+        }
         try
         {
             var tree = await MangaAgent.Core.Library.FolderTreeScanner.ScanAsync(lib.Path);
@@ -110,8 +125,81 @@ public partial class MainWindowViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
+            StatusText = $"打开资料库失败：{ex.Message}";
             App.SLog($"LIB SWITCH FAIL {lib.Path}: {ex.Message}");
         }
+    }
+
+    /// <summary>v4.20：重新关联资料库（库被改名/移动后，把库条目指到新路径，无需清空重建）。
+    /// 库列表与 libraries.txt 同步更新；封面/进度随库目录自动恢复（covers.json 就在库里）。</summary>
+    public async Task<bool> RelinkLibraryAsync(LibraryItemViewModel lib, string newPath)
+    {
+        if (lib is null) return false;
+        if (string.IsNullOrWhiteSpace(newPath)) return false;
+        var full = newPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        if (!Directory.Exists(full))
+        {
+            StatusText = $"所选目录不存在：{full}";
+            return false;
+        }
+        if (Libraries.Any(l => !ReferenceEquals(l, lib) && l.Path.Equals(full, StringComparison.OrdinalIgnoreCase)))
+        {
+            StatusText = "该目录已在资料库列表中，无需重复关联";
+            return false;
+        }
+        var old = lib.Path;
+        lib.UpdatePath(full);
+        SyncLibraryRootsFromLibraries();
+        await RewriteLibrariesFileAsync();
+        App.SLog($"LIB_RELINK {old} -> {full}");
+        if (!ReferenceEquals(SelectedLibrary, lib)) SelectedLibrary = lib;   // 触发正常切换流程（含建树）
+        else await ShowLibraryAsync(lib);                                    // 已选中该库：手动重建
+        StatusText = $"已重新关联资料库：{lib.Name}（{full}）";
+        return true;
+    }
+
+    /// <summary>v4.20：用"库列表"整体重写 libraries.txt（增删改统一走这里，避免追加式写入留下旧行）。</summary>
+    private async Task RewriteLibrariesFileAsync()
+    {
+        try
+        {
+            await File.WriteAllLinesAsync(LibrariesFile,
+                Libraries.Select(l => l.Path).Distinct(StringComparer.OrdinalIgnoreCase));
+        }
+        catch (Exception ex) { App.SLog($"LIB_FILE WRITE FAIL: {ex.Message}"); }
+    }
+
+    /// <summary>v4.20："关联"按钮：为当前选中的失效库选择新位置。</summary>
+    [RelayCommand]
+    private async Task RelinkLibrary()
+    {
+        var lib = SelectedLibrary;
+        if (lib is null)
+        {
+            StatusText = "请先在左侧选择一个资料库";
+            return;
+        }
+        if (lib.IsValid)
+        {
+            StatusText = $"当前资料库路径正常，无需重新关联：{lib.Path}";
+            return;
+        }
+        var window = GetOwnerWindow?.Invoke();
+        var top = window is not null ? TopLevel.GetTopLevel(window) : null;
+        if (top is null) return;
+        var folders = await top.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        {
+            Title = $"选择资料库“{lib.Name}”的新位置",
+            AllowMultiple = false,
+        });
+        if (folders.Count == 0) return;
+        var path = folders[0].TryGetLocalPath();
+        if (string.IsNullOrEmpty(path))
+        {
+            StatusText = "无法解析所选路径（可能含特殊字符或不可访问）";
+            return;
+        }
+        await RelinkLibraryAsync(lib, path);
     }
 
     /// <summary>清空所有资料库：移除库列表 + 树/目录/面包屑 + 清空 libraries.txt。
@@ -130,8 +218,7 @@ public partial class MainWindowViewModel : ViewModelBase
         CurrentFolder = null;
         MangaAgent.Core.Storage.ReadingStateStore.SetLibraryRoots(Array.Empty<string>());
         _coverConfigs.Clear();
-        try { File.WriteAllText(LibrariesFile, string.Empty); }
-        catch (Exception ex) { App.SLog($"CLEAR LIB FAIL: {ex.Message}"); }
+        await RewriteLibrariesFileAsync();
         StatusText = "已清空资料库";
         App.SLog("CLEAR_LIBRARIES");
     }
@@ -824,33 +911,36 @@ public partial class MainWindowViewModel : ViewModelBase
         foreach (var line in await File.ReadAllLinesAsync(LibrariesFile))
         {
             if (string.IsNullOrWhiteSpace(line)) continue;
-            if (!Directory.Exists(line))
-            {
-                // v4.14：失效库路径提示（库被移动/改名/删除后重新添加即可恢复封面与进度）
-                missing++;
-                App.SLog($"LOAD_LIB MISSING {line}");
-                continue;
-            }
+            var path = line.Trim();
+            bool exists = Directory.Exists(path);
             try
             {
-                var lib = new LibraryItemViewModel(line, await LibraryScanner.ScanAsync(line));
+                // v4.20：失效路径也加入列表（标记 IsValid=false），供"关联"按钮重新指定位置
+                var books = exists ? await LibraryScanner.ScanAsync(path) : new List<MangaAgent.Core.Library.BookInfo>();
+                var lib = new LibraryItemViewModel(path, books);
                 Libraries.Add(lib);
+                if (!exists)
+                {
+                    missing++;
+                    App.SLog($"LOAD_LIB MISSING {path}（可在下拉选中后点“关联”重新指定位置）");
+                }
             }
             catch (Exception ex)
             {
                 // 启动加载失败不得静默：记日志（用户可从调试面板/日志看到哪个库失败）
-                App.SLog($"LOAD_LIB FAIL {line}: {ex.Message}");
+                App.SLog($"LOAD_LIB FAIL {path}: {ex.Message}");
             }
         }
         if (missing > 0)
-            StatusText = $"有 {missing} 个资料库路径失效（可能被移动/改名），请在左侧重新添加该库";
-        if (Libraries.Count > 0)
+            StatusText = $"有 {missing} 个资料库路径失效（可能被移动/改名）：在下拉里选中它并点“关联”按钮重新指定新位置";
+        var firstValid = Libraries.FirstOrDefault(l => l.IsValid);
+        if (firstValid is not null)
         {
-            SelectedLibrary = Libraries[0];
+            SelectedLibrary = firstValid;
             // BUG-1：启动加载历史库后也建文件夹树（否则重启左侧树空白）
             try
             {
-                var tree = await MangaAgent.Core.Library.FolderTreeScanner.ScanAsync(Libraries[0].Path);
+                var tree = await MangaAgent.Core.Library.FolderTreeScanner.ScanAsync(firstValid.Path);
                 FolderTree.Clear();
                 FolderTree.Add(tree);
                 SelectedFolder = tree;
@@ -944,9 +1034,7 @@ public partial class MainWindowViewModel : ViewModelBase
             FolderTree.Add(tree);
             SelectedFolder = tree;
             StatusText = $"已添加：{lib.Name}（{lib.Books.Count} 本）";
-            // 持久化库根
-            var existing = File.Exists(LibrariesFile) ? await File.ReadAllLinesAsync(LibrariesFile) : Array.Empty<string>();
-            await File.WriteAllLinesAsync(LibrariesFile, existing.Append(path).Distinct(StringComparer.OrdinalIgnoreCase));
+            await RewriteLibrariesFileAsync();   // v4.20：用库列表整体重写（增删改统一入口）
         }
         catch (Exception ex)
         {

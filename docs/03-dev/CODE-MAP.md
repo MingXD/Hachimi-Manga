@@ -79,7 +79,8 @@ D:\MangaAgent\
 |---|---|---|
 | Views\MainWindow.axaml | 顶栏/侧边树/面包屑/目录浏览器 | `FolderEntries` ListBox、`Breadcrumbs` |
 | Views\MainWindow.axaml.cs | 双击打开/面包屑点击/缩略图懒加载 | `OnBookDoubleTapped` `OnBreadcrumbClick` |
-| ViewModels\MainWindowViewModel.cs | 库管理/扫描/目录导航/搜索；OpenBook 读设置注入 ReaderViewModel 静态 | `AddLibraryAsync` `ShowFolderContents` `EnterFolder` |
+| ViewModels\MainWindowViewModel.cs | 库管理/扫描/目录导航/搜索；OpenBook 读设置注入 ReaderViewModel 静态 | `AddLibraryAsync` `ShowFolderContents` `EnterFolder` `RelinkLibraryAsync` |
+| ViewModels\LibraryItemViewModel.cs | 资料库条目（路径/名称/是否失效；失效库可"关联"到新位置） | `IsValid` `DisplayName` `UpdatePath` |
 | ViewModels\FolderEntryItemViewModel.cs | 目录条目（文件夹/漫画混合） | `IsFolder`、`OpenAction` |
 | ViewModels\BookItemViewModel.cs | 封面墙条目（库搜索视图用） | `LoadThumbnailAsync` |
 | Services\ThumbnailService.cs | 封面缩略图（弱引用缓存） | `GetThumbnailAsync` |
