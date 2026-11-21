@@ -174,6 +174,7 @@ public partial class ReaderViewModel
     public void SyncWebtoonPosition(int physical)
     {
         _currentPhysical = Math.Clamp(physical, 0, Math.Max(0, _source.PageCount - 1));
+        RefreshBookmarkIndicators();   // v4.23：滚动位置变化 → 书签按钮高亮跟进（不走 setter，须手动刷新）
         long now = Environment.TickCount64;
         if (now - _lastWebtoonSaveMs > 2000)
         {

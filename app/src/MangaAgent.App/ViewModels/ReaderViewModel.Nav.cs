@@ -165,11 +165,29 @@ public partial class ReaderViewModel
     [RelayCommand]
     private void ToggleBookmark()
     {
-        var page = CurrentPhysical;   // BUG-A v1.9：书签存物理页（跨模式稳定）
-        if (Bookmarks.Contains(page)) _state.RemoveBookmark(Book.Path, page);
-        else _state.AddBookmark(Book.Path, page);
+        // v4.23：以"当前这一屏"为单位 —— 双页模式下屏内任一页已有书签 → 这次点击是"取消本屏书签"；
+        // 否则在首物理页加书签。这样"高亮（本屏有书签）↔ 再点取消"严格自洽。
+        var pages = CurrentVisiblePhysicalPages();
+        var existing = pages.Where(p => Bookmarks.Contains(p)).ToList();
+        if (existing.Count > 0)
+        {
+            foreach (var p in existing) _state.RemoveBookmark(Book.Path, p);
+        }
+        else
+        {
+            _state.AddBookmark(Book.Path, pages[0]);
+        }
         LoadBookmarks();
-        App.SLog($"BOOKMARK toggle page={page + 1} total={Bookmarks.Count}");
+        App.SLog($"BOOKMARK toggle pages=[{string.Join(",", pages.Select(p => p + 1))}] total={Bookmarks.Count}");
+    }
+
+    /// <summary>v4.23：当前"这一屏"包含的物理页（单页/滚动 = 当前页；双页 = 左/右两页）。
+    /// 书签高亮与"加/取消"都以此为单位；书签存储仍以物理页为锚点（跳转、列表、续读不受影响）。</summary>
+    public IReadOnlyList<int> CurrentVisiblePhysicalPages()
+    {
+        if (ViewMode != ViewMode.Double || _logical.Count == 0) return new[] { CurrentPhysical };
+        var lp = _logical[Math.Clamp(CurrentIndex, 0, _logical.Count - 1)];
+        return lp.SecondIndex >= 0 ? new[] { lp.FirstIndex, lp.SecondIndex } : new[] { lp.FirstIndex };
     }
 
     /// <summary>刷新书签集合（页码用于上一/下一跳转；带备注的条目用于面板展示）。</summary>
@@ -192,8 +210,8 @@ public partial class ReaderViewModel
     /// <summary>面板/按钮标题：书签列表（N）。</summary>
     public string BookmarkSummary => Bookmarks.Count > 0 ? $"书签列表（{Bookmarks.Count}）" : "书签列表";
 
-    /// <summary>v4.22：当前页是否已加书签（书签按钮高亮状态）。</summary>
-    public bool IsCurrentPageBookmarked => Bookmarks.Contains(CurrentPhysical);
+    /// <summary>v4.23：当前"这一屏"是否已有书签（双页模式下屏内任一页命中即算）。</summary>
+    public bool IsCurrentPageBookmarked => Bookmarks.Any(b => CurrentVisiblePhysicalPages().Contains(b));
 
     /// <summary>v4.22：书签按钮文案（选中态带 ★）。</summary>
     public string BookmarkButtonText => IsCurrentPageBookmarked ? "★ 书签" : "书签";

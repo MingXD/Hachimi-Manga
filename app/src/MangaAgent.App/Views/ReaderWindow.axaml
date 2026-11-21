@@ -247,7 +247,7 @@
                   <DataTemplate x:DataType="vm:BookmarkItemViewModel">
                     <Border Background="{Binding $parent[Window].((vm:ReaderViewModel)DataContext).PreviewStripItemBg}"
                             CornerRadius="3" Margin="0,0,0,6" Padding="6,4">
-                      <Grid ColumnDefinitions="*,Auto">
+                      <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Stretch">
                         <Button Grid.Column="0" Classes="panelFlat" Padding="4,2"
                                 Command="{Binding JumpCommand}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left">
                           <StackPanel>
@@ -258,7 +258,7 @@
                           </StackPanel>
                         </Button>
                         <Button Grid.Column="1" Content="×" Command="{Binding DeleteCommand}" FontSize="12" Classes="panelFlat"
-                                MinWidth="24" Padding="6,0"
+                                MinWidth="26" Padding="8,0" VerticalAlignment="Stretch" VerticalContentAlignment="Center"
                                 Foreground="{Binding $parent[Window].((vm:ReaderViewModel)DataContext).PreviewStripLabel}"
                                 ToolTip.Tip="删除该书签"/>
                       </Grid>

@@ -141,7 +141,13 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
         SaveState();
     }
 
-    partial void OnCurrentIndexChanged(int value) => _ = LoadCurrentAsync();
+    /// <summary>v4.23：逻辑页变化（双页翻页走 CurrentIndex）后也要刷新书签指示 ——
+    /// 只靠 CurrentPhysical setter 会拿到【旧】逻辑页的首物理页（SetCurrentPhysical 先设物理页、后设逻辑页）。</summary>
+    partial void OnCurrentIndexChanged(int value)
+    {
+        RefreshBookmarkIndicators();
+        _ = LoadCurrentAsync();
+    }
     partial void OnViewModeChanged(ViewMode value)
     {
         OnPropertyChanged(nameof(ModeText));
