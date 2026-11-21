@@ -10,6 +10,12 @@
         Background="{Binding BackgroundHex}"
         KeyDown="OnKeyDown">
   <Window.Styles>
+    <!-- v4.22：书签按钮选中态（当前页是书签时高亮；夜=金、昼=蓝，与主题色一致） -->
+    <Style Selector="Button.bookmarkState.on">
+      <Setter Property="Background" Value="{Binding BookmarkActiveBg}"/>
+      <Setter Property="BorderBrush" Value="{Binding BookmarkActiveBorder}"/>
+      <Setter Property="Foreground" Value="{Binding BookmarkActiveForeground}"/>
+    </Style>
     <!-- 工具栏按钮：自定义模板（v1.9.6 根治）—— Border 铺满整个按钮，
          视觉边界 = 命中区域 = hover 高亮完全一致，消除"边缘点击无效/闪烁"。 -->
     <Style Selector="StackPanel.toolbar Button">
@@ -111,10 +117,12 @@
         <Button Content="复位" Click="OnResetZoomClick" ToolTip.Tip="适应宽度" Foreground="{Binding ForegroundHex}"/>
         <Button x:Name="SensitivityButton" Content="缩放速度×1" MinWidth="84" Click="OnSensitivityClick" ToolTip.Tip="滚轮缩放灵敏度（快/中/慢）" Foreground="{Binding ForegroundHex}"/>
         <Button x:Name="WebtoonSpeedButton" Content="滚动速度×1" MinWidth="84" Click="OnWebtoonSpeedClick" ToolTip.Tip="滚动模式滚动速度（快/中/慢）" Foreground="{Binding ForegroundHex}" IsVisible="False"/>
-        <Button Content="书签" Command="{Binding ToggleBookmarkCommand}" ToolTip.Tip="当前页加/取消书签 (B)" Foreground="{Binding ForegroundHex}"/>
-        <Button Content="◀书签" Command="{Binding PrevBookmarkCommand}" ToolTip.Tip="上一个书签 (Shift+N)" Foreground="{Binding ForegroundHex}"/>
-        <Button Content="书签▶" Command="{Binding NextBookmarkCommand}" ToolTip.Tip="下一个书签 (N)" Foreground="{Binding ForegroundHex}"/>
-        <Button Content="{Binding BookmarkSummary}" Command="{Binding ToggleBookmarkPanelCommand}" ToolTip.Tip="书签列表（点击跳转 / 删除）" Foreground="{Binding ForegroundHex}"/>
+        <!-- v4.22：书签精简 —— 只保留"书签"（当前页开关，选中态高亮）与"书签列表"两个按钮 -->
+        <Button x:Name="BookmarkToggleButton" Content="{Binding BookmarkButtonText}"
+                Command="{Binding ToggleBookmarkCommand}"
+                Classes="bookmarkState" Classes.on="{Binding IsCurrentPageBookmarked}"
+                ToolTip.Tip="当前页加/取消书签 (B)" Foreground="{Binding ForegroundHex}"/>
+        <Button Content="{Binding BookmarkSummary}" Command="{Binding ToggleBookmarkPanelCommand}" ToolTip.Tip="书签列表（L）" Foreground="{Binding ForegroundHex}"/>
       </StackPanel>
     </Border>
 
@@ -189,9 +197,13 @@
           <DockPanel>
             <TextBlock DockPanel.Dock="Top" Text="{Binding BookmarkSummary}" FontSize="12" FontWeight="SemiBold"
                        Foreground="{Binding PreviewStripLabel}" Margin="2,2,2,8"/>
-            <Button DockPanel.Dock="Top" Content="关闭" Click="OnBookmarkPanelClose" FontSize="11" Padding="6,2"
-                    HorizontalAlignment="Right" Margin="0,0,0,8" Background="Transparent"
-                    Foreground="{Binding PreviewStripLabel}"/>
+            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="6" Margin="0,0,0,8">
+              <Button Content="清空书签" Click="OnClearBookmarksClick" FontSize="11" Padding="6,2"
+                      Background="Transparent" Foreground="{Binding PreviewStripLabel}"
+                      ToolTip.Tip="清空本书全部书签（会先确认）"/>
+              <Button Content="关闭" Click="OnBookmarkPanelClose" FontSize="11" Padding="6,2"
+                      Background="Transparent" Foreground="{Binding PreviewStripLabel}"/>
+            </StackPanel>
             <ScrollViewer VerticalScrollBarVisibility="Auto">
               <ItemsControl ItemsSource="{Binding BookmarkItems}">
                 <ItemsControl.ItemTemplate>

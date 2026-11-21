@@ -148,4 +148,18 @@ public partial class ReaderWindow : Window
         if (_vm is not null) _vm.IsBookmarkPanelOpen = false;
     }
 
+    /// <summary>v4.22：书签面板"清空书签"（二次确认后清空本书全部书签）。</summary>
+    private async void OnClearBookmarksClick(object? sender, RoutedEventArgs e)
+    {
+        if (_vm is null || _vm.Bookmarks.Count == 0) return;
+        int n = _vm.Bookmarks.Count;
+        if (!await MangaAgent.App.Views.ConfirmDialog.ShowAsync($"清空本书全部书签？（共 {n} 条，不可撤销）")) return;
+        try
+        {
+            _vm.ClearAllBookmarks();
+            App.SLog($"BOOKMARK cleared {n}");
+        }
+        catch (Exception ex) { App.SLog($"BOOKMARK clear FAIL: {ex.Message}"); }
+    }
+
 }

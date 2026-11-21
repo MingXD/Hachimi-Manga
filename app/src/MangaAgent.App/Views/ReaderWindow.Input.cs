@@ -360,12 +360,6 @@ public partial class ReaderWindow : Window
             case ReaderAction.ToggleBookmark:
                 if (_vm is not null) _vm.ToggleBookmarkCommand.Execute(null);
                 break;
-            case ReaderAction.NextBookmark:
-                if (_vm is not null) _vm.NextBookmarkCommand.Execute(null);
-                break;
-            case ReaderAction.PrevBookmark:
-                if (_vm is not null) _vm.PrevBookmarkCommand.Execute(null);
-                break;
             case ReaderAction.ToggleBookmarkPanel:
                 if (_vm is not null) _vm.ToggleBookmarkPanelCommand.Execute(null);
                 break;

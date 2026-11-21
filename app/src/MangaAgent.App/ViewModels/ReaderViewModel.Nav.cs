@@ -18,7 +18,11 @@ public partial class ReaderViewModel
             if (_logical.Count == 0) return 0;
             return LogicalFirstPhysical(Math.Clamp(CurrentIndex, 0, _logical.Count - 1));
         }
-        private set => _currentPhysical = Math.Clamp(value, 0, Math.Max(0, _source.PageCount - 1));
+        private set
+        {
+            _currentPhysical = Math.Clamp(value, 0, Math.Max(0, _source.PageCount - 1));
+            RefreshBookmarkIndicators();   // v4.22：翻页后刷新"当前页是否书签"
+        }
     }
 
     /// <summary>逻辑页首物理页。</summary>
@@ -180,16 +184,35 @@ public partial class ReaderViewModel
         }
         OnPropertyChanged(nameof(HasBookmarks));
         OnPropertyChanged(nameof(BookmarkSummary));
+        RefreshBookmarkIndicators();   // v4.22：书签集合变化 → 按钮选中态/文案同步
     }
 
     public bool HasBookmarks => Bookmarks.Count > 0;
 
-    /// <summary>面板标题：书签（N）。</summary>
-    public string BookmarkSummary => Bookmarks.Count > 0 ? $"书签（{Bookmarks.Count}）" : "书签";
+    /// <summary>面板/按钮标题：书签列表（N）。</summary>
+    public string BookmarkSummary => Bookmarks.Count > 0 ? $"书签列表（{Bookmarks.Count}）" : "书签列表";
+
+    /// <summary>v4.22：当前页是否已加书签（书签按钮高亮状态）。</summary>
+    public bool IsCurrentPageBookmarked => Bookmarks.Contains(CurrentPhysical);
+
+    /// <summary>v4.22：书签按钮文案（选中态带 ★）。</summary>
+    public string BookmarkButtonText => IsCurrentPageBookmarked ? "★ 书签" : "书签";
+
+    /// <summary>v4.22：书签按钮选中态配色（夜间金色 / 白天蓝色，与主题一致）。</summary>
+    public string BookmarkActiveBg => IsDark ? "#4A3B0F" : "#DCEBFF";
+    public string BookmarkActiveBorder => IsDark ? "#FFD700" : "#0078D4";
+    public string BookmarkActiveForeground => IsDark ? "#FFE066" : "#005A9E";
 
     /// <summary>书签面板开关（工具栏"书签列表"按钮）。</summary>
     [ObservableProperty]
     private bool _isBookmarkPanelOpen;
+
+    /// <summary>翻页/书签变化后刷新按钮与面板状态。</summary>
+    private void RefreshBookmarkIndicators()
+    {
+        OnPropertyChanged(nameof(IsCurrentPageBookmarked));
+        OnPropertyChanged(nameof(BookmarkButtonText));
+    }
 
     /// <summary>面板里删除某条书签（由 <see cref="BookmarkItemViewModel"/> 调用）。</summary>
     public void RemoveBookmarkAt(int page)
@@ -206,24 +229,14 @@ public partial class ReaderViewModel
         App.SLog($"BOOKMARK panel={(IsBookmarkPanelOpen ? "open" : "close")}");
     }
 
-    [RelayCommand]
-    private void NextBookmark()
+    /// <summary>v4.22：清空本书全部书签（面板按钮；确认由视图层负责）。</summary>
+    public void ClearAllBookmarks()
     {
-        if (Bookmarks.Count == 0) return;
-        var next = Bookmarks.FirstOrDefault(b => b > CurrentPhysical);
-        if (next == 0 && !Bookmarks.Contains(0)) next = Bookmarks[0];
-        SetCurrentPhysical(next);
-        SaveState();
-    }
-
-    [RelayCommand]
-    private void PrevBookmark()
-    {
-        if (Bookmarks.Count == 0) return;
-        var prev = Bookmarks.LastOrDefault(b => b < CurrentPhysical);
-        if (prev == 0 && !Bookmarks.Contains(0)) prev = Bookmarks[^1];
-        SetCurrentPhysical(prev);
-        SaveState();
+        int n = Bookmarks.Count;
+        _state.ClearBookmarks(Book.Path);
+        LoadBookmarks();
+        SaveState();   // 顺带落盘当前进度
+        App.SLog($"BOOKMARK clear all ({n} 条)");
     }
 
     [RelayCommand]

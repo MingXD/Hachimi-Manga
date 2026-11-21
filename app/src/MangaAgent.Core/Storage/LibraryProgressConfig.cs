@@ -164,6 +164,46 @@ public sealed class LibraryProgressConfig
         }
     }
 
+    /// <summary>v4.22：清空某本书的全部书签（保留空列表；返回删除条数，需 Flush）。</summary>
+    public int ClearBookmarks(string key)
+    {
+        lock (_gate)
+        {
+            if (!_bookmarks.TryGetValue(key, out var list)) return 0;
+            int n = list.Count;
+            list.Clear();
+            if (n > 0) _dirty = true;
+            return n;
+        }
+    }
+
+    /// <summary>v4.22：状态快照（跨库复制/移动迁移用）。</summary>
+    public IReadOnlyDictionary<string, (int Page, ReadingMode Mode, ReadingDirection2 Direction)> StateSnapshot()
+    {
+        lock (_gate)
+        {
+            if (FileChanged()) Reload(force: true);
+            var dict = new Dictionary<string, (int, ReadingMode, ReadingDirection2)>(StringComparer.OrdinalIgnoreCase);
+            foreach (var kv in _books)
+                dict[kv.Key] = (kv.Value.Page,
+                    Enum.TryParse<ReadingMode>(kv.Value.Mode, out var m) ? m : ReadingMode.Single,
+                    Enum.TryParse<ReadingDirection2>(kv.Value.Direction, out var d) ? d : ReadingDirection2.Rtl);
+            return dict;
+        }
+    }
+
+    /// <summary>v4.22：书签快照（跨库复制/移动迁移用）。</summary>
+    public IReadOnlyDictionary<string, IReadOnlyList<BookmarkEntryInfo>> BookmarkSnapshot()
+    {
+        lock (_gate)
+        {
+            if (FileChanged()) Reload(force: true);
+            var dict = new Dictionary<string, IReadOnlyList<BookmarkEntryInfo>>(StringComparer.OrdinalIgnoreCase);
+            foreach (var kv in _bookmarks) dict[kv.Key] = kv.Value.ToList();
+            return dict;
+        }
+    }
+
     /// <summary>删除某书（或某文件夹前缀）的全部记录：状态 + 书签 + 前缀内所有书。</summary>
     public bool ClearBook(string key)
     {
@@ -287,7 +327,8 @@ public sealed class LibraryProgressConfig
         try
         {
             if (!File.Exists(FilePath)) return;
-            File.Move(FilePath, $"{FilePath}.broken-{DateTime.Now:yyyyMMdd-HHmmss}", overwrite: true);
+            // v4.22：只在异常时保留单一 .broken（覆盖式）；正常写入不产生备份文件
+            File.Move(FilePath, FilePath + ".broken", overwrite: true);
             _fpLength = -1;
             _fpMtime = DateTime.MinValue;
         }
@@ -364,8 +405,8 @@ public sealed class LibraryProgressConfig
 
         var tmp = FilePath + ".tmp";
         File.WriteAllText(tmp, root.ToJsonString(WriteOpts), new UTF8Encoding(false));
-        if (File.Exists(FilePath)) File.Replace(tmp, FilePath, FilePath + ".bak");
-        else File.Move(tmp, FilePath);
+        // v4.22：不再保留 .bak（用户不需要回滚，库根保持干净）；同卷原子替换
+        File.Move(tmp, FilePath, overwrite: true);
         UpdateFingerprint();
     }
 }

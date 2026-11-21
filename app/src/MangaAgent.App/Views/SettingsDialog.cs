@@ -54,8 +54,7 @@ public class SettingsDialog : Window
             nameof(ReaderAction.ResetView), nameof(ReaderAction.ZoomIn), nameof(ReaderAction.ZoomOut),
             nameof(ReaderAction.TogglePreview),
             nameof(ReaderAction.GoHome), nameof(ReaderAction.GoEnd),
-            nameof(ReaderAction.ToggleBookmark), nameof(ReaderAction.NextBookmark),
-            nameof(ReaderAction.PrevBookmark), nameof(ReaderAction.ToggleBookmarkPanel),
+            nameof(ReaderAction.ToggleBookmark), nameof(ReaderAction.ToggleBookmarkPanel),
         }),
         ("PagedLtr", new[] { nameof(ReaderAction.NextPage), nameof(ReaderAction.PrevPage) }),
         ("PagedRtl", new[] { nameof(ReaderAction.NextPage), nameof(ReaderAction.PrevPage) }),
@@ -441,6 +440,23 @@ public class SettingsDialog : Window
         var checkText = new TextBlock { FontSize = 11, Foreground = Brushes.Gray, TextWrapping = TextWrapping.Wrap, Text = "封面配置检查：未运行" };
         var checkBtn = new Button { Content = "检查封面配置", FontSize = 11, Padding = new Thickness(8, 3), HorizontalAlignment = HorizontalAlignment.Left };
         var cleanBtn = new Button { Content = "清理无效条目", FontSize = 11, Padding = new Thickness(8, 3), HorizontalAlignment = HorizontalAlignment.Left, IsEnabled = false };
+        var cleanBackupBtn = new Button { Content = "清理备份文件", FontSize = 11, Padding = new Thickness(8, 3), HorizontalAlignment = HorizontalAlignment.Left };
+        cleanBackupBtn.Click += (_, _) =>
+        {
+            try
+            {
+                var libFile = Path.Combine(SettingsStore.BaseDir, "libraries.txt");
+                var roots = File.Exists(libFile)
+                    ? File.ReadAllLines(libFile).Where(l => !string.IsNullOrWhiteSpace(l)).Select(l => l.Trim())
+                    : Enumerable.Empty<string>();
+                var (removed, freed) = MangaAgent.Core.Storage.LibraryFileCleaner.CleanBackups(roots, SettingsStore.BaseDir);
+                checkText.Text = removed > 0
+                    ? $"已清理备份/临时文件 {removed} 个（释放 {freed / 1024d / 1024d:F2} MB）"
+                    : "没有需要清理的备份文件（v4.22 起正常写入不再产生 .bak）";
+                MangaAgent.App.App.SLog($"CLEAN_BACKUPS {removed} 个");
+            }
+            catch (Exception ex) { checkText.Text = $"清理失败：{ex.Message}"; }
+        };
         var lastInvalid = 0;
 
         checkBtn.Click += (_, _) =>
@@ -491,9 +507,10 @@ public class SettingsDialog : Window
                 "封面与阅读记录都随资料库保存（库根下 covers.json / progress.json），移动/改名资料库后重新关联即可自动生效；" +
                 "备份或换电脑：直接复制资料库目录即可"),
             SettingRow("封面配置检查",
-                new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { checkBtn, cleanBtn } },
+                new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { checkBtn, cleanBtn, cleanBackupBtn } },
                 null,
-                "检查 covers.json 里是否有指向已删除文件夹/已删除图片的条目（资源管理器里改名/删图后可能出现）"),
+                "检查 covers.json 里是否有指向已删除文件夹/已删除图片的条目（资源管理器里改名/删图后可能出现）；" +
+                "「清理备份文件」删除库根下的 .bak/.tmp/.broken 等残留（不影响封面与进度本体）"),
             checkText,
             new TextBlock
             {
@@ -617,9 +634,7 @@ public class SettingsDialog : Window
         nameof(ReaderAction.GoHome) => "一键首页",
         nameof(ReaderAction.GoEnd) => "一键末页",
         nameof(ReaderAction.ToggleBookmark) => "当前页加/取消书签",
-        nameof(ReaderAction.NextBookmark) => "下一个书签",
-        nameof(ReaderAction.PrevBookmark) => "上一个书签",
-        nameof(ReaderAction.ToggleBookmarkPanel) => "书签列表开关",
+        nameof(ReaderAction.ToggleBookmarkPanel) => "书签列表",
         _ => action,
     };
 

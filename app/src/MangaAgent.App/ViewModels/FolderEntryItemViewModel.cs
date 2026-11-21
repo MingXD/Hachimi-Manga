@@ -272,7 +272,7 @@ public partial class FolderEntryItemViewModel : ViewModelBase
         // v3 #1：进度版异步复制（状态栏"正在复制 x/y…"）+ 失败显示原因
         var progress = new Progress<(int Done, int Total)>(p =>
             ProgressAction?.Invoke($"正在复制 {p.Done}/{p.Total}…"));
-        var (ok, error) = await Task.Run(() => MangaAgent.Core.Library.FileOps.CopyToAsync(SourcePath, dest, progress));
+        var (ok, error, _) = await Task.Run(() => MangaAgent.Core.Library.FileOps.CopyToAsync(SourcePath, dest, progress));
         if (ok) { RefreshAction?.Invoke(); ProgressAction?.Invoke("复制完成"); }
         else NotifyError?.Invoke($"复制失败：{error}");
         global::MangaAgent.App.App.SLog($"COPY {SourcePath} -> {dest} ok={ok} err={error}");

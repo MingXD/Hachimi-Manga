@@ -357,8 +357,8 @@ public sealed class FolderCoverConfig
         try
         {
             if (!File.Exists(FilePath)) return;
-            var broken = $"{FilePath}.broken-{DateTime.Now:yyyyMMdd-HHmmss}";
-            File.Move(FilePath, broken, overwrite: true);
+            // v4.22：只在异常时保留"单一" .broken 文件（覆盖式，不按时间戳堆积）；正常写入不产生备份
+            File.Move(FilePath, FilePath + ".broken", overwrite: true);
             _fpLength = -1;
             _fpMtime = DateTime.MinValue;
         }
@@ -402,10 +402,8 @@ public sealed class FolderCoverConfig
 
         var tmp = FilePath + ".tmp";
         File.WriteAllText(tmp, root.ToJsonString(WriteOpts), new UTF8Encoding(false));
-        if (File.Exists(FilePath))
-            File.Replace(tmp, FilePath, FilePath + ".bak");   // 旧内容留 .bak
-        else
-            File.Move(tmp, FilePath);
+        // v4.22：不再保留 .bak（用户不需要回滚，库根要保持干净）；Move(overwrite) 在同卷上是原子替换
+        File.Move(tmp, FilePath, overwrite: true);
         UpdateFingerprint();
     }
 

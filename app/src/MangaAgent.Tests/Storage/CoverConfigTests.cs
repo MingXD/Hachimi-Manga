@@ -141,7 +141,7 @@ public class CoverConfigTests
             var cfg = FolderCoverConfig.Load(root);
             Assert.NotNull(cfg.LastError);
             Assert.False(File.Exists(path), "坏文件应被改名备份");
-            var backups = Directory.GetFiles(root, FolderCoverConfig.FileName + ".broken-*");
+            var backups = Directory.GetFiles(root, FolderCoverConfig.FileName + ".broken");
             Assert.Single(backups);
 
             // 备份保留原内容，之后可重建
@@ -169,7 +169,7 @@ public class CoverConfigTests
             Assert.True(cfg.Flush());
             Assert.True(cfg.TrySet(f2, c2, out _));
             Assert.True(cfg.Flush());
-            Assert.True(File.Exists(cfg.FilePath + ".bak"), "第二次写入应留下 .bak");
+            Assert.False(File.Exists(cfg.FilePath + ".bak"), "v4.22 起正常写入不产生 .bak（保持库根干净）");
 
             // 外部手改（模拟用户编辑）：追加 C 的封面 → 按 mtime 重读生效
             var edited = File.ReadAllText(cfg.FilePath);

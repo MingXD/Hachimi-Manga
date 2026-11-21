@@ -120,6 +120,134 @@ public sealed class LibraryStateService : ILibraryStateStore, IDisposable
         try { Db.RemoveBookmark(bookPath, page); } catch (Exception ex) { Warn("(db)", ex.Message); }
     }
 
+    /// <summary>v4.22：清空某本书的全部书签（书签面板"清空"按钮；不动阅读进度）。</summary>
+    public void ClearBookmarks(string bookPath)
+    {
+        foreach (var root in CandidateRoots(bookPath))
+        {
+            var cfg = ConfigFor(root);
+            if (!cfg.TryKeyFor(bookPath, out var key)) continue;
+            if (cfg.ClearBookmarks(key) > 0) ScheduleFlush();
+            return;
+        }
+        try { Db.ClearBookmarks(bookPath); } catch (Exception ex) { Warn("(db)", ex.Message); }
+    }
+
+    /// <summary>v4.22：把 src 的进度/书签数据迁到 dst（复制或移动；支持文件夹前缀=其下所有书）。
+    /// 目标已存在同名数据时**以本次为准覆盖**；<paramref name="isCopy"/>=true 时源保留。
+    /// 返回 (迁入状态数, 迁入书签数)。只处理进度/书签；封面由调用方（主窗口）另行处理。</summary>
+    public (int States, int Bookmarks) CopyOrMoveBookData(string srcAbs, string dstAbs, bool isCopy)
+    {
+        if (string.IsNullOrWhiteSpace(srcAbs) || string.IsNullOrWhiteSpace(dstAbs)) return (0, 0);
+        int states = 0, bookmarks = 0;
+
+        // 源键（相对源库根）与目标键
+        var srcRoot = CandidateRoots(srcAbs).FirstOrDefault();
+        string? srcKey = srcRoot is not null && ConfigFor(srcRoot).TryKeyFor(srcAbs, out var sk) ? sk : null;
+        var dstRoot = CandidateRoots(dstAbs).FirstOrDefault();
+        string? dstKey = dstRoot is not null && ConfigFor(dstRoot).TryKeyFor(dstAbs, out var dk) ? dk : null;
+
+        // 收集源数据（库文件 → 库文件/库外）
+        var stateRows = new List<(string SrcKey, string DstAbs, int Page, ReadingMode Mode, ReadingDirection2 Dir)>();
+        var markRows = new List<(string SrcKey, string DstAbs, int Page, string? Note)>();
+        if (srcRoot is not null && srcKey is not null)
+        {
+            var cfg = ConfigFor(srcRoot);
+            foreach (var (key, st) in cfg.StateSnapshot())
+            {
+                if (!TryMapKey(key, srcKey, dstKey, dstAbs, out var dstAbsItem)) continue;
+                stateRows.Add((key, dstAbsItem, st.Page, st.Mode, st.Direction));
+            }
+            foreach (var (key, list) in cfg.BookmarkSnapshot())
+            {
+                if (list.Count == 0) continue;
+                if (!TryMapKey(key, srcKey, dstKey, dstAbs, out var dstAbsItem)) continue;
+                foreach (var b in list) markRows.Add((key, dstAbsItem, b.Page, b.Note));
+            }
+            // 目标已有同名数据 → 先清掉（本次覆盖）
+            if (dstRoot is not null && dstKey is not null && !string.Equals(srcRoot, dstRoot, StringComparison.OrdinalIgnoreCase))
+                ConfigFor(dstRoot).ClearBook(dstKey);
+        }
+
+        // 源是库外书 → 数据在 db
+        if (srcRoot is null)
+        {
+            try
+            {
+                if (Db.LoadState(srcAbs) is { } st)
+                    stateRows.Add(("", dstAbs, st.LogicalPage, st.Mode, st.Direction));
+                foreach (var b in Db.LoadBookmarkEntries(srcAbs))
+                    markRows.Add(("", dstAbs, b.Page, b.Note));
+            }
+            catch { }
+        }
+
+        // 写入目标
+        if (dstRoot is not null && dstKey is not null)
+        {
+            var dstCfg = ConfigFor(dstRoot);
+            foreach (var r in stateRows)
+            {
+                var key = RelativeKeyFor(dstRoot, r.DstAbs);
+                if (key is not null && dstCfg.TrySetState(key, r.Page, r.Mode, r.Dir)) states++;
+            }
+            foreach (var r in markRows)
+            {
+                var key = RelativeKeyFor(dstRoot, r.DstAbs);
+                if (key is null) continue;
+                dstCfg.AddBookmark(key, r.Page, r.Note);
+                bookmarks++;
+            }
+            if (!dstCfg.Flush()) Warn(dstRoot, dstCfg.LastError);
+        }
+        else
+        {
+            // 目标在库外 → 回退 db
+            foreach (var r in stateRows)
+                try { Db.SaveState(r.DstAbs, r.Page, r.Mode, r.Dir); states++; } catch { }
+            foreach (var r in markRows)
+                try { Db.AddBookmark(r.DstAbs, r.Page, r.Note); bookmarks++; } catch { }
+        }
+
+        // 移动：清源
+        if (!isCopy)
+        {
+            if (srcRoot is not null && srcKey is not null)
+            {
+                var cfg = ConfigFor(srcRoot);
+                if (cfg.ClearBook(srcKey) && !cfg.Flush()) Warn(srcRoot, cfg.LastError);
+            }
+            else
+            {
+                try
+                {
+                    if (Db.LoadState(srcAbs) is not null) Db.ClearState(srcAbs);
+                    Db.ClearBookmarks(srcAbs);
+                }
+                catch { }
+            }
+        }
+        return (states, bookmarks);
+    }
+
+    /// <summary>源键 → 目标绝对路径（同键或前缀匹配；dstKey 为空表示目标在库外）。</summary>
+    private static bool TryMapKey(string srcItemKey, string srcKey, string? dstKey, string dstAbs, out string dstAbsItem)
+    {
+        dstAbsItem = dstAbs;
+        string suffix;
+        if (srcItemKey.Equals(srcKey, StringComparison.OrdinalIgnoreCase)) suffix = "";
+        else if (srcItemKey.StartsWith(srcKey + "/", StringComparison.OrdinalIgnoreCase)) suffix = srcItemKey.Substring(srcKey.Length);
+        else return false;
+        if (dstKey is null) return suffix.Length == 0;   // 目标在库外：只迁精确匹配的书
+        dstAbsItem = suffix.Length == 0
+            ? dstAbs
+            : Path.Combine(dstAbs, suffix.TrimStart('/').Replace('/', Path.DirectorySeparatorChar));
+        return true;
+    }
+
+    private static string? RelativeKeyFor(string root, string absPath)
+        => LibraryProgressConfig.TryRelativeKey(root, absPath, out var key) ? key : null;
+
     /// <summary>删除书/文件夹时清理其进度与书签（所有候选库根；含父库根残留）。</summary>
     public void ClearBook(string bookAbsPath)
     {

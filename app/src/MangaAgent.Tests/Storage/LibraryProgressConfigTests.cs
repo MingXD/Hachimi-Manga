@@ -103,7 +103,7 @@ public class LibraryProgressConfigTests
             var cfg = LibraryProgressConfig.Load(root);
             Assert.NotNull(cfg.LastError);
             Assert.False(File.Exists(path));
-            Assert.Single(Directory.GetFiles(root, LibraryProgressConfig.FileName + ".broken-*"));
+            Assert.Single(Directory.GetFiles(root, LibraryProgressConfig.FileName + ".broken"));
         }
         finally { try { Directory.Delete(root, true); } catch { } }
     }

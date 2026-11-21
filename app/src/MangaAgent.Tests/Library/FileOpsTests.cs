@@ -133,8 +133,9 @@ public class FileOpsTests
 
             var reports = new List<(int Done, int Total)>();
             var progress = new Progress<(int Done, int Total)>(p => reports.Add(p));
-            var (ok, err) = await FileOps.CopyToAsync(src, dst, progress);
+            var (ok, err, target) = await FileOps.CopyToAsync(src, dst, progress);
             Assert.True(ok, err);
+            Assert.Equal(Path.Combine(dst, "src"), target);   // v4.22：返回实际目标路径
             Assert.Equal(3, reports.Count);                 // 3 个文件逐个报告
             Assert.Equal((3, 3), reports[^1]);              // 最后报告 = 完成
             Assert.True(File.Exists(Path.Combine(dst, "src", "sub", "c.txt")));

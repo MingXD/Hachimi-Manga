@@ -188,6 +188,24 @@ public sealed class ReadingStateStore : ILibraryStateStore, IDisposable
         return list;
     }
 
+    /// <summary>v4.22：清空某本书的全部书签（db 回退路径）。</summary>
+    public void ClearBookmarks(string bookPath)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "DELETE FROM Bookmarks WHERE Path = $p";
+        cmd.Parameters.AddWithValue("$p", ToStoragePath(bookPath));
+        cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>v4.22：删除某本书的阅读状态（db 回退路径；跨库移动数据时清源用）。</summary>
+    public void ClearState(string bookPath)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "DELETE FROM ReadingState WHERE Path = $p";
+        cmd.Parameters.AddWithValue("$p", ToStoragePath(bookPath));
+        cmd.ExecuteNonQuery();
+    }
+
     /// <summary>v4.21：本存储是即时提交的 SQLite，<see cref="ILibraryStateStore.Flush"/> 无需额外动作。</summary>
     public void Flush() { }
 

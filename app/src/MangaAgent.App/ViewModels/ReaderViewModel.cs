@@ -179,6 +179,10 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
         OnPropertyChanged(nameof(PreviewStripItemBg));
         OnPropertyChanged(nameof(PreviewStripLabel));
         OnPropertyChanged(nameof(PreviewStripHighlight));
+        // v4.22：书签按钮高亮配色随主题变化
+        OnPropertyChanged(nameof(BookmarkActiveBg));
+        OnPropertyChanged(nameof(BookmarkActiveBorder));
+        OnPropertyChanged(nameof(BookmarkActiveForeground));
     }
 
     [RelayCommand] private void ToggleTheme() => IsDark = !IsDark;

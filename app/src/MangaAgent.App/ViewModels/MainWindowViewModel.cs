@@ -771,49 +771,103 @@ public partial class MainWindowViewModel : ViewModelBase
         return item;
     }
 
-    /// <summary>v4.3 多选批量复制到指定目录（右键"复制到…"）。返回成功数。</summary>
+    /// <summary>v4.3 多选批量复制到指定目录（右键"复制到…"）。返回成功数。
+    /// v4.22：复制后把源书的**封面与进度/书签**一并带到目标（目标须在库内；封面图不在被复制目录内时跳过并计数）。</summary>
     public async Task<int> CopyPathsToAsync(IReadOnlyList<string> paths, string destDir)
     {
         var list = paths.Where(p => File.Exists(p) || Directory.Exists(p)).ToList();
         if (list.Count == 0) return 0;
-        int done = 0, fail = 0;
+        int done = 0, fail = 0, coverSkipped = 0;
         for (int i = 0; i < list.Count; i++)
         {
             StatusText = $"正在复制 {i + 1}/{list.Count}…";
-            var (ok, err) = await Task.Run(() => MangaAgent.Core.Library.FileOps.CopyToAsync(list[i], destDir));
-            if (ok) done++;
+            var coverSnapshot = SnapshotCoverForMove(list[i]);   // v4.22：复制前取源封面快照
+            var (ok, err, targetPath) = await Task.Run(() => MangaAgent.Core.Library.FileOps.CopyToAsync(list[i], destDir));
+            if (ok)
+            {
+                done++;
+                if (targetPath is not null && (File.Exists(targetPath) || Directory.Exists(targetPath)))
+                {
+                    coverSkipped += ApplyCoverAfterCopy(coverSnapshot, list[i], targetPath);
+                    try { StateService.CopyOrMoveBookData(list[i], targetPath, isCopy: true); }
+                    catch (Exception ex) { App.SLog($"COPY DATA FAIL {list[i]}: {ex.Message}"); }
+                }
+            }
             else { fail++; App.SLog($"COPY FAIL {list[i]}: {err}"); }
         }
         if (done > 0) await RefreshCurrentViewAsync();
-        StatusText = fail == 0 ? $"已复制 {done} 项" : $"复制完成：{done}/{list.Count} 项（失败 {fail}）";
+        StatusText = (fail == 0 ? $"已复制 {done} 项" : $"复制完成：{done}/{list.Count} 项（失败 {fail}）")
+                     + (coverSkipped > 0 ? $"；{coverSkipped} 项封面图不在被复制目录内未随迁" : "");
         return done;
     }
 
     /// <summary>v4.3 多选批量移动到指定目录（右键"移动到…"）。返回成功数。
-    /// v4.12：目录移动成功后迁移自定义封面记录（FolderPath 旧键 → 实际目标路径）。</summary>
+    /// v4.12：目录移动成功后迁移自定义封面记录（FolderPath 旧键 → 实际目标路径）。
+    /// v4.22：同时迁移阅读进度/书签（跨库也支持；目标已有数据以本次为准覆盖）。</summary>
     public async Task<int> MovePathsToAsync(IReadOnlyList<string> paths, string destDir)
     {
         var list = paths.Where(p => File.Exists(p) || Directory.Exists(p)).ToList();
         if (list.Count == 0) return 0;
-        int done = 0, fail = 0;
+        int done = 0, fail = 0, coverSkipped = 0;
         for (int i = 0; i < list.Count; i++)
         {
             StatusText = $"正在移动 {i + 1}/{list.Count}…";
             // v4.20：移动前快照库内封面记录（移动后源路径已不存在，取不到旧值）
             var coverSnapshot = SnapshotCoverForMove(list[i]);
-            var (ok, err, targetPath) = await Task.Run(() => MangaAgent.Core.Library.FileOps.MoveToAsync(list[i], destDir));
-            if (ok)
+            var srcPath = list[i];
+            var (ok, err, targetPath) = await Task.Run(() => MangaAgent.Core.Library.FileOps.MoveToAsync(srcPath, destDir));
+            if (!ok) { fail++; App.SLog($"MOVE FAIL {srcPath}: {err}"); continue; }
+            done++;
+            if (targetPath is not null && (File.Exists(targetPath) || Directory.Exists(targetPath)))
             {
-                done++;
-                if (targetPath is not null && Directory.Exists(targetPath))
-                    ApplyCoverAfterMove(coverSnapshot, list[i], targetPath);   // v4.20：库内 covers.json 改键
+                coverSkipped += ApplyCoverAfterMove(coverSnapshot, srcPath, targetPath);
+                try { StateService.CopyOrMoveBookData(srcPath, targetPath, isCopy: false); }
+                catch (Exception ex) { App.SLog($"MOVE DATA FAIL {srcPath}: {ex.Message}"); }
             }
-            else { fail++; App.SLog($"MOVE FAIL {list[i]}: {err}"); }
         }
         if (done > 0) await RefreshCurrentViewAsync();
-        StatusText = fail == 0 ? $"已移动 {done} 项" : $"移动完成：{done}/{list.Count} 项（失败 {fail}）";
+        StatusText = (fail == 0 ? $"已移动 {done} 项" : $"移动完成：{done}/{list.Count} 项（失败 {fail}）")
+                     + (coverSkipped > 0 ? $"；{coverSkipped} 项封面图不在被移动目录内未随迁" : "");
         return done;
     }
+
+    /// <summary>v4.22：复制后把源封面记录写到目标位置（封面图在被复制目录内才随迁；否则跳过并返回 1 计数）。</summary>
+    private int ApplyCoverAfterCopy((string Root, string Key, string Rel)? snapshot, string srcPath, string dstPath)
+    {
+        if (snapshot is not { } snap) return 0;
+        try
+        {
+            if (!TryResolveLibraryRoot(dstPath, out var dstRoot)) return 0;   // 目标不在库内：无处记录
+            var dstCfg = CoverConfigFor(dstRoot);
+            if (!dstCfg.TryKeyFor(dstPath, out var dstKey)) return 0;
+            // 封面图是否在被复制的目录内 → 随复制一起带到了目标；否则跳过（不复制图片本体）
+            var coverAbsSrc = Path.Combine(snap.Root, snap.Rel.Replace('/', Path.DirectorySeparatorChar));
+            string newRel;
+            if (snap.Rel.Equals(snap.Key, StringComparison.OrdinalIgnoreCase)
+                || snap.Rel.StartsWith(snap.Key + "/", StringComparison.OrdinalIgnoreCase))
+            {
+                newRel = dstKey + snap.Rel.Substring(snap.Key.Length);   // 图在目录内：值随键前缀替换
+            }
+            else
+            {
+                App.SLog($"COVER_COPY SKIP（封面图不在被复制目录内）{srcPath} -> {dstPath}");
+                return 1;
+            }
+            if (dstCfg.TrySetByRel(dstKey, newRel, out var err))
+            {
+                if (!dstCfg.Flush()) WarnCoverWriteFailed(dstRoot, dstCfg.LastError);
+                return 0;
+            }
+            App.SLog($"COVER_COPY FAIL {srcPath} -> {dstPath}: {err}");
+            return 1;
+        }
+        catch (Exception ex)
+        {
+            App.SLog($"COVER_COPY FAIL {srcPath} -> {dstPath}: {ex.Message}");
+            return 0;
+        }
+    }
+
 
     /// <summary>v4.20：移动前捕获库内封面快照（库根 + 配置键 + 封面相对库根路径）。</summary>
     private (string Root, string Key, string Rel)? SnapshotCoverForMove(string srcDir)
@@ -830,10 +884,11 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
     /// <summary>v4.20：目录移动后改封面键 —— 目标端写"最具体"库根；源端清掉所有候选库根里的旧键
-    /// （封面若随目录移动，值的前缀替换为目标键；否则封面在库内别处，值不变）。</summary>
-    private void ApplyCoverAfterMove((string Root, string Key, string Rel)? snapshot, string srcDir, string dstDir)
+    /// （封面若随目录移动，值的前缀替换为目标键；否则封面在库内别处、目标库没有该图 → 跳过并返回 1 计数）。</summary>
+    private int ApplyCoverAfterMove((string Root, string Key, string Rel)? snapshot, string srcDir, string dstDir)
     {
-        if (snapshot is not { } snap) return;
+        if (snapshot is not { } snap) return 0;
+        int skipped = 0;
         try
         {
             // 目标端：写到"最具体"库根（读时逐级回退，父库根无需重复写）
@@ -846,12 +901,20 @@ public partial class MainWindowViewModel : ViewModelBase
                     var newRel = snap.Rel;
                     if (snap.Rel.Equals(snap.Key, StringComparison.OrdinalIgnoreCase)
                         || snap.Rel.StartsWith(snap.Key + "/", StringComparison.OrdinalIgnoreCase))
-                        newRel = dstKey + snap.Rel.Substring(snap.Key.Length);
-                    if (dstCfg.TrySetByRel(dstKey, newRel, out var err))
                     {
-                        if (!dstCfg.Flush()) WarnCoverWriteFailed(dstRoots[0], dstCfg.LastError);
+                        newRel = dstKey + snap.Rel.Substring(snap.Key.Length);
+                        if (dstCfg.TrySetByRel(dstKey, newRel, out var err))
+                        {
+                            if (!dstCfg.Flush()) WarnCoverWriteFailed(dstRoots[0], dstCfg.LastError);
+                        }
+                        else App.SLog($"COVER_MOVE FAIL {srcDir} -> {dstDir}: {err}");
                     }
-                    else App.SLog($"COVER_MOVE FAIL {srcDir} -> {dstDir}: {err}");
+                    else
+                    {
+                        // v4.22：封面图不在被移动的目录内（跨目录共用）→ 目标库没有该图 → 跳过（不搬图片本体）
+                        App.SLog($"COVER_MOVE SKIP（封面图不在被移动目录内）{srcDir} -> {dstDir}");
+                        skipped = 1;
+                    }
                 }
             }
         }
@@ -868,6 +931,24 @@ public partial class MainWindowViewModel : ViewModelBase
                 }
                 catch (Exception ex) { App.SLog($"COVER_MOVE CLEAR FAIL {root}: {ex.Message}"); }
             }
+        }
+        return skipped;
+    }
+
+    /// <summary>v4.22：手动清理库根下的备份/临时文件（设置页按钮用）。返回 (删除数, 释放 MB)。</summary>
+    public (int Removed, double FreedMB) CleanBackupFiles()
+    {
+        try
+        {
+            var (removed, freed) = MangaAgent.Core.Storage.LibraryFileCleaner.CleanBackups(
+                Libraries.Select(l => l.Path), AppData);
+            App.SLog($"CLEAN_BACKUPS {removed} 个文件，{freed / 1024d / 1024d:F2} MB");
+            return (removed, freed / 1024d / 1024d);
+        }
+        catch (Exception ex)
+        {
+            App.SLog($"CLEAN_BACKUPS FAIL: {ex.Message}");
+            return (0, 0);
         }
     }
 
