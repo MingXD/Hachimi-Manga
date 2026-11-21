@@ -83,8 +83,18 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
     public string PreviewStripBg => IsDark ? "#CC1C1C24" : "#CCFFFFFF";
     public string PreviewStripItemBg => IsDark ? "#3A3A44" : "#E8E6E1";
     public string PreviewStripLabel => IsDark ? "#CCC" : "#333";
-    // 预览栏当前页高亮（边框/页码变色）：夜金 / 昼蓝
-    public string PreviewStripHighlight => IsDark ? "#FFD700" : "#0078D4";
+    // 预览栏当前页高亮（边框/页码变色）：夜金 / 昼深蓝（v4.23：白天改用 #0057B8，浅底更清晰）
+    public string PreviewStripHighlight => IsDark ? "#FFD700" : "#0057B8";
+    /// <summary>v4.23：当前页页码文字色（白天比边框更深一档，保证浅底可读）。</summary>
+    public string PreviewStripHighlightText => IsDark ? "#FFD700" : "#004C99";
+    /// <summary>v4.23：预览栏/书签面板内"扁平按钮"的 hover 底色（雾面半透明，两种主题都清晰）。</summary>
+    public string PreviewStripPanelHoverBg => IsDark ? "#33FFFFFF" : "#22000000";
+    /// <summary>v4.23：预览卡片普通边框色（原先硬编码 #555，白天偏深）。</summary>
+    public string PreviewStripCardBorder => IsDark ? "#555" : "#A9A6A0";
+    /// <summary>v4.23：工具栏分隔线颜色（原先硬编码 #666666）。</summary>
+    public string ToolbarSeparator => IsDark ? "#666666" : "#C8C4BC";
+    /// <summary>v4.23：书签按钮选中态的 hover 底色（选中时悬停保持高亮，不回落成普通按钮色）。</summary>
+    public string BookmarkActiveHoverBg => IsDark ? "#6B5514" : "#C7DFFF";
     public string ModeText => ViewMode switch
     {
         ViewMode.Double => "双页",
@@ -179,6 +189,12 @@ public partial class ReaderViewModel : ViewModelBase, IAsyncDisposable
         OnPropertyChanged(nameof(PreviewStripItemBg));
         OnPropertyChanged(nameof(PreviewStripLabel));
         OnPropertyChanged(nameof(PreviewStripHighlight));
+        // v4.23：预览栏/工具栏新增的主题色（否则切换白天后颜色停留在夜间值）
+        OnPropertyChanged(nameof(PreviewStripHighlightText));
+        OnPropertyChanged(nameof(PreviewStripPanelHoverBg));
+        OnPropertyChanged(nameof(PreviewStripCardBorder));
+        OnPropertyChanged(nameof(ToolbarSeparator));
+        OnPropertyChanged(nameof(BookmarkActiveHoverBg));
         // v4.22：书签按钮高亮配色随主题变化
         OnPropertyChanged(nameof(BookmarkActiveBg));
         OnPropertyChanged(nameof(BookmarkActiveBorder));

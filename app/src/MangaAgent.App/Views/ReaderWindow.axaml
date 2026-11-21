@@ -10,12 +10,6 @@
         Background="{Binding BackgroundHex}"
         KeyDown="OnKeyDown">
   <Window.Styles>
-    <!-- v4.22：书签按钮选中态（当前页是书签时高亮；夜=金、昼=蓝，与主题色一致） -->
-    <Style Selector="Button.bookmarkState.on">
-      <Setter Property="Background" Value="{Binding BookmarkActiveBg}"/>
-      <Setter Property="BorderBrush" Value="{Binding BookmarkActiveBorder}"/>
-      <Setter Property="Foreground" Value="{Binding BookmarkActiveForeground}"/>
-    </Style>
     <!-- 工具栏按钮：自定义模板（v1.9.6 根治）—— Border 铺满整个按钮，
          视觉边界 = 命中区域 = hover 高亮完全一致，消除"边缘点击无效/闪烁"。 -->
     <Style Selector="StackPanel.toolbar Button">
@@ -54,9 +48,50 @@
     <Style Selector="StackPanel.toolbar Button:pressed /template/ Border">
       <Setter Property="Background" Value="{Binding ToolbarButtonHover}"/>
     </Style>
-    <!-- 预览栏卡片/页码高亮：当前页 = 2px 主题色边框 + 页码变色 -->
+    <!-- v4.23：书签按钮选中态 —— 选择器带 StackPanel.toolbar 前缀（特异性高于上面两条），否则被工具栏默认色覆盖；
+         文字色由样式提供（按钮上不能再写 Foreground 本地值，本地值优先级最高）。 -->
+    <Style Selector="StackPanel.toolbar Button.bookmarkState.on">
+      <Setter Property="Background" Value="{Binding BookmarkActiveBg}"/>
+      <Setter Property="BorderBrush" Value="{Binding BookmarkActiveBorder}"/>
+      <Setter Property="Foreground" Value="{Binding BookmarkActiveForeground}"/>
+      <Setter Property="FontWeight" Value="Bold"/>
+    </Style>
+    <Style Selector="StackPanel.toolbar Button.bookmarkState.on:pointerover /template/ Border">
+      <Setter Property="Background" Value="{Binding BookmarkActiveHoverBg}"/>
+      <Setter Property="BorderBrush" Value="{Binding BookmarkActiveBorder}"/>
+    </Style>
+    <!-- v4.23：扁平按钮（预览栏 ▲/▼、书签面板按钮）——自定义模板，避免默认主题在白天 hover 变白 -->
+    <Style Selector="Button.panelFlat">
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="BorderThickness" Value="0"/>
+      <Setter Property="Padding" Value="6,2"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="Template">
+        <ControlTemplate>
+          <Border Background="{TemplateBinding Background}" CornerRadius="3" Padding="{TemplateBinding Padding}">
+            <ContentPresenter Content="{TemplateBinding Content}"
+                              HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                              VerticalAlignment="Center"
+                              ContentTemplate="{TemplateBinding ContentTemplate}"
+                              Foreground="{TemplateBinding Foreground}"
+                              RecognizesAccessKey="True"/>
+          </Border>
+        </ControlTemplate>
+      </Setter>
+    </Style>
+    <Style Selector="Button.panelFlat:pointerover">
+      <Setter Property="Background" Value="{Binding $parent[Window].((vm:ReaderViewModel)DataContext).PreviewStripPanelHoverBg}"/>
+    </Style>
+    <Style Selector="Button.panelFlat:pressed">
+      <Setter Property="Background" Value="{Binding $parent[Window].((vm:ReaderViewModel)DataContext).PreviewStripPanelHoverBg}"/>
+    </Style>
+    <!-- 预览栏卡片/页码高亮：当前页 = 2px 主题色边框 + 页码变色（普通边框色也主题化） -->
     <Style Selector="Border.previewCard">
-      <Setter Property="BorderBrush" Value="#555"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="BorderBrush" Value="{Binding $parent[Window].((vm:ReaderViewModel)DataContext).PreviewStripCardBorder}"/>
+    </Style>
+    <Style Selector="Border.previewCard:pointerover">
+      <Setter Property="BorderBrush" Value="{Binding $parent[Window].((vm:ReaderViewModel)DataContext).PreviewStripHighlight}"/>
     </Style>
     <Style Selector="Border.previewCard.current">
       <Setter Property="BorderBrush" Value="{Binding $parent[Window].((vm:ReaderViewModel)DataContext).PreviewStripHighlight}"/>
@@ -66,7 +101,8 @@
       <Setter Property="Foreground" Value="{Binding $parent[Window].((vm:ReaderViewModel)DataContext).PreviewStripLabel}"/>
     </Style>
     <Style Selector="TextBlock.previewLabel.current">
-      <Setter Property="Foreground" Value="{Binding $parent[Window].((vm:ReaderViewModel)DataContext).PreviewStripHighlight}"/>
+      <Setter Property="Foreground" Value="{Binding $parent[Window].((vm:ReaderViewModel)DataContext).PreviewStripHighlightText}"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
     </Style>
   </Window.Styles>
 
@@ -80,7 +116,7 @@
       <StackPanel Orientation="Horizontal" Spacing="6" Classes="toolbar">
         <!-- 设置按钮放最前，与操作按钮以竖线分隔（书名已显示在窗口标题栏，不再占工具栏） -->
         <Button Content="⚙ 设置" Click="OnSettingsClick" ToolTip.Tip="阅读设置（基准/手感/快捷键/使用介绍）" Foreground="{Binding ForegroundHex}" MinWidth="64"/>
-        <Border Width="1" Background="#666666" Margin="2,2" VerticalAlignment="Stretch"/>
+        <Border Width="1" Background="{Binding ToolbarSeparator}" Margin="2,2" VerticalAlignment="Stretch"/>
         <Button x:Name="NavPrevButton" Content="◀" Click="OnNavPrevClick" Foreground="{Binding ForegroundHex}"/>
         <Button x:Name="NavNextButton" Content="▶" Click="OnNavNextClick" Foreground="{Binding ForegroundHex}"/>
         <Button Content="{Binding PageText}" Click="OnPageTextClick" ToolTip.Tip="点击跳转到指定页 (G)" Background="Transparent" Foreground="{Binding ForegroundHex}" Padding="6,2" Margin="8,0"/>
@@ -117,11 +153,12 @@
         <Button Content="复位" Click="OnResetZoomClick" ToolTip.Tip="适应宽度" Foreground="{Binding ForegroundHex}"/>
         <Button x:Name="SensitivityButton" Content="缩放速度×1" MinWidth="84" Click="OnSensitivityClick" ToolTip.Tip="滚轮缩放灵敏度（快/中/慢）" Foreground="{Binding ForegroundHex}"/>
         <Button x:Name="WebtoonSpeedButton" Content="滚动速度×1" MinWidth="84" Click="OnWebtoonSpeedClick" ToolTip.Tip="滚动模式滚动速度（快/中/慢）" Foreground="{Binding ForegroundHex}" IsVisible="False"/>
-        <!-- v4.22：书签精简 —— 只保留"书签"（当前页开关，选中态高亮）与"书签列表"两个按钮 -->
+        <!-- v4.22：书签精简 —— 只保留"书签"（当前页开关，选中态高亮）与"书签列表"两个按钮。
+             v4.23：书签按钮不再写 Foreground 本地值（否则样式无法在高亮时改文字色）。 -->
         <Button x:Name="BookmarkToggleButton" Content="{Binding BookmarkButtonText}"
                 Command="{Binding ToggleBookmarkCommand}"
                 Classes="bookmarkState" Classes.on="{Binding IsCurrentPageBookmarked}"
-                ToolTip.Tip="当前页加/取消书签 (B)" Foreground="{Binding ForegroundHex}"/>
+                ToolTip.Tip="当前页加/取消书签 (B)"/>
         <Button Content="{Binding BookmarkSummary}" Command="{Binding ToggleBookmarkPanelCommand}" ToolTip.Tip="书签列表（L）" Foreground="{Binding ForegroundHex}"/>
       </StackPanel>
     </Border>
@@ -158,7 +195,7 @@
               <RowDefinition Height="*"/>
               <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
-            <Button Grid.Row="0" Content="▲" Click="OnPreviewStripPrev" Background="Transparent" Foreground="{Binding PreviewStripLabel}" Width="124" Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
+            <Button Grid.Row="0" Content="▲" Click="OnPreviewStripPrev" Classes="panelFlat" Foreground="{Binding PreviewStripLabel}" Width="124" Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
                     FontSize="16" Height="32" HorizontalAlignment="Center"/>
             <ItemsControl x:Name="ThumbStrip" Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center">
               <ItemsControl.ItemsPanel>
@@ -170,7 +207,7 @@
                     <StackPanel Orientation="Horizontal" Spacing="6">
                       <!-- 缩略图卡片：占位灰块+居中页码，Image 加载成功后覆盖；当前页高亮边框 -->
                       <Border Classes="previewCard" Classes.current="{Binding IsCurrent}"
-                              Background="{Binding $parent[Window].((vm:ReaderViewModel)DataContext).PreviewStripItemBg}" CornerRadius="3" ClipToBounds="True" BorderBrush="#555" BorderThickness="1"
+                              Background="{Binding $parent[Window].((vm:ReaderViewModel)DataContext).PreviewStripItemBg}" CornerRadius="3" ClipToBounds="True"
                               Width="{Binding CardWidth}" Height="{Binding CardHeight}">
                         <Grid>
                           <TextBlock Text="{Binding PageLabel}" Foreground="{Binding $parent[Window].((vm:ReaderViewModel)DataContext).PreviewStripLabel}" FontSize="16"
@@ -186,23 +223,23 @@
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
             </ItemsControl>
-            <Button Grid.Row="2" Content="▼" Click="OnPreviewStripNext" Background="Transparent" Foreground="{Binding PreviewStripLabel}" Width="124" Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
+            <Button Grid.Row="2" Content="▼" Click="OnPreviewStripNext" Classes="panelFlat" Foreground="{Binding PreviewStripLabel}" Width="124" Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
                     FontSize="16" Height="32" HorizontalAlignment="Center"/>
           </Grid>
         </Border>
         <!-- v4.21：书签面板（工具栏"书签（N）"切换；点击条目跳转，右侧 × 删除） -->
-        <Border x:Name="BookmarkPanel" Width="230" Background="{Binding PreviewStripBg}"
+        <Border x:Name="BookmarkPanel" Width="248" Background="{Binding PreviewStripBg}"
                 IsVisible="{Binding IsBookmarkPanelOpen}"
                 HorizontalAlignment="Left" VerticalAlignment="Stretch" Padding="8">
           <DockPanel>
             <TextBlock DockPanel.Dock="Top" Text="{Binding BookmarkSummary}" FontSize="12" FontWeight="SemiBold"
                        Foreground="{Binding PreviewStripLabel}" Margin="2,2,2,8"/>
             <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="6" Margin="0,0,0,8">
-              <Button Content="清空书签" Click="OnClearBookmarksClick" FontSize="11" Padding="6,2"
-                      Background="Transparent" Foreground="{Binding PreviewStripLabel}"
+              <Button Content="清空书签" Click="OnClearBookmarksClick" FontSize="11" Classes="panelFlat"
+                      Foreground="{Binding PreviewStripLabel}"
                       ToolTip.Tip="清空本书全部书签（会先确认）"/>
-              <Button Content="关闭" Click="OnBookmarkPanelClose" FontSize="11" Padding="6,2"
-                      Background="Transparent" Foreground="{Binding PreviewStripLabel}"/>
+              <Button Content="关闭" Click="OnBookmarkPanelClose" FontSize="11" Classes="panelFlat"
+                      Foreground="{Binding PreviewStripLabel}"/>
             </StackPanel>
             <ScrollViewer VerticalScrollBarVisibility="Auto">
               <ItemsControl ItemsSource="{Binding BookmarkItems}">
@@ -211,8 +248,8 @@
                     <Border Background="{Binding $parent[Window].((vm:ReaderViewModel)DataContext).PreviewStripItemBg}"
                             CornerRadius="3" Margin="0,0,0,6" Padding="6,4">
                       <Grid ColumnDefinitions="*,Auto">
-                        <Button Grid.Column="0" Background="Transparent" Padding="0" BorderThickness="0"
-                                Command="{Binding JumpCommand}" HorizontalAlignment="Left">
+                        <Button Grid.Column="0" Classes="panelFlat" Padding="4,2"
+                                Command="{Binding JumpCommand}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left">
                           <StackPanel>
                             <TextBlock Text="{Binding Label}" Foreground="{Binding $parent[Window].((vm:ReaderViewModel)DataContext).PreviewStripLabel}" FontSize="12"/>
                             <TextBlock Text="{Binding NoteText}" IsVisible="{Binding HasNote}" FontSize="10"
@@ -220,8 +257,8 @@
                                        TextTrimming="CharacterEllipsis" MaxLines="2"/>
                           </StackPanel>
                         </Button>
-                        <Button Grid.Column="1" Content="×" Command="{Binding DeleteCommand}" FontSize="12"
-                                Padding="6,0" Background="Transparent" BorderThickness="0"
+                        <Button Grid.Column="1" Content="×" Command="{Binding DeleteCommand}" FontSize="12" Classes="panelFlat"
+                                MinWidth="24" Padding="6,0"
                                 Foreground="{Binding $parent[Window].((vm:ReaderViewModel)DataContext).PreviewStripLabel}"
                                 ToolTip.Tip="删除该书签"/>
                       </Grid>
